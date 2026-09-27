@@ -1,5 +1,6 @@
 /* GIRI Go service worker – app shell offline, libraries cached, data always live.
-   No version bump needed per release: index.html is always fetched network-first, the cache is only the offline fallback. */
+   v0.29: the shell (index.html) is served from the cache at once and refreshed in the background – a cold start no longer waits
+   for GitHub. When the fresh copy differs, the page is told (→ version check → reload at a safe moment). "?v=" loads bypass the cache. */
 const CACHE = 'giri-go-shell';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE).catch(() => {}))); });
@@ -11,7 +12,14 @@ self.addEventListener('fetch', e => {
   if(url.origin === location.origin){
     // app shell: network first and always revalidated (no-cache → GitHub Pages' 10-minute HTTP cache is skipped), cache as offline fallback
     if(req.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('index.html')){
-      e.respondWith(fetch(req.url, {cache:'no-cache', credentials:'same-origin'}).then(r => { if(r.ok){ const c = r.clone(); caches.open(CACHE).then(x => x.put('./index.html', c)); } return r; }).catch(() => caches.match('./index.html'))); return; }
+      const fresh = () => fetch(req.url, {cache:'no-cache', credentials:'same-origin'});
+      if(url.search.includes('v=')){ e.respondWith(fresh().then(r => { if(r.ok){ const c = r.clone(); caches.open(CACHE).then(x => x.put('./index.html', c)); } return r; }).catch(() => caches.match('./index.html'))); return; }
+      e.respondWith(caches.match('./index.html').then(async cached => {
+        const update = fresh().then(async r => { if(!r.ok) return r; const c = r.clone(); const x = await caches.open(CACHE);
+          if(cached){ const [a, b] = await Promise.all([cached.clone().text(), r.clone().text()]); const va = /APP_VERSION = '([^']+)'/.exec(a), vb = /APP_VERSION = '([^']+)'/.exec(b); if(va && vb && va[1] !== vb[1]){ const cl = await self.clients.matchAll({type:'window'}); cl.forEach(w => w.postMessage({type:'shell-updated', v: vb[1]})); } }
+          await x.put('./index.html', c); return r; }).catch(() => null);
+        if(cached){ e.waitUntil(update); return cached; }
+        const r = await update; return r || caches.match('./index.html'); })); return; }
     // built app files (assets/index-<hash>.js|css, fonts, vendor): the hash changes with every release, so cache first is safe –
     // no round trip to GitHub Pages on every start. Old builds are dropped from the cache when a new one arrives.
     if(/\/(assets|fonts|vendor)\//.test(url.pathname)){
