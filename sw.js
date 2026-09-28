@@ -13,10 +13,14 @@ self.addEventListener('fetch', e => {
     // app shell: network first and always revalidated (no-cache → GitHub Pages' 10-minute HTTP cache is skipped), cache as offline fallback
     if(req.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('index.html')){
       const fresh = () => fetch(req.url, {cache:'no-cache', credentials:'same-origin'});
-      if(url.search.includes('v=')){ e.respondWith(fresh().then(r => { if(r.ok){ const c = r.clone(); caches.open(CACHE).then(x => x.put('./index.html', c)); } return r; }).catch(() => caches.match('./index.html'))); return; }
+      // "?v=" loads and every non-navigation request (the in-app version check!) go to the network first – v0.30.2:
+      // before, the version check got the cached shell back and never saw a new release
+      if(url.search.includes('v=') || req.mode !== 'navigate'){ e.respondWith(fresh().then(r => { if(r.ok){ const c = r.clone(); caches.open(CACHE).then(x => x.put('./index.html', c)); } return r; }).catch(() => caches.match('./index.html'))); return; }
       e.respondWith(caches.match('./index.html').then(async cached => {
         const update = fresh().then(async r => { if(!r.ok) return r; const c = r.clone(); const x = await caches.open(CACHE);
-          if(cached){ const [a, b] = await Promise.all([cached.clone().text(), r.clone().text()]); const va = /APP_VERSION = '([^']+)'/.exec(a), vb = /APP_VERSION = '([^']+)'/.exec(b); if(va && vb && va[1] !== vb[1]){ const cl = await self.clients.matchAll({type:'window'}); cl.forEach(w => w.postMessage({type:'shell-updated', v: vb[1]})); } }
+          if(cached){ const [a, b] = await Promise.all([cached.clone().text(), r.clone().text()]); const va = /APP_VERSION = '([^']+)'/.exec(a), vb = /APP_VERSION = '([^']+)'/.exec(b);
+            if(va && vb && va[1] !== vb[1]){ // tell the page – it may still be loading, so try a few times
+              for(let k = 0; k < 4; k++){ const cl = await self.clients.matchAll({type:'window', includeUncontrolled:true}); if(cl.length){ cl.forEach(w => w.postMessage({type:'shell-updated', v: vb[1]})); break; } await new Promise(res => setTimeout(res, 1200)); } } }
           await x.put('./index.html', c); return r; }).catch(() => null);
         if(cached){ e.waitUntil(update); return cached; }
         const r = await update; return r || caches.match('./index.html'); })); return; }
