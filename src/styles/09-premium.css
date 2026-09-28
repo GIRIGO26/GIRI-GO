@@ -219,3 +219,6 @@ h1,h2,h3{font-weight:700}
   .inst-banner.desk{grid-template-columns:auto 1fr}
   .inst-banner.desk .ib-acts{grid-column:2;padding-right:0}
 }
+
+.lmore{display:flex;justify-content:center;padding:14px 0 6px}
+.lmore .btn{min-width:220px}

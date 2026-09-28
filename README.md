@@ -379,3 +379,8 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Als App installieren** am PC: gleicher blauer Verlauf wie das Handy-Banner (`.inst-banner.desk`), sitzt unter der Suche statt über dem Titel.
 - **Erster Start auf einem Gerät**: Anleitungen werden in 40er-Paketen mit 4 parallelen Anfragen geladen (vorher 20er-Pakete nacheinander → bei 1.000+ Anleitungen ~10 s). Danach kommt der lokale Spiegel zum Zug, wie gehabt.
 - Neuer Button-Stil `.btn.primary` (Blau-Verlauf), Icon `IC.search`, Keys `dash_h1`, `inbox_h`, `inbox_fb_*`.
+
+## v12.38.1 – 1.000+ Anleitungen ohne Hänger
+- **Liste seitenweise**: 40 Karten, der Rest kommt beim Scrollen (IntersectionObserver) oder per „{n} weitere anzeigen“. Vorher wurden alle Karten samt Vorschaubild auf einmal gebaut – bei 1.095 Anleitungen fror die Seite. Vorschaubilder `loading="lazy"`.
+- **Cloudflare + Service Worker**: der Host leitet `/index.html` auf `/` um; die gecachte, umgeleitete Antwort (`/?v=check…`) wurde beim nächsten Start zur Seitenadresse. Der SW speichert die Shell jetzt ohne Antwort-URL (`plain()`), Versions-Check fragt `/` statt `/index.html`.
+- **Alte Medienlinks**: Geräte mit lokalem Spiegel schrieben Irland-URLs zurück. Frankfurt-DB: Trigger `instr_rewrite_old_urls` / `ws_rewrite_old_urls` schreiben `goorpzgcxhtjbaothluv` → `hcomtmogkuxxchrnticq` bei jedem Insert/Update um; App: `fixLegacyHosts()` (`src/core/config.js`) beim Laden aus dem Spiegel.

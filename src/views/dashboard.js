@@ -63,7 +63,7 @@ const statChips = (id, statMap) => { const s = statMap[id]; if(!s) return ''; re
 function instrCard(i, statMap, opts={}){
   const st = realSteps(i); const first = st.find(x => x.mediaId) || st[0]; const role = effRole(i); const fname = opts.showFolder ? folderName(i.folder) : '';
   const card = el(`<article class="card instr st-${i.status}" data-sid="${i.id}">
-    <img class="thumb" alt="" src="">
+    <img class="thumb" alt="" src="" loading="lazy" decoding="async">
     <div class="ibody"><div class="title">${titleHtml(i.title)} ${i.example?`<span class="example-tag">${t('example')}</span>`:''}</div>
       <div class="meta"><span class="chip dot ${i.status}">${t(i.status==='review'?'in_review':i.status)}</span><span class="tnum">${nOf(st.length,'step','steps')}</span><span>${fmtD(i.updatedAt)}</span>${fname?`<span class="fold">${IC.folder} ${esc(fname)}</span>`:''}${i.checklist?`<span title="${G.LANG==='de'?'Checkliste':'Checklist'}">☑</span>`:''}<span class="stx" data-stx="${i.id}">${statChips(i.id, statMap)}</span>${Object.keys(i.translations||{}).length?`<span title="${t('translations')}">${IC.globe} ${Object.keys(i.translations).length}</span>`:''}</div></div>
     <button class="imore" data-a="more" title="${t('more')}">${IC.more}</button></article>`);
@@ -152,7 +152,13 @@ async function renderDashboard(app, pid){
       else if(f) list.innerHTML = `<div class="card empty"><h2>${t('empty_title')}</h2><div>${t('empty_project')}</div>${isEditor?`<button class="btn mint" style="margin-top:14px" data-new>${IC.plus} ${t('new_instr')}</button>`:''}</div>`;
       else list.innerHTML = `<div class="card empty"><h2>${t('empty_title')}</h2><div>${t('empty_sub')}</div>${isEditor?`<button class="btn mint" style="margin-top:14px" data-new>${IC.plus} ${t('new_instr')}</button>`:''}</div>`;
       const nb = list.querySelector('[data-new]'); if(nb) nb.onclick = () => newInstrDlg(pid); return; }
-    rows.forEach(i => list.appendChild(instrCard(i, statMap, {showFolder: (!f || !!q) && folders.length > 0, onChange: render})));
+    // v12.38: 40 cards at a time – 1000+ cards with a thumbnail each froze the page; more follow when the end scrolls into view (or on tap)
+    const PAGE = 40; let shown = 0; const opts = {showFolder: (!f || !!q) && folders.length > 0, onChange: render};
+    const more = el(`<div class="lmore" id="lmore"><button class="btn ghost" id="lmore-btn"></button></div>`);
+    const addPage = () => { const slice = rows.slice(shown, shown + PAGE); slice.forEach(i => list.insertBefore(instrCard(i, statMap, opts), more)); shown += slice.length;
+      const left = rows.length - shown; if(left > 0){ more.querySelector('#lmore-btn').textContent = t('list_more', {n: Math.min(left, PAGE), total: left}); more.hidden = false; } else more.remove(); };
+    list.appendChild(more); more.querySelector('#lmore-btn').onclick = addPage; addPage();
+    if('IntersectionObserver' in window){ const io = new IntersectionObserver(es => { if(es.some(x => x.isIntersecting)){ if(!more.isConnected){ io.disconnect(); return; } addPage(); } }, {rootMargin:'600px'}); io.observe(more); }
   }
   renderList();
   const nb = v.querySelector('#new'); if(nb) nb.onclick = () => newInstrDlg(pid);

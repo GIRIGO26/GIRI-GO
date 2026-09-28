@@ -106,7 +106,7 @@ function applyUpdateIfSafe(){ if(G.pendingUpdate && updateSafe()) reloadForUpdat
 async function checkUpdate(force){
   if(!force && Date.now() - G.lastUpdCheck < 60000) return; G.lastUpdCheck = Date.now();
   // v12.37.1: this used to be one line with the code after a "//" comment – the version check silently never ran, installed apps stayed on old versions
-  try{ const r = await fetch((location.pathname.endsWith('/') ? location.pathname+'index.html' : location.pathname) + '?v=check' + Date.now(), {cache:'no-store'}); // ?v= → the service worker goes to the network
+  try{ const r = await fetch(location.pathname + '?v=check' + Date.now(), {cache:'no-store'}); // ?v= → the service worker goes to the network; v12.38: '/' not '/index.html' (Cloudflare redirects that)
     const txt = await r.text(); const m = /APP_VERSION = '([^']+)'/.exec(txt); if(!m || m[1]===APP_VERSION) return;
     G.pendingUpdate = m[1]; if(updateSafe()){ reloadForUpdate(); return; }
     if($('#upd-note')) return; const n = el(`<div class="sync show" id="upd-note" style="pointer-events:auto;cursor:pointer;background:var(--blue)">${t('update_avail',{v:m[1]})}</div>`); n.onclick = reloadForUpdate; document.body.appendChild(n);

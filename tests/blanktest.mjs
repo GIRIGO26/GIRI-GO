@@ -23,6 +23,10 @@ await d.evaluate(() => { const r = window.__tables.instructions[0]; for(let k = 
 await d.goto(BASE+'/index3.html#/x'); await d.waitForTimeout(200); await d.goto(BASE+'/index3.html#/'); await d.waitForTimeout(4000);
 const all = await d.$eval('[data-f="all"] span', e => e.textContent.trim()).catch(() => 'no chip');
 console.log('instructions in table:', await d.evaluate(() => window.__tables.instructions.length), '| dashboard "Alle":', all, +all > 1000 ? 'OK' : 'CUT OFF');
+// v12.38.1: the list renders 40 cards at a time; the rest follows on scroll / tap
+console.log('cards rendered first:', await d.$$eval('#list article.instr', x => x.length), '| more button:', await d.$eval('#lmore-btn', e => e.textContent.trim()).catch(() => 'none'));
+await d.click('#lmore-btn'); await d.waitForTimeout(400); console.log('after tap:', await d.$$eval('#list article.instr', x => x.length));
+await d.evaluate(() => window.scrollTo(0, document.body.scrollHeight)); await d.waitForTimeout(900); console.log('after scroll to end:', await d.$$eval('#list article.instr', x => x.length));
 // 3) v12.38 dashboard order: title → new + search → "for you" (approvals, worker feedback) → install → folders → list
 await d.evaluate(() => { const t = window.__tables; const r = t.instructions[0]; const c = JSON.parse(JSON.stringify(r)); c.id='rev1'; c.data.id='rev1'; c.status='review'; c.data.status='review'; c.title='Wartet'; c.data.title='Wartet'; t.instructions.push(c); t.feedback.push({id:'fb1', ws:r.ws, instr_id:r.id, status:'open', kind:'quality', text:'x', created_at:new Date().toISOString()}); });
 await d.goto(BASE+'/index3.html#/x'); await d.waitForTimeout(200); await d.goto(BASE+'/index3.html#/'); await d.waitForTimeout(2500);

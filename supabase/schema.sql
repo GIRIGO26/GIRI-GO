@@ -669,3 +669,22 @@ create trigger feedback_notify_ins after insert on public.feedback for each row 
 create or replace function public.get_google_sa() returns text language sql security definer set search_path=public as $$ select decrypted_secret from vault.decrypted_secrets where name='google_sa_json' limit 1 $$;
 revoke all on function public.get_google_sa() from public, anon, authenticated;
 grant execute on function public.get_google_sa() to service_role;
+
+-- ============================================================
+-- v12.38.1 – after the move: never let a client write the old project's media host back
+-- ============================================================
+create or replace function public.instr_rewrite_old_urls() returns trigger language plpgsql as $$
+begin
+  if new.data::text like '%goorpzgcxhtjbaothluv.supabase.co%' then new.data := replace(new.data::text, 'goorpzgcxhtjbaothluv.supabase.co', 'hcomtmogkuxxchrnticq.supabase.co')::jsonb; end if;
+  return new;
+end $$;
+drop trigger if exists instr_rewrite_old_urls on public.instructions;
+create trigger instr_rewrite_old_urls before insert or update on public.instructions for each row execute function public.instr_rewrite_old_urls();
+create or replace function public.ws_rewrite_old_urls() returns trigger language plpgsql as $$
+begin
+  if new.brand::text like '%goorpzgcxhtjbaothluv%' then new.brand := replace(new.brand::text, 'goorpzgcxhtjbaothluv.supabase.co', 'hcomtmogkuxxchrnticq.supabase.co')::jsonb; end if;
+  if new.symbols::text like '%goorpzgcxhtjbaothluv%' then new.symbols := replace(new.symbols::text, 'goorpzgcxhtjbaothluv.supabase.co', 'hcomtmogkuxxchrnticq.supabase.co')::jsonb; end if;
+  return new;
+end $$;
+drop trigger if exists ws_rewrite_old_urls on public.workspaces;
+create trigger ws_rewrite_old_urls before insert or update on public.workspaces for each row execute function public.ws_rewrite_old_urls();

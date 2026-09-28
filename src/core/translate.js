@@ -1,5 +1,6 @@
 import { mirrorAll, mirrorList, mirrorMerge, mirrorRaw, netErr } from './offline.js';
 import { t } from './i18n.js';
+import { fixLegacyHosts } from './config.js';
 import { toast } from './helpers.js';
 import { saveInstr } from './passwords.js';
 import { G, S } from './state.js';
@@ -55,7 +56,7 @@ const loadInstrs = async () => {
   await Promise.all(Array.from({length: Math.min(4, chunks.length)}, worker));
   if(error) return offlineFallback(error);
   const mem = new Map(S.instrs.map(i => [i.id, i])); // unchanged rows keep their in-memory object (editor/capture hold references)
-  const rows = heads.map(h => fresh.get(h.id) || mem.get(h.id) || local.get(h.id)).filter(Boolean);
+  const rows = heads.map(h => fresh.get(h.id) || mem.get(h.id) || (local.get(h.id) && fixLegacyHosts(local.get(h.id)))).filter(Boolean);
   rows.forEach(i => { if(!fresh.has(i.id)) rememberRemote(i); });
   S.instrs = await mirrorMerge(rows, have); await mirrorAll(S.instrs, fresh, have);
   G.lastSync = Date.now(); const changed = S.instrs.map(i => i.id+':'+(i.updatedAt||0)).join(',') !== sig0;
