@@ -1,6 +1,6 @@
 {
-  "name": "GIRI Go",
-  "short_name": "GIRI Go",
+  "name": "GIRI",
+  "short_name": "GIRI",
   "description": "Video-Arbeitsanleitungen in Minuten: aufnehmen, freigeben, per QR-Code teilen.",
   "start_url": "./",
   "scope": "./",
