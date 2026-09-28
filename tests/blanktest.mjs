@@ -23,5 +23,13 @@ await d.evaluate(() => { const r = window.__tables.instructions[0]; for(let k = 
 await d.goto(BASE+'/index3.html#/x'); await d.waitForTimeout(200); await d.goto(BASE+'/index3.html#/'); await d.waitForTimeout(4000);
 const all = await d.$eval('[data-f="all"] span', e => e.textContent.trim()).catch(() => 'no chip');
 console.log('instructions in table:', await d.evaluate(() => window.__tables.instructions.length), '| dashboard "Alle":', all, +all > 1000 ? 'OK' : 'CUT OFF');
+// 3) v12.38 dashboard order: title → new + search → "for you" (approvals, worker feedback) → install → folders → list
+await d.evaluate(() => { const t = window.__tables; const r = t.instructions[0]; const c = JSON.parse(JSON.stringify(r)); c.id='rev1'; c.data.id='rev1'; c.status='review'; c.data.status='review'; c.title='Wartet'; c.data.title='Wartet'; t.instructions.push(c); t.feedback.push({id:'fb1', ws:r.ws, instr_id:r.id, status:'open', kind:'quality', text:'x', created_at:new Date().toISOString()}); });
+await d.goto(BASE+'/index3.html#/x'); await d.waitForTimeout(200); await d.goto(BASE+'/index3.html#/'); await d.waitForTimeout(2500);
+console.log('order:', await d.evaluate(() => [...document.querySelectorAll('.dash > *')].map(e => e.id || e.className.split(' ')[0]).join(' > ')));
+console.log('h1:', await d.$eval('.dash h1', e => e.textContent.trim()), '| new button primary:', await d.$eval('#new', e => e.classList.contains('primary')), '| search in bar:', !!(await d.$('.dash-bar #q')));
+console.log('for you:', await d.$$eval('#inbox .ibx', x => x.map(e => e.textContent.trim().replace(/\s+/g,' ')).join(' | ')));
+await d.click('#todo-fb'); await d.waitForTimeout(800); console.log('feedback filter → rows:', await d.$$eval('#list article.instr', x => x.length), '| chip on:', await d.$eval('#todo-fb', e => e.classList.contains('on')));
+await d.click('#todo-fb'); await d.waitForTimeout(500);
 console.log(errs.join('\n')||'NO ERRORS');
 await browser.close();

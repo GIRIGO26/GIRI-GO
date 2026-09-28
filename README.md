@@ -372,4 +372,10 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Ordner löschen** mit Inhalt: Dialog fragt „nur Ordner“ oder „samt Anleitungen in den Papierkorb“.
 - Team-Auswahl: eigener Pfeil, kompakte Breite.
 - Tests: `blanktest` (leere Schritte, >1000), Erweiterungen in `foldertest`/`migtest`. 32 Tests grün.
-- Hosting: Cloudflare Workers (`wrangler.jsonc`, `npm run build:cf` → `dist/`), Deploy bei jedem Push auf `main`. Backend: Supabase Frankfurt (`window.GIRI_CONFIG` in `app/index.html`).
+
+## v12.38.0 – Startseite neu sortiert, erster Start schneller
+- **Reihenfolge**: Titel „Anleitungen / SOPs“ → **Neue Anleitung** (blau, groß, links) + Suche in einer Zeile → **Für dich** (Anleitungen, die auf Freigabe warten · offene Rückmeldungen von Werkern, je als Filter-Chip) → Als-App-installieren → Team → Ordner → Liste. Auf dem Handy untereinander, Knopf und Chips in voller Breite.
+- „Für dich“ wächst mit: weitere Punkte (z. B. noch zu filmende Schritte) kommen an dieselbe Stelle. Feedback-Chip filtert die Liste auf Anleitungen mit offenem Feedback (`stF='fb'`).
+- **Als App installieren** am PC: gleicher blauer Verlauf wie das Handy-Banner (`.inst-banner.desk`), sitzt unter der Suche statt über dem Titel.
+- **Erster Start auf einem Gerät**: Anleitungen werden in 40er-Paketen mit 4 parallelen Anfragen geladen (vorher 20er-Pakete nacheinander → bei 1.000+ Anleitungen ~10 s). Danach kommt der lokale Spiegel zum Zug, wie gehabt.
+- Neuer Button-Stil `.btn.primary` (Blau-Verlauf), Icon `IC.search`, Keys `dash_h1`, `inbox_h`, `inbox_fb_*`.

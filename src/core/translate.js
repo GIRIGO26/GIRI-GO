@@ -49,11 +49,11 @@ const loadInstrs = async () => {
   const have = await mirrorRaw(); const local = new Map(have.map(m => [m.id, m.row]));
   const need = heads.filter(h => { const l = local.get(h.id); return !l || (l.updatedAt||0) !== new Date(h.updated_at).getTime(); }).map(h => h.id);
   const fresh = new Map();
-  for(let k = 0; k < need.length; k += 20){ // in chunks – URL length
-    let rows = null; try{ ({data:rows, error} = await G.sb.from('instructions').select('*').in('id', need.slice(k, k+20))); }catch(e){ error = e; }
-    if(error) return offlineFallback(error);
-    (rows||[]).forEach(r => fresh.set(r.id, rowToInstr(r)));
-  }
+  // v12.38: chunks of 40 ids, 4 requests in flight – the first login on a device with 1000+ instructions took ~10 s with 20 ids per sequential request
+  const chunks = []; for(let k = 0; k < need.length; k += 40) chunks.push(need.slice(k, k+40));
+  let next = 0; const worker = async () => { while(next < chunks.length && !error){ const ids = chunks[next++]; let rows = null; try{ const r = await G.sb.from('instructions').select('*').in('id', ids); rows = r.data; if(r.error) error = r.error; }catch(e){ error = e; } (rows||[]).forEach(r => fresh.set(r.id, rowToInstr(r))); } };
+  await Promise.all(Array.from({length: Math.min(4, chunks.length)}, worker));
+  if(error) return offlineFallback(error);
   const mem = new Map(S.instrs.map(i => [i.id, i])); // unchanged rows keep their in-memory object (editor/capture hold references)
   const rows = heads.map(h => fresh.get(h.id) || mem.get(h.id) || local.get(h.id)).filter(Boolean);
   rows.forEach(i => { if(!fresh.has(i.id)) rememberRemote(i); });

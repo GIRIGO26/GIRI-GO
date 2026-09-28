@@ -92,7 +92,7 @@ async function renderDashboard(app, pid){
   G.statCache = G.statCache || {}; let statMap = G.statCache[S.user.ws] || {};
   const loadStats = async () => { const m = {}; const [a, b] = await Promise.all([G.sb.from('instr_stats').select('*').eq('ws', S.user.ws), G.sb.from('feedback').select('instr_id,status').eq('ws', S.user.ws).eq('status', 'open')]);
     (a.data||[]).forEach(r => m[r.instr_id] = r); (b.data||[]).forEach(r => { m[r.instr_id] = m[r.instr_id] || {views:0}; m[r.instr_id].fb = (m[r.instr_id].fb||0)+1; }); return m; };
-  if(online()) loadStats().then(m => { G.statCache[S.user.ws] = m; if(JSON.stringify(m) === JSON.stringify(statMap)) return; statMap = m; $$('[data-stx]').forEach(el => { el.innerHTML = statChips(el.dataset.stx, statMap); }); }).catch(() => {});
+  if(online()) loadStats().then(m => { G.statCache[S.user.ws] = m; if(JSON.stringify(m) === JSON.stringify(statMap)) return; statMap = m; $$('[data-stx]').forEach(el => { el.innerHTML = statChips(el.dataset.stx, statMap); }); if(G.onStats) G.onStats(); }).catch(() => {});
   // the folder in view (if any)
   const f = pid ? (pid==='none' ? {id:'none', name:t('no_folder'), teams:[]} : folders.find(x=>x.id===pid)) : null; if(pid && !f) return go('');
   // team filter – only when there is something to choose (two or more teams this person is in; admins: all teams)
@@ -103,7 +103,7 @@ async function renderDashboard(app, pid){
   // status filter (the "waiting for approval" to-do) and search
   let stF = ''; try{ stF = sessionStorage.getItem('gg_stf') || ''; }catch(e){} let q = '';
   const canApprove = S.user.isAdmin || S.user.role==='reviewer' || S.user.role==='admin';
-  const revN = visible.filter(i => i.status==='review' && inTeam(i, teamF)).length; if(!revN) stF = '';
+  const revN = visible.filter(i => i.status==='review' && inTeam(i, teamF)).length; if(!revN && stF==='review') stF = '';
   const inFolder = (i, fid) => fid==='all' ? true : fid==='none' ? isLoose(i) : i.folder===fid;
   const cnt = fid => visible.filter(i => inFolder(i, fid) && inTeam(i, teamF)).length;
   const looseN = cnt('none');
@@ -123,23 +123,28 @@ async function renderDashboard(app, pid){
     ? `<div class="tfilter" id="tfilter"><span class="tlbl">${t('team_lbl')}</span><button class="fch sm ${!teamF?'on':''}" data-t="">${t('team_filter_all')}</button>${tl.map(tm => `<button class="fch sm ${teamF===tm.id?'on':''}" data-t="${tm.id}">${esc(tm.name)}</button>`).join('')}<button class="fch sm ${teamF==='none'?'on':''}" data-t="none">${t('team_none')}</button></div>`
     : `<div class="tfilter" id="tfilter"><span class="tlbl">${t('team_lbl')}</span><select id="tsel" class="tsel"><option value="">${t('team_filter_all')}</option>${tl.map(tm => `<option value="${tm.id}" ${teamF===tm.id?'selected':''}>${esc(tm.name)}</option>`).join('')}<option value="none" ${teamF==='none'?'selected':''}>${t('team_none')}</option></select><span class="muted" style="font-size:12.5px">${t('team_of_n', {n:tl.length})}</span></div>`) : '';
   const teamNames = f ? teamNamesOf(f.teams) : [];
+  // v12.38: page order = title → (new instruction + search) → "for you" (approvals, feedback) → install → team → folders → list
+  const fbCount = () => visible.filter(i => inTeam(i, teamF) && statMap[i.id] && statMap[i.id].fb).length;
+  const inboxHtml = () => { const fbN = fbCount(); const items = [];
+    if(revN && canApprove) items.push(`<button class="ibx ${stF==='review'?'on':''}" id="todo">${IC.check}<span>${revN===1?t('todo_review_one'):t('todo_review_many',{n:revN})}</span><b>${stF==='review' ? '×' : '→'}</b></button>`);
+    if(fbN) items.push(`<button class="ibx ${stF==='fb'?'on':''}" id="todo-fb">${IC.msg}<span>${fbN===1?t('inbox_fb_one'):t('inbox_fb_many',{n:fbN})}</span><b>${stF==='fb' ? '×' : '→'}</b></button>`);
+    return items.length ? `<span class="tlbl">${t('inbox_h')}</span>${items.join('')}` : ''; };
   const v = el(`<main class="page dash">
-    <div class="dash-head"><div class="dash-title">${f ? `<div class="eyebrow">${IC.folder} ${t('folder')}</div>` : ''}<h1>${f ? esc(f.name) : t('instructions')}${f && f.id!=='none' && isEditor ? `<button class="pen-btn" id="fren" title="${t('rename_folder')}">${IC.edit}</button>`:''}</h1></div>
-      <div class="row dash-acts">${isEditor ? `<button class="btn mint" id="new">${IC.plus} ${t('new_instr')}</button>`:''}</div></div>
+    <div class="dash-head"><div class="dash-title">${f ? `<div class="eyebrow">${IC.folder} ${t('folder')}</div>` : ''}<h1>${f ? esc(f.name) : t('dash_h1')}${f && f.id!=='none' && isEditor ? `<button class="pen-btn" id="fren" title="${t('rename_folder')}">${IC.edit}</button>`:''}</h1></div></div>
+    <div class="dash-bar">${isEditor ? `<button class="btn primary" id="new">${IC.plus} ${t('new_instr')}</button>`:''}<label class="searchwrap">${IC.search || ''}<input class="search" id="q" type="search" placeholder="${t('search_ph')}" autocomplete="off"></label></div>
+    <div class="inbox" id="inbox">${inboxHtml()}</div>
     <div id="inst-slot"></div>
     ${teamChips}
     ${chips}
     ${f ? `<div class="fhead" id="fhead"><span class="muted">${nOf(cnt(f.id),'instruction','instructions')}${teamNames.length?` · 👥 ${esc(teamNames.join(', '))}`:''}${f.pw?' · 🔒':''}</span>${f.id!=='none' ? `<button class="btn ghost sm" id="fmore">${IC.more} ${t('folder')}</button>`:''}</div>` : ''}
-    ${revN && canApprove ? `<button class="todo ${stF==='review'?'on':''}" id="todo"><span>${IC.check} ${revN===1?t('todo_review_one'):t('todo_review_many',{n:revN})}</span><b>${stF==='review' ? '× '+t('show_all') : '→'}</b></button>` : ''}
-    ${visible.length > 8 || folders.length > 12 ? `<input class="search" id="q" type="search" placeholder="${t('search_ph')}" autocomplete="off">` : ''}
     <div class="list" id="list"></div>
     ${hiddenN?`<p class="muted" style="margin-top:10px;font-size:12px">${t('folder_hidden',{n:hiddenN})}</p>`:''}
   </main>`);
   app.appendChild(v);
-  const ln = linkNote(); if(ln) v.querySelector('#inst-slot').appendChild(ln); const ban = ln ? null : installBanner(); if(ban) v.insertBefore(ban, v.firstChild); const inst = (ln || ban) ? null : installNote(); if(inst) v.querySelector('#inst-slot').appendChild(inst);
+  const ln = linkNote(); if(ln) v.querySelector('#inst-slot').appendChild(ln); const ban = ln ? null : installBanner(); if(ban) v.querySelector('#inst-slot').appendChild(ban); const inst = (ln || ban) ? null : installNote(); if(inst) v.querySelector('#inst-slot').appendChild(inst);
   // (no separate "recently edited" row any more – the list itself is sorted by last change)
   const list = v.querySelector('#list');
-  const inScope = i => (q ? true : inFolder(i, f ? f.id : 'all')) && inTeam(i, teamF) && (!stF || i.status===stF) && matchQ(i);
+  const inScope = i => (q ? true : inFolder(i, f ? f.id : 'all')) && inTeam(i, teamF) && (!stF || (stF==='fb' ? !!(statMap[i.id] && statMap[i.id].fb) : i.status===stF)) && matchQ(i);
   function renderList(){
     const rows = visible.filter(inScope).sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0)); list.innerHTML = '';
     if(!rows.length){
@@ -152,7 +157,9 @@ async function renderDashboard(app, pid){
   renderList();
   const nb = v.querySelector('#new'); if(nb) nb.onclick = () => newInstrDlg(pid);
   const qi = v.querySelector('#q'); if(qi) qi.oninput = () => { q = qi.value.trim().toLowerCase(); fq = q; const fc = v.querySelector('#fchips'); if(fc){ fc.innerHTML = folderChips(); wireChips(); } renderList(); };
-  const td = v.querySelector('#todo'); if(td) td.onclick = () => { stF = stF==='review' ? '' : 'review'; try{ sessionStorage.setItem('gg_stf', stF); }catch(e){} render(); };
+  const wireInbox = () => { const td = v.querySelector('#todo'); if(td) td.onclick = () => { stF = stF==='review' ? '' : 'review'; try{ sessionStorage.setItem('gg_stf', stF); }catch(e){} render(); };
+    const tf = v.querySelector('#todo-fb'); if(tf) tf.onclick = () => { stF = stF==='fb' ? '' : 'fb'; try{ sessionStorage.setItem('gg_stf', stF); }catch(e){} render(); }; };
+  wireInbox(); G.onStats = () => { const ib = v.querySelector('#inbox'); if(ib){ ib.innerHTML = inboxHtml(); wireInbox(); } if(stF==='fb') renderList(); };
   $$('#tfilter button', v).forEach(b => b.onclick = () => { try{ sessionStorage.setItem('gg_team', b.dataset.t); }catch(e){} render(); });
   const ts = v.querySelector('#tsel'); if(ts) ts.onchange = () => { try{ sessionStorage.setItem('gg_team', ts.value); }catch(e){} render(); };
   const wireChips = () => { const fa = v.querySelector('#fadd'); if(fa) fa.onclick = async () => { const nf = await newFolderDlg(); if(nf) go('p/'+nf.id); }; const fh = v.querySelector('#fhide'); if(fh) fh.onclick = () => { hideEmpty = !hideEmpty; try{ sessionStorage.setItem('gg_fhide', hideEmpty ? '1' : '0'); }catch(e){} v.querySelector('#fchips').innerHTML = folderChips(); wireChips(); }; };

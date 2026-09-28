@@ -15,9 +15,10 @@ async function doInstall(){ if(!G.installPrompt){ if(isIOS()) toast(t('install_i
 
 function installNote(){ // dashboard card, once per device, never inside the installed app
   if(isStandalone() || isPhone()) return null; try{ if(localStorage.getItem('gg_inst_dismissed')) return null; }catch(e){} // phones get the banner (or asked for quiet)
-  const n = el(`<div class="card inst-note" id="inst-note"><span class="big">📲</span><div><b>${t('install_app')}</b><div class="muted">${t('install_sub')}</div></div><div class="row"><button class="btn sm" data-guide>${t('install_how')}</button><button class="btn ghost sm" data-later>${t('later')}</button></div></div>`);
+  // v12.38: the same eye-catching gradient banner as on phones – a plain grey card was easy to overlook
+  const n = el(`<div class="inst-banner desk" id="inst-note"><button class="x" data-later aria-label="close">×</button><div class="ib-ico">📲</div><div class="ib-txt"><b>${t('install_app')}</b><span>${t('install_sub')}</span></div><div class="ib-acts"><button class="ib-btn" data-guide>${t('install_how')}</button><button class="ib-later" data-later>${t('later')}</button></div></div>`);
   n.querySelector('[data-guide]').onclick = () => installGuide();
-  n.querySelector('[data-later]').onclick = () => { try{ localStorage.setItem('gg_inst_dismissed', '1'); }catch(e){} n.remove(); };
+  n.querySelectorAll('[data-later]').forEach(b => b.onclick = () => { try{ localStorage.setItem('gg_inst_dismissed', '1'); }catch(e){} n.remove(); });
   return n;
 }
 
