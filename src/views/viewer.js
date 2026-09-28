@@ -1,9 +1,14 @@
+import { trackEnd } from '../annotations/track.js';
 import { drawAll, onImgReady } from '../annotations/draw.js';
 import { render } from '../app/router.js';
 import { loadProfile, realSteps } from '../core/auth.js';
-import { $$, confirmM, el, esc, modal, toast } from '../core/helpers.js';
+import { $, $$, confirmM, el, esc, modal, toast } from '../core/helpers.js';
 import { I18N, fmtDate, loadUiLang, t } from '../core/i18n.js';
 import { fetchInstr } from '../core/passwords.js';
+import { online } from '../core/offline.js';
+import { applyCachedAssets, cacheDel, cacheGet, cacheMedia, cachePrune, cachePut, cacheStatus, cacheTouch } from '../core/viewcache.js';
+import { isShareKey } from '../core/links.js';
+import { installGuide, isStandalone } from '../app/pwa.js';
 import { mdToHtml, mdToPlain, titleHtml } from '../core/richtext.js';
 import { G, S, loadBrand, mediaUrl, putMedia } from '../core/state.js';
 import { DB, LS, uid } from '../core/storage.js';
@@ -12,7 +17,7 @@ import { FLAGS, LANGS, hasTx, rowToInstr, srcHash, withLang } from '../core/tran
 import { extOf } from '../core/uploads.js';
 import { confirmSteps } from '../core/workspace.js';
 import { IC } from '../ui/icons.js';
-import { nOf, stepPoster } from './dashboard.js';
+import { nOf, posterCache, stepPoster } from './dashboard.js';
 import { debounce, debounces } from './editor.js';
 
 
@@ -29,32 +34,67 @@ function passwordGate(app, tryOpen, key){
 
 
 /* ---------- Viewer ---------- */
-async function renderViewer(app, id, isPreview, langArg, arg2){
-  // #/v/<id>/<lang>, #/v/<id>/<chapter>, #/v/<id>/<chapter>/<lang> – in any order
-  const urlArgs = [langArg, arg2].filter(Boolean); const chapArg = +(urlArgs.find(x => /^\d+$/.test(x))||0); langArg = urlArgs.find(x => /^[a-z]{2}$/i.test(x)) || '';
+async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
+  // #/v/<id>/<key>/<lang>, #/v/<id>/<key>/<chapter>, …/<chapter>/<lang> – in any order; the key (v0.33) is what makes the link open without login
+  const urlArgs = [langArg, arg2, arg3].filter(Boolean); const chapArg = +(urlArgs.find(x => /^\d+$/.test(x))||0); langArg = urlArgs.find(x => /^[a-z]{2}$/i.test(x)) || ''; let shareKey = urlArgs.find(isShareKey) || '';
   if(!G.authReady){ await loadProfile(); G.authReady = true; }
   app.innerHTML = `<div class="empty" style="padding-top:120px">…</div>`;
-  let instr0 = (S.instrs.find(i=>i.id===id)) || await fetchInstr(id);
+  let instr0 = S.instrs.find(i=>i.id===id) || null;
   const PWKEY = 'gg_pw_'+id;
+  // ---- offline copy: no network → the saved copy; slow network → the copy right away, the server version follows in the background ----
+  let cached = null, fromCache = false, newerRow = null;
+  const fetchRow = async () => { try{ const {data, error} = await G.sb.from('instructions').select('*').eq('id', id).maybeSingle(); if(error) return {err:error}; return {row: data ? rowToInstr(data) : null}; }catch(e){ return {err:e}; } };
   if(!instr0 && !isPreview){
+    cached = await cacheGet(id);
+    if(cached && !online()){ instr0 = cached.instr; fromCache = true; }
+    else {
+      const p = fetchRow(); const r = cached ? await Promise.race([p, new Promise(res => setTimeout(() => res('timeout'), 4000))]) : await p;
+      if(r==='timeout' || (r && r.err)){ if(cached){ instr0 = cached.instr; fromCache = true; if(r==='timeout') p.then(x => { if(x && x.row && (x.row.updatedAt||0) > (cached.instr.updatedAt||0)) newerRow = x.row; }); } }
+      else if(r && r.row) instr0 = r.row;
+      else if(cached && r && !r.row){ /* gone or unpublished meanwhile */ }
+    }
+  }
+  if(!instr0 && !isPreview && !fromCache){
     // not readable → maybe a password-protected link: the RPC checks the project/team password server-side
-    const tryOpen = async pw => { try{ const {data, error} = await G.sb.rpc('open_instr', {p_id:id, p_pw: pw||null}); if(error) return null; return data; }catch(e){ return null; } };
+    const tryOpen = async pw => { try{ const {data, error} = await G.sb.rpc('open_instr', {p_id:id, p_pw: pw||null, p_key: shareKey||null}); if(error) return {err:true}; return data; }catch(e){ return {err:true}; } };
     let res = await tryOpen(LS.get(PWKEY));
+    if(res && res.stale){ app.innerHTML = `<main class="page page-narrow"><div class="card empty"><h2>${esc(res.title||'')}</h2><div>${t('link_stale')}</div><br><a class="btn" href="#/">GIRI</a></div></main>`; return; }
     if(res && res.locked){ app.innerHTML = ''; res = await passwordGate(app, tryOpen, PWKEY); }
     if(res && !res.locked && res.row) instr0 = rowToInstr(res.row);
+    else if(res && res.err && cached){ instr0 = cached.instr; fromCache = true; } // request failed → the copy
+    else if(!res && cached && online()) cacheDel(id).catch(() => {}); // unpublished / deleted → drop the copy
   }
   app.innerHTML = '';
-  if(!instr0){ app.innerHTML = `<main class="page page-narrow"><div class="card empty"><h2>404</h2><div>${t('not_pub')}</div><br><a class="btn" href="#/">GIRI Go</a></div></main>`; return; }
-  if(!isPreview && instr0.status!=='published' && !(S.user && S.user.ws===instr0.ws)){ app.innerHTML = `<main class="page page-narrow"><div class="card empty"><h2>${esc(instr0.title)}</h2><div>${t('not_pub')}</div><br><a class="btn" href="#/">GIRI Go</a></div></main>`; return; }
+  if(!instr0){ app.innerHTML = `<main class="page page-narrow"><div class="card empty"><h2>404</h2><div>${t('not_pub')}</div><br><a class="btn" href="#/">GIRI</a></div></main>`; return; }
+  if(!isPreview && instr0.status!=='published' && !(S.user && S.user.ws===instr0.ws)){ app.innerHTML = `<main class="page page-narrow"><div class="card empty"><h2>${esc(instr0.title)}</h2><div>${t('not_pub')}</div><br><a class="btn" href="#/">GIRI</a></div></main>`; return; }
   // ---- language: one link for all languages; the device remembers the worker's choice ----
   const prevLang = G.LANG; let vlang = ''; try{ vlang = (langArg || localStorage.getItem('gg_vlang') || '').toUpperCase(); }catch(e){}
   if(!LANGS.some(([k]) => k===vlang)) vlang = '';
   const fresh = l => hasTx(instr0, l) && instr0.translations[l].hash===srcHash(instr0);
+  // v12.37.1: steps without any content (no text, no picture/video, no symbols – e.g. an empty last step from an import) are not shown to workers
+  const isBlank = st => st.kind!=='chapter' && (st.type==='empty' || (!st.mediaId && !st.mediaUrl)) && !(st.title||'').trim() && !(st.desc||'').trim() && !(st.warn||'').trim() && !(st.ann||[]).length;
+  if((instr0.steps||[]).some(isBlank)) instr0 = Object.assign({}, instr0, {steps: instr0.steps.filter(st => !isBlank(st))});
   let cur = (vlang && fresh(vlang)) ? withLang(instr0, vlang) : instr0; if(vlang && cur===instr0 && hasTx(instr0, vlang)) cur = withLang(instr0, vlang); // stale cache is still better than nothing while we refresh
   const uiFor = l => I18N[l.toLowerCase()] ? l.toLowerCase() : (l==='DE' ? 'de' : 'en');
   if(vlang) G.LANG = uiFor(vlang);
   const instr = instr0;
-  const brand = await loadBrand(instr.ws);
+  let brand = (fromCache && cached && cached.brand) ? Object.assign({}, cached.brand) : await loadBrand(instr.ws);
+  if(!fromCache && cached && cached.brand && !online()) brand = Object.assign({}, cached.brand);
+  const brandSrc = Object.assign({}, brand); // with the original logo URL (what gets saved)
+  brand = await applyCachedAssets(instr, brand);
+  // ---- keep a copy on the device: every published instruction a worker opens (media download in the background) ----
+  const offlineOK = !isPreview && instr.status==='published';
+  let offPill = null; const showOff = (txt, cls, hideAfter) => { if(!offPill){ offPill = el('<div class="vw-off" id="vw-off"></div>'); app.appendChild(offPill); } offPill.textContent = txt; offPill.className = 'vw-off show ' + (cls||''); clearTimeout(offPill._t); if(hideAfter) offPill._t = setTimeout(() => offPill.classList.remove('show'), hideAfter); };
+  let offState = {done:0, total:0};
+  if(offlineOK){
+    (async () => { try{
+      if(fromCache) await cacheTouch(instr.id); else await cachePut(instr, brandSrc);
+      offState = await cacheStatus(instr, brandSrc);
+      if(fromCache && !online()) showOff(t('off_copy'), 'copy', 5000);
+      if(online() && offState.done < offState.total){ showOff(t('off_saving', {n:offState.done, total:offState.total}), 'busy'); const r = await cacheMedia(instr, brandSrc, p => { offState = p; showOff(t('off_saving', {n:p.done, total:p.total}), 'busy'); }); offState = r; realSteps(instr).forEach(st => { if(st.type==='photo') [...posterCache.keys()].filter(k => k.startsWith(st.mediaId+':')).forEach(k => posterCache.delete(k)); }); if(r.failed) showOff(t('off_partial', {n:r.failed}), 'warn', 6000); else showOff(t('off_ready'), 'ok', 3500); }
+      cachePrune();
+    }catch(e){} })();
+  }
   const steps = realSteps(instr); const chapters = []; let curCh = null;
   // ---- view tracking (only real viewer opens of published instructions) ----
   const track = {id:uid(), t0:Date.now(), seen:0, completed:false, saved:false};
@@ -115,40 +155,45 @@ async function renderViewer(app, id, isPreview, langArg, arg2){
   const v = el(`<div class="viewer ${brand.theme==='light'?'light':''}" style="--brand:${esc(brand.color||'#004EAD')}">
     <div class="vw-top">${(isPreview || S.user) ? `<a class="round" href="${backHref}" id="vback" style="width:40px;height:40px;flex:0 0 auto" aria-label="back">${IC.back}</a>` : ''}${brand.logo?`<img class="vlogo" src="${esc(brand.logo)}" alt="">`:''}<div class="tt-wrap"><div class="ch" id="vch">${esc(brand.name||'')}</div><div class="ttl" id="vttl"></div></div><span class="cnt tnum" id="vcnt" style="flex:0 0 auto;font-weight:800;font-size:13px;background:rgba(255,255,255,.18);padding:4px 10px;border-radius:999px"></span><button class="round langbtn" id="langbtn" style="width:40px;height:40px;flex:0 0 auto" title="${t('language')}">${IC.globe}</button><button class="round" id="menu" style="width:40px;height:40px;flex:0 0 auto" aria-label="menu">${IC.menu}</button></div>
     <div class="vw-scroll" id="vs"></div>
-    <aside class="vw-side" id="side"><div class="row" style="justify-content:space-between"><b id="side-h">${t('chapters')}</b><button class="round" id="sclose" style="width:36px;height:36px">${IC.close}</button></div><div id="sidelist"></div>${useChk && !isPreview ? `<button class="btn mint" id="finish" style="width:100%;margin-top:16px">${t('finish')}</button>`:''}</aside>
+    <aside class="vw-side" id="side"><div class="row" style="justify-content:space-between"><b id="side-h">${t('chapters')}</b><button class="round" id="sclose" style="width:36px;height:36px">${IC.close}</button></div><div id="sidelist"></div>${useChk && !isPreview ? `<button class="btn mint" id="finish" style="width:100%;margin-top:16px">${t('finish')}</button>`:''}${offlineOK ? `<div class="side-off" id="side-off"><span id="side-off-t">${t('off_title')}</span><button class="btn ghost sm" id="side-off-rm">${t('off_remove')}</button></div>` : ''}${!isPreview && !isStandalone() ? `<button class="btn ghost sm side-inst" id="side-inst">📲 ${t('install_app')}</button>` : ''}</aside>
   </div>`);
   app.appendChild(v);
   const vs = v.querySelector('#vs');
   if(!steps.length){ vs.innerHTML = `<div class="empty" style="color:#fff;padding-top:120px"><h2 style="color:#fff">${t('no_steps')}</h2></div>`; return; }
   // steps
-  const players = new Map(); const refreshers = []; const imgOffs = [];
+  const players = new Map(); const refreshers = []; const imgOffs = []; const lazy = new Map();
   for(const [i,s] of steps.entries()){
-    const url = await mediaUrl(s.mediaId);
     const sec = el(`<section class="vstep" data-id="${s.id}" data-i="${i}">
-      <div class="vmedia"><div class="vbg"></div>${s.type==='video'?`<video src="${url}" muted playsinline loop preload="auto"></video>`:`<img src="${url}" alt="">`}<canvas></canvas>${s.type==='video'?'<div class="prog"><i></i></div>':''}${i===0 && steps.length>1 ? `<div class="vw-hint">↑ ${t('scroll_hint')}</div>`:''}</div>
+      <div class="vmedia"><div class="vbg"></div>${s.type==='video'?`<video muted playsinline loop preload="auto"></video>`:s.mediaId?`<img alt="">`:`<div class="vnoshot">${IC.cam}<span>${t('vw_noshot')}</span></div>`}<canvas></canvas>${s.type==='video'?'<div class="prog"><i></i></div><span class="ptime"></span>':''}${i===0 && steps.length>1 ? `<div class="vw-hint">↑ ${t('scroll_hint')}</div>`:''}</div>
       <div class="vtext"><div class="num"></div><h2></h2><div class="rich" hidden></div><div class="warnbox" hidden></div>
         ${(useChk && chkSet.has(s.id))||useFb?`<div class="chk">${useChk && chkSet.has(s.id)?`<button class="btn done off" data-ok>${IC.check} ${okLbl()}</button><button class="btn nok" data-nok>${t('not_ok')}</button>`:''}${useFb?`<button class="btn note ${useChk && chkSet.has(s.id)?'':'fbw'}" data-fb title="${t('feedback')}">${IC.msg}${useChk && chkSet.has(s.id)?'':' '+t('feedback')}</button>`:''}</div>`:''}</div>
     </section>`);
     const fbB = sec.querySelector('[data-fb]'); if(fbB) fbB.onclick = () => feedbackDialog(s, i+1);
     vs.appendChild(sec);
-    const med = sec.querySelector('video,img'), cv = sec.querySelector('canvas'), box = sec.querySelector('.vmedia');
+    const med = sec.querySelector('.vmedia video,.vmedia img') || document.createElement('img'), cv = sec.querySelector('canvas'), box = sec.querySelector('.vmedia');
     stepPoster(s).then(u => { if(u) sec.querySelector('.vbg').style.backgroundImage = `url("${u}")`; }).catch(()=>{});
-    if(s.type==='video' && s.mediaUrl){ const toRemote = () => { if(med.src !== s.mediaUrl){ med.src = s.mediaUrl; med.load(); } }; med.addEventListener('error', toRemote); setTimeout(() => { if(med.readyState < 2) toRemote(); }, 4000); }
+    // media is loaded lazily – only the steps around the one on screen (long instructions would otherwise pull every clip at once)
+    let loaded = false, loading = null;
+    const ensureMedia = () => { if(loaded || loading) return loading; loading = (async () => { const url = await mediaUrl(s.mediaId); if(!url){ loading = null; return; } med.src = url; loaded = true;
+        if(s.type==='video'){ if(s.mediaUrl){ const toRemote = () => { if(med.src !== s.mediaUrl){ med.src = s.mediaUrl; med.load(); } }; med.addEventListener('error', toRemote); setTimeout(() => { if(loaded && med.readyState < 2) toRemote(); }, 4000); } try{ med.load(); }catch(e){} } })(); return loading; };
+    const dropMedia = () => { if(!loaded) return; loaded = false; loading = null; try{ med.pause(); med.removeAttribute('src'); if(s.type==='video') med.load(); }catch(e){} };
+    lazy.set(sec, {ensureMedia, dropMedia});
     const mw = () => s.type==='video' ? (med.videoWidth||s.w) : (med.naturalWidth||s.w), mh = () => s.type==='video' ? (med.videoHeight||s.h) : (med.naturalHeight||s.h);
     let cur2 = s.trimStart||0, lastT=-1, pausedUntil=0, raf=0, active=false;
     let showing = null;
-    const draw = () => { cv.style.width = box.clientWidth+'px'; cv.style.height = box.clientHeight+'px'; drawAll(cv, s.ann, mw(), mh(), null, s.type==='video' ? (a => !!(showing && showing.has(a.id))) : null); };
+    // video: static symbols show while the clip pauses at their moment; tracked ones stay visible from their moment on and follow their spot
+    const draw = () => { cv.style.width = box.clientWidth+'px'; cv.style.height = box.clientHeight+'px'; const ct = s.type==='video' ? med.currentTime : null; drawAll(cv, s.ann, mw(), mh(), null, s.type==='video' ? (a => a.track ? (ct >= (a.t||0)-0.05 && ct <= trackEnd(a)+0.4) : !!(showing && showing.has(a.id))) : null, ct); };
     new ResizeObserver(draw).observe(box); if(s.ann.some(a => a.type==='img')) imgOffs.push(onImgReady(draw));
     if(s.type==='video'){
-      const prog = sec.querySelector('.prog i');
+      const prog = sec.querySelector('.prog i'), ptime = sec.querySelector('.ptime'); const fmtT = x => `${Math.floor(x/60)}:${String(Math.floor(x%60)).padStart(2,'0')}`;
       const loop = () => { if(!active) return; if(!med.paused){ const ct = med.currentTime, st = s.trimStart||0, en = s.trimEnd||s.duration||med.duration||5; if(ct >= en || ct < st-0.2){ med.currentTime = st; lastT = st-0.05; }
-          const hitA = s.ann.find(a => lastT < (a.t||0) && ct >= (a.t||0) && ct < (a.t||0)+0.6);
-          if(hitA && performance.now() > pausedUntil){ const group = s.ann.filter(a => Math.abs((a.t||0)-(hitA.t||0)) < 0.3); showing = new Set(group.map(a=>a.id)); med.pause(); cur2 = ct; lastT = Math.max(...group.map(a=>a.t||0)) + 0.01; pausedUntil = performance.now()+1300; setTimeout(()=>{ showing = null; draw(); if(active) med.play().catch(()=>{}); }, 1000); draw(); raf = requestAnimationFrame(loop); return; } else cur2 = ct;
-          lastT = ct; prog.style.width = (100*Math.max(0,(cur2-st))/Math.max(0.1,(en-st)))+'%'; draw(); }
+          const hitA = s.ann.find(a => !a.track && lastT < (a.t||0) && ct >= (a.t||0) && ct < (a.t||0)+0.6);
+          if(hitA && performance.now() > pausedUntil){ const group = s.ann.filter(a => !a.track && Math.abs((a.t||0)-(hitA.t||0)) < 0.3); showing = new Set(group.map(a=>a.id)); med.pause(); cur2 = ct; lastT = Math.max(...group.map(a=>a.t||0)) + 0.01; pausedUntil = performance.now()+1300; setTimeout(()=>{ showing = null; draw(); if(active) med.play().catch(()=>{}); }, 1000); draw(); raf = requestAnimationFrame(loop); return; } else cur2 = ct;
+          lastT = ct; prog.style.width = (100*Math.max(0,(cur2-st))/Math.max(0.1,(en-st)))+'%'; if(ptime) ptime.textContent = `${fmtT(Math.max(0,cur2-st))} / ${fmtT(Math.max(0,en-st))}`; draw(); }
         raf = requestAnimationFrame(loop); };
-      players.set(s.id, { play(){ if(active) return; active = true; med.currentTime = s.trimStart||0; lastT = (s.trimStart||0)-0.05; med.play().catch(()=>{}); raf = requestAnimationFrame(loop); }, stop(){ active = false; cancelAnimationFrame(raf); med.pause(); } });
+      players.set(s.id, { play(){ if(active) return; active = true; ensureMedia(); med.currentTime = s.trimStart||0; lastT = (s.trimStart||0)-0.05; med.play().catch(()=>{}); raf = requestAnimationFrame(loop); }, stop(){ active = false; cancelAnimationFrame(raf); med.pause(); } });
       med.addEventListener('loadeddata', draw, {once:true});
-    } else { med.addEventListener('load', draw, {once:true}); players.set(s.id, {play(){}, stop(){}}); }
+    } else { med.addEventListener('load', draw, {once:true}); players.set(s.id, {play(){ ensureMedia(); }, stop(){}}); }
     setTimeout(draw, 80);
     if(useChk){
       const okB = sec.querySelector('[data-ok]'), nokB = sec.querySelector('[data-nok]'), noteB = sec.querySelector('[data-note]');
@@ -164,7 +209,7 @@ async function renderViewer(app, id, isPreview, langArg, arg2){
         if(!r) return null; let photoId = it.photoId||null, photoUrl = it.photoUrl||null;
         if(r.photo){ photoId = uid(); photoUrl = null; await putMedia({id:photoId, blob:r.photo, type:'photo'}); if(!isPreview){ const path = `runs/${run.id}/${photoId}.${extOf(r.photo)}`; const up = await G.sb.storage.from('media').upload(path, r.photo, {contentType:r.photo.type||undefined}); if(!up.error){ photoUrl = PUBLIC_MEDIA(path); S.remoteUrl.set(photoId, photoUrl); } } }
         return {note:r.note, photoId, photoUrl}; };
-      if(okB){ okB.onclick = () => { pv(); run.items[s.id] = Object.assign({}, run.items[s.id]||{}, {ok:true, at:Date.now()}); refresh(); saveRun(); if(navigator.vibrate) try{navigator.vibrate(20);}catch(e){} const nx = sec.nextElementSibling; if(nx) setTimeout(()=>nx.scrollIntoView({behavior:'smooth'}), 250); };
+      if(okB){ okB.onclick = () => { pv(); run.items[s.id] = Object.assign({}, run.items[s.id]||{}, {ok:true, at:Date.now()}); refresh(); okB.classList.remove('pop'); void okB.offsetWidth; okB.classList.add('pop'); saveRun(); if(navigator.vibrate) try{navigator.vibrate(20);}catch(e){} const nx = sec.nextElementSibling; if(nx) setTimeout(()=>nx.scrollIntoView({behavior:'smooth'}), 250); };
       nokB.onclick = async () => { pv(); const r = await noteDialog(t('not_ok'), true); if(!r) return; run.items[s.id] = Object.assign({}, run.items[s.id]||{}, r, {ok:false, at:Date.now()}); refresh(); saveRun(); }; }
       if(noteB) noteB.onclick = async () => { pv(); const r = await noteDialog(t('add_note'), false); if(!r) return; run.items[s.id] = Object.assign({}, run.items[s.id]||{}, r, {at:(run.items[s.id]||{}).at||Date.now()}); refresh(); saveRun(); };
     }
@@ -173,7 +218,9 @@ async function renderViewer(app, id, isPreview, langArg, arg2){
   const endSec = el(`<section class="vstep vend" data-i="${steps.length}"><div class="vend-in">${brand.logo?`<div class="vend-logo big"><img src="${esc(brand.logo)}" alt=""></div>`:(brand.name?`<div class="vend-name">${esc(brand.name)}</div>`:'')}<div class="bigcheck">${IC.check}</div><h2 id="vend-h"></h2><p id="vend-p"></p>
     ${useChk && !isPreview ? `<div class="vend-sum" id="vend-sum"></div><button class="btn big" id="finish2">${t('finish')}</button>` : `<div class="row" style="justify-content:center;gap:10px"><button class="btn ghost big" id="again2">${t('again')}</button>${S.user||isPreview?`<a class="btn big" href="${backHref}">${t('close')}</a>`:''}</div>`}
     ${useFb ? `<button class="btn ghost" id="fb-end" style="margin-top:14px">${IC.msg} ${t('fb_give')}</button>` : ''}
+    ${!isPreview && !isStandalone() ? `<button class="vend-inst" id="inst-end">📲 <span>${t('install_app')}</span><small>${t('ig_short')}</small></button>` : ''}
     </div></section>`);
+  const ie = endSec.querySelector('#inst-end'); if(ie) ie.onclick = () => installGuide();
   vs.appendChild(endSec);
   const fbEnd = endSec.querySelector('#fb-end'); if(fbEnd) fbEnd.onclick = () => feedbackDialog(null, 0);
   const ag = endSec.querySelector('#again2'); if(ag) ag.onclick = () => { vs.scrollTo({top:0, behavior:'smooth'}); };
@@ -188,16 +235,19 @@ async function renderViewer(app, id, isPreview, langArg, arg2){
     const ov = sl.querySelector('#side-ov'); if(ov) ov.onclick = () => { v.querySelector('#side').classList.remove('open'); showOverview(true); };
   }
   // ---- chapter overview: entry screen when there is more than one chapter; also reachable from the top bar / side panel ----
-  const urlFor = n => { const base = location.href.split('#')[0]; return `${base}#/${isPreview?'preview':'v'}/${instr.id}${n>0?'/'+n:''}${langArg?'/'+langArg.toLowerCase():''}`; };
+  const urlFor = n => { const base = location.href.split('#')[0]; const k = isPreview ? '' : (shareKey || instr.shareKey || ''); return `${base}#/${isPreview?'preview':'v'}/${instr.id}${k?'/'+k:''}${n>0?'/'+n:''}${langArg?'/'+langArg.toLowerCase():''}`; };
   const setUrl = n => { try{ history.replaceState(null, '', urlFor(n)); }catch(e){} };
   const gotoGroup = (gi, smooth) => { const g = groups[gi]; if(!g) return; chosenGroup = gi; const first = g.steps[0]; const sec = first ? vs.querySelector(`.vstep[data-id="${first.id}"]`) : null; if(sec) setTimeout(() => sec.scrollIntoView({behavior: smooth ? 'smooth' : 'auto'}), 40); if(groups.length > 1) setUrl(gi+1); };
+  // overall progress ring (checklist: confirmed steps; otherwise hidden)
+  const ringHtml = items => { if(!useChk || !chkSteps.length) return ''; const done = chkSteps.filter(st => isDone(items[st.id])).length; const p = done/chkSteps.length; const R = 26, C = 2*Math.PI*R;
+    return `<div class="ring" title="${t('progress')}"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="${R}" class="rb"/><circle cx="32" cy="32" r="${R}" class="rf" style="stroke-dasharray:${C};stroke-dashoffset:${C*(1-p)}"/></svg><span class="tnum">${Math.round(p*100)}<small>%</small></span></div>`; };
   function showOverview(reopen){
     if(v.querySelector('.vw-chap')) return;
     const saved = LS.get(RUNKEY); const items = run.startedAt ? run.items : ((saved && saved.items && saved.version===instr.version) ? saved.items : {});
     const tiles = groups.map((g, gi) => { const title = g.id==='_intro' ? t('intro') : ((cur.steps.find(x=>x.id===g.id)||{}).title || g.title || `${t('chapter')} ${gi+1}`); const chk = g.steps.filter(st => chkSet.has(st.id)); const done = chk.filter(st => isDone(items[st.id])).length; const all = chk.length && done===chk.length;
       return `<button class="ch-tile" data-g="${gi}" style="animation-delay:${Math.min(gi,10)*60}ms"><img alt="" data-poster="${g.steps[0]?g.steps[0].id:''}"><span class="cn tnum">${gi+1}</span>${all?`<span class="done">${IC.check}</span>`:''}<span class="txt"><b>${titleHtml(title)}</b><span>${nOf(g.steps.length,'step','steps')}${chk.length && useChk ? ` · ${done}/${chk.length} ✓` : ''}</span>${chk.length && useChk ? `<span class="bar"><i style="width:${Math.round(100*done/chk.length)}%"></i></span>` : ''}</span></button>`; }).join('');
-    const ov = el(`<div class="vw-chap"><div class="ch-head"><div class="ch-bar">${(isPreview || S.user) && !reopen ? `<a class="round" href="${backHref}" id="ov-back" aria-label="back">${IC.back}</a>` : `<span></span>`}<div class="brandline">${brand.logo?`<img src="${esc(brand.logo)}" alt="">`:''}<span>${esc(brand.name||'GIRI Go')}</span></div><div class="row" style="gap:6px"><button class="round" id="ov-lang" title="${t('language')}">${vlang?`<span class="flag">${FLAGS[vlang]||vlang}</span>`:IC.globe}</button>${reopen?`<button class="round" id="ov-close" aria-label="close">${IC.close}</button>`:''}</div></div>
-      <h1>${titleHtml(cur.title)}</h1><div class="ch-sub">${groups.length} ${t('chapters')} · ${steps.length} ${t('steps')}${useChk?' · ☑ '+t('checklist_short'):''}</div><div class="ch-sub2">${t('pick_chapter')}</div></div>
+    const ov = el(`<div class="vw-chap"><div class="ch-head"><div class="ch-bar">${(isPreview || S.user) && !reopen ? `<a class="round" href="${backHref}" id="ov-back" aria-label="back">${IC.back}</a>` : `<span></span>`}<div class="brandline">${brand.logo?`<img src="${esc(brand.logo)}" alt="">`:''}<span>${esc(brand.name||'GIRI')}</span></div><div class="row" style="gap:6px"><button class="round" id="ov-lang" title="${t('language')}">${vlang?`<span class="flag">${FLAGS[vlang]||vlang}</span>`:IC.globe}</button>${reopen?`<button class="round" id="ov-close" aria-label="close">${IC.close}</button>`:''}</div></div>
+      <div class="ch-titlerow"><div><h1>${titleHtml(cur.title)}</h1><div class="ch-sub">${groups.length} ${t('chapters')} · ${steps.length} ${t('steps')}${useChk?' · ☑ '+t('checklist_short'):''}</div><div class="ch-sub2">${t('pick_chapter')}</div></div>${ringHtml(items)}</div></div>
       <div class="ch-grid">${tiles}</div>
       <div class="ch-foot"><button class="btn mint big" id="ov-start">${IC.play} ${chosenGroup>=0 || run.startedAt ? t('continue_run') : t('start_begin')}</button></div></div>`);
     v.appendChild(ov);
@@ -232,7 +282,7 @@ async function renderViewer(app, id, isPreview, langArg, arg2){
     l = (l||'').toUpperCase(); if(langBusy) return;
     if(l && !fresh(l)){
       langBusy = true; const lb = v.querySelector('#langbtn'); lb.innerHTML = `<span class="spin sm"></span>`; toast(t('translating'));
-      try{ const {data, error} = await G.sb.functions.invoke('translate', {body:{instrId:instr0.id, target:l, pw: LS.get(PWKEY)||undefined}}); if(error) throw new Error(error.message||String(error)); if(!data || data.error || !data.map) throw new Error((data&&data.error)||'translate failed');
+      try{ const {data, error} = await G.sb.functions.invoke('translate', {body:{instrId:instr0.id, target:l, pw: LS.get(PWKEY)||undefined, key: shareKey || instr0.shareKey || undefined}}); if(error) throw new Error(error.message||String(error)); if(!data || data.error || !data.map) throw new Error((data&&data.error)||'translate failed');
         instr0.translations = instr0.translations||{}; instr0.translations[l] = {map:data.map, at:Date.now(), hash:srcHash(instr0), by:'auto'}; }
       catch(e){ toast('DeepL: '+e.message); langBusy = false; applyTexts(); return; }
       langBusy = false; }
@@ -244,18 +294,24 @@ async function renderViewer(app, id, isPreview, langArg, arg2){
   v.querySelector('#langbtn').onclick = openLangMenu;
   applyTexts();
   if(vlang && (!fresh(vlang) || !I18N[vlang.toLowerCase()])) switchLang(vlang); // remembered language → translate live (cached after the first time)
-  v.querySelector('#menu').onclick = () => v.querySelector('#side').classList.add('open');
+  v.querySelector('#menu').onclick = async () => { v.querySelector('#side').classList.add('open'); const so = v.querySelector('#side-off-t'); if(so){ try{ const st = await cacheStatus(instr, brandSrc); so.textContent = st.total && st.done>=st.total ? `✓ ${t('off_ready')}` : (st.total ? t('off_saving', {n:st.done, total:st.total}) : t('off_title')); }catch(e){} } };
+  const soRm = v.querySelector('#side-off-rm'); if(soRm) soRm.onclick = async () => { if(!(await confirmM(t('off_remove_q'), t('off_remove')))) return; await cacheDel(instr.id); toast(t('off_removed')); v.querySelector('#side').classList.remove('open'); };
+  const sInst = v.querySelector('#side-inst'); if(sInst) sInst.onclick = () => { v.querySelector('#side').classList.remove('open'); installGuide(); };
+  // a newer version arrived after the copy was shown → offer a refresh
+  if(fromCache && online()){ const chk = setInterval(() => { if(!newerRow) return; clearInterval(chk); if($('#rt-note') || !document.body.contains(v)) return; const n = el(`<div class="rt-banner" id="rt-note">${IC.refresh||''}<span>${t('off_newer')}</span><button class="btn sm">${t('refresh_now')}</button></div>`); n.querySelector('button').onclick = () => { n.remove(); render(); }; document.body.appendChild(n); }, 800); setTimeout(() => clearInterval(chk), 30000); }
   if(groups.length > 1){ const tw = v.querySelector('.tt-wrap'); tw.classList.add('clickable'); tw.title = t('chapter_overview'); tw.onclick = () => showOverview(true); }
   v.querySelector('#sclose').onclick = () => v.querySelector('#side').classList.remove('open');
   // visibility → play
   const io = new IntersectionObserver(entries => { entries.forEach(en => { const p = players.get(en.target.dataset.id); if(!p){ if(en.isIntersecting && en.target.classList.contains('vend')){ v.querySelector('#vcnt').textContent = '✓'; v.querySelector('#vch').textContent = brand.name||''; track.completed = true; track.seen = steps.length; } return; } if(en.isIntersecting && en.intersectionRatio > 0.6){ p.play(); const i = +en.target.dataset.i; curStepId = en.target.dataset.id; track.seen = Math.max(track.seen, i+1); if(groups.length > 1){ const gi = groupOf(curStepId); if(gi>=0 && gi!==chosenGroup){ chosenGroup = gi; if(!v.querySelector('.vw-chap')) setUrl(gi+1); } } v.querySelector('#vcnt').textContent = `${i+1} / ${steps.length}`; v.querySelector('#vch').textContent = mdToPlain(chapterOf(en.target.dataset.id)||'')||brand.name||''; } else p.stop(); }); }, {root:vs, threshold:[0.6]});
   $$('.vstep', vs).forEach(s => io.observe(s));
+  const ioLazy = new IntersectionObserver(entries => { entries.forEach(en => { const l = lazy.get(en.target); if(!l) return; if(en.isIntersecting) l.ensureMedia(); else l.dropMedia(); }); }, {root:vs, rootMargin:'150% 0px 150% 0px', threshold:0});
+  lazy.forEach((l, sec) => ioLazy.observe(sec));
   // leaving mid-run: ask (in-app links) / browser prompt (tab close); progress is saved on the device either way
   const onUnload = e => { if(inRunOpen()){ saveRun(); e.preventDefault(); e.returnValue = ''; } }; window.addEventListener('beforeunload', onUnload);
   const guard = a => { if(!a) return; a.addEventListener('click', async e => { if(!inRunOpen()) return; e.preventDefault(); saveRun(); if(await confirmM(t('leave_q'), t('leave'))) location.hash = a.getAttribute('href'); }); };
   guard(v.querySelector('#vback')); guard(endSec.querySelector('a.btn'));
   let onLeave = null; G.busyCheck = () => !!(run.startedAt || curStepId);
-  G.activeCleanup = () => { if(onLeave) onLeave(); io.disconnect(); imgOffs.forEach(f=>f()); players.forEach(p=>p.stop()); clearInterval(hb); document.removeEventListener('visibilitychange', onHide); window.removeEventListener('beforeunload', onUnload); trackUpdate(true); G.LANG = prevLang; };
+  G.activeCleanup = () => { if(onLeave) onLeave(); io.disconnect(); ioLazy.disconnect(); imgOffs.forEach(f=>f()); players.forEach(p=>p.stop()); clearInterval(hb); document.removeEventListener('visibilitychange', onHide); window.removeEventListener('beforeunload', onUnload); trackUpdate(true); G.LANG = prevLang; };
   // checklist start / resume / finish
   if(useChk && !isPreview){
     const start = el(`<div class="vw-start"><div class="card"><button class="round langbtn2" id="langbtn2" title="${t('language')}">${vlang?`<span class="flag">${FLAGS[vlang]||vlang}</span>`:IC.globe}</button>${brand.logo?`<div class="vend-logo sm"><img src="${esc(brand.logo)}" alt=""></div>`:(brand.name?`<div class="vend-name sm">${esc(brand.name)}</div>`:'')}<h1>${t('vw_start_title')}</h1><p style="color:#B8C6DB;margin:0 0 16px">${t('vw_start_sub')}</p><div class="field"><label for="wname">${t('your_name')}</label><input id="wname" autocomplete="name"></div><button class="btn mint" id="begin" style="width:100%;padding:14px">${t('begin')}</button></div></div>`);
@@ -293,6 +349,10 @@ async function renderViewer(app, id, isPreview, langArg, arg2){
   // entry: #/v/<id>/<n> jumps straight to chapter n; several chapters without a number → chapter overview first
   if(chapArg > 0 && chapArg <= groups.length) gotoGroup(chapArg-1, false);
   else if(groups.length > 1) showOverview(false);
+  else if(!useChk && !isPreview){ // single-chapter instruction without checklist: a calm start card – no name needed
+    const first = steps[0]; const sc = el(`<div class="vw-start intro"><div class="card">${brand.logo?`<div class="vend-logo sm"><img src="${esc(brand.logo)}" alt=""></div>`:(brand.name?`<div class="vend-name sm">${esc(brand.name)}</div>`:'')}<div class="intro-img"><img alt=""></div><h1>${titleHtml(cur.title)}</h1><p style="color:#B8C6DB;margin:0 0 18px">${t('vw_intro_sub',{n:steps.length})}</p><button class="btn mint" id="go" style="width:100%;padding:15px;font-size:16px">${IC.play} ${t('vw_go')}</button></div></div>`);
+    v.appendChild(sc); const ii = sc.querySelector('.intro-img'); if(first) stepPoster(first).then(u => { if(u) ii.querySelector('img').src = u; else ii.remove(); }).catch(() => ii.remove()); else ii.remove();
+    sc.querySelector('#go').onclick = () => { sc.classList.add('out'); setTimeout(() => sc.remove(), 240); }; }
 }
 
 export { passwordGate, renderViewer };

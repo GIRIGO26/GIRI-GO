@@ -1,0 +1,187 @@
+
+/* =====================================================================
+   v0.31 – premium pass. CI ratio 75 / 20 / 5: black & white carry the UI, blue is the accent for selection and secondary
+   actions, mint is reserved for success / published / progress. Primary actions are black. Tighter radii, hairlines, calm shadows.
+   ===================================================================== */
+.btn{background:#0B0B0C;color:#fff;border-radius:12px;font-weight:600;letter-spacing:.005em;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 1px 2px rgba(0,0,0,.12)}
+.btn:hover{background:#1C1C1E;filter:none}
+.btn.mint{background:#0B0B0C;color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 1px 2px rgba(0,0,0,.12)}
+.btn.mint:hover{background:#1C1C1E}
+.btn.blue,.btn#cta,.btn[data-ok],.modal .actions .btn:not(.ghost):not(.mint):not(.danger){background:linear-gradient(180deg,#0A5BC4,var(--blue));color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 1px 2px rgba(0,78,173,.2)}
+.btn.blue:hover,.btn#cta:hover{filter:brightness(1.06)}
+.btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line-2);box-shadow:none;font-weight:600}
+.btn.ghost:hover{background:var(--surface-2)}
+.btn.sm{border-radius:10px;font-weight:600}
+.btn.big{border-radius:14px}
+.card{border-radius:var(--radius);border:1px solid var(--line);box-shadow:var(--shadow-1)}
+.field input,.field select,.field textarea{border-radius:10px;border-color:var(--line-2)}
+.field label,.lbl{font-weight:700;letter-spacing:.07em;color:var(--ink-3)}
+.chip{border-radius:7px;font-weight:600}
+.chip.draft{background:var(--surface-2);color:var(--ink-2)}
+.chip.review{background:rgba(0,78,173,.09);color:var(--blue)}
+.chip.published{background:rgba(3,211,155,.16);color:var(--mint-ink)}
+h1,h2,h3{font-weight:700}
+.dash-head h1{font-weight:700;letter-spacing:-.025em;font-size:30px}
+.fch{border-radius:999px;font-weight:600;border:1px solid var(--line-2);background:var(--surface);box-shadow:none}
+.fch.on{background:#0B0B0C;border-color:#0B0B0C;color:#fff}
+.fch.on span{background:rgba(255,255,255,.18);color:#fff}
+.tabs{background:var(--surface-2);border-radius:12px;padding:3px}
+.tabs button{border-radius:9px;font-weight:600}
+.tabs button.on{background:var(--surface);box-shadow:var(--shadow-1);color:var(--ink)}
+.topbar{box-shadow:inset 0 -1px 0 rgba(255,255,255,.06)}
+.brand .ver{opacity:.3}
+.topbar .tb-btn{font-weight:600}
+.inst-banner{background:linear-gradient(135deg,#0B0B0C,#1a2740 60%,#012756);border:1px solid rgba(255,255,255,.06);border-radius:16px}
+.inst-banner::after{background:radial-gradient(circle,rgba(3,211,155,.28),transparent 70%)}
+.inst-banner .ib-btn{background:#fff;color:#0B0B0C;font-weight:700;box-shadow:0 8px 18px -8px rgba(0,0,0,.5)}
+/* dashboard cards */
+.dash .instr{border-radius:14px}
+.dash .instr .thumb{border-radius:10px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+.dash .instr .title{font-weight:700;letter-spacing:-.01em}
+.todo{border-radius:12px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line-2);color:var(--ink)}
+.todo svg,.todo b{color:var(--blue)}
+.todo.on{background:#0B0B0C;box-shadow:none}
+.dash .search{border-radius:12px}
+.dash .eyebrow{letter-spacing:.07em}
+/* editor */
+.steps-panel,.stage,.props{border-radius:14px}
+.chrow{border-radius:10px;background:color-mix(in srgb,var(--chc) 6%,var(--surface))}
+.chrow input,.chrow .chlbl{font-weight:700;letter-spacing:.06em}
+.srow{border-radius:12px}
+.srow .th,.srow .th-wrap{border-radius:9px}
+.tool{border-radius:10px;font-weight:600}
+.tools-cta{border-radius:12px;background:var(--surface-2)}
+.tools-cta .tc-ico{background:#0B0B0C;border-radius:10px}
+.noshot-bar{background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line-2);border-radius:12px}
+.noshot-bar svg,.noshot-bar b{color:var(--blue)}
+.noshot-stage{border-radius:14px;background:var(--surface-2)}
+.noshot-stage .ns-ico{color:#0B0B0C}
+.noshot-stage .ns-shot{background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink-2)}
+.ph-banner{background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line-2);border-radius:12px}
+.ph-banner>span{color:var(--ink)}
+.ed-head input.title{font-weight:700;letter-spacing:-.02em}
+.stepbar .sb-back{color:var(--ink)}
+.stepbar .sb-nav button{border-radius:10px}
+.media-box{border-radius:12px}
+/* modals & menus */
+.modal{border-radius:16px}
+.menu button{font-weight:600;border-radius:10px}
+/* login hero */
+.l-visual{border-radius:18px;box-shadow:var(--shadow-2)}
+.l-visual::after{background:linear-gradient(180deg,rgba(0,0,0,.05) 35%,rgba(0,0,0,.78))}
+.l-cap{left:26px;right:26px;bottom:26px;gap:8px}
+.l-cap b{font-size:11px;letter-spacing:.18em;color:var(--mint);font-weight:700}
+.l-cap span{font-size:clamp(22px,2.4vw,32px);font-weight:700;letter-spacing:-.025em;line-height:1.08;text-wrap:balance;text-shadow:0 2px 12px rgba(0,0,0,.35)}
+.l-form h1{font-weight:700}
+.l-form .card{border-radius:16px}
+@media(max-width:900px){
+  .l-visual{height:min(52vw,250px);border-radius:16px}
+  .l-cap{left:16px;right:16px;bottom:14px;gap:4px}
+  .l-cap span{font-size:20px}
+}
+/* camera: white "done" pill, mint only for the recording progress ring */
+.cap-top .done-top{background:#fff;color:#0B0B0C;font-weight:700}
+.modebar.script .cs-meta .cs-m b{color:#fff}
+.modebar.script .cs-open{color:var(--mint)}
+.cap-strip .st.sel{border-color:#fff;box-shadow:0 0 0 2px #fff}
+.cap-strip .st.noshot.sel{border-color:#fff;box-shadow:0 0 0 2px #fff}
+.cap-strip .st.aft{border-color:var(--mint)}
+.example-tag{background:var(--surface-2);color:var(--ink-3);border:1px solid var(--line-2);font-weight:700;letter-spacing:.06em}
+
+/* ---- Import from GIRI Classic (v0.32) ---- */
+.imp{max-width:760px}
+.imp .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:560px){.imp .two{grid-template-columns:1fr}}
+.imp-opts{display:flex;flex-direction:column;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.imp-grp{border:1px solid var(--line);border-radius:var(--r-md);margin-top:10px;overflow:hidden}
+.imp-gh{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface-2);cursor:pointer;font-size:14px}
+.imp-gh b{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.imp-gh svg{width:16px;height:16px}
+.imp-it{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--line);cursor:pointer;font-size:14px}
+.imp-it.done{opacity:.6}
+.imp-it input,.imp-gh input{width:18px;height:18px;margin:0;flex:0 0 auto;accent-color:var(--blue)}
+.imp-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.imp-meta{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.imp-meta .chip{font-size:11px;padding:2px 8px}
+.imp-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
+.imp-row:first-child{border-top:0}
+.imp-row b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.imp-row.ok b{color:var(--ink-2)}
+.imp-st{flex:0 1 auto;text-align:right;font-size:13px;display:flex;align-items:center;gap:8px}
+
+/* ---- share dialog: the link is a link (v0.33) ---- */
+.qr-wrap a#qr{display:block;line-height:0;cursor:pointer}
+.qr-wrap a#qr:hover img,.qr-wrap a#qr:hover canvas{border-color:var(--blue)}
+.linkbox{flex-direction:column;gap:0;align-items:stretch}
+.linka{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line-2);border-radius:10px;background:var(--surface-2);font-size:12.5px;font-weight:600;color:var(--blue);text-decoration:none;min-width:0}
+.linka span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.linka svg{flex:0 0 auto}
+.linka:hover{border-color:var(--blue);background:#fff}
+
+/* ---- importer list: toolbar, collapsible groups, meta line (v0.33) ---- */
+.imp-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin:4px 0 10px}
+.imp-bar input[type=search]{flex:1 1 180px;min-width:140px;padding:8px 10px;border:1px solid var(--line-2);border-radius:10px;background:var(--surface-2);font-size:13.5px}
+.imp-bar select{padding:8px 10px;border:1px solid var(--line-2);border-radius:10px;background:#fff;font-size:13px;font-weight:600}
+.imp-chk{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.imp-chk input{width:16px;height:16px;margin:0;accent-color:var(--blue)}
+.imp-sp{flex:1}
+.imp-gh{cursor:default}
+.imp-gh b{cursor:pointer}
+.imp-tg{border:0;background:transparent;padding:2px;margin:0 -2px;cursor:pointer;color:var(--ink-2);display:flex;align-items:center;border-radius:6px}
+.imp-tg svg{transition:transform .15s}
+.imp-grp.coll .imp-tg svg{transform:rotate(-90deg)}
+.imp-grp.coll .imp-items{display:none}
+.imp-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.imp-sub{font-size:11.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:560px){.imp-meta .tnum{display:none}.imp-bar select{flex:1 1 100%}}
+
+/* ---- top bar v0.34: logo · where am I · one menu button ---- */
+.brand .where{display:flex;align-items:center;gap:12px;min-width:0;font-size:14px;font-weight:600;letter-spacing:0;color:rgba(255,255,255,.88)}
+.brand .where .sep{width:1px;height:22px;background:rgba(255,255,255,.22);flex:0 0 auto}
+.brand .where-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tb-user .tb-burger{display:inline-flex;margin-left:2px;opacity:.85}
+.tb-user .tb-burger svg{width:18px;height:18px}
+@media(max-width:560px){.brand .where{display:flex;font-size:13px;gap:10px}.brand .logo{width:72px}.tb-user{padding:4px 8px 4px 4px !important}}
+.appmenu .me{margin-bottom:10px}
+.appmenu .menu{max-height:min(62vh,560px);overflow:auto;margin:0 -6px;padding:0 6px}
+.appmenu .menu-h:first-child{padding-top:0}
+.appmenu .menu button{padding:11px 12px;font-size:14.5px}
+.appmenu .menu button svg{width:18px;height:18px;flex:0 0 auto;color:var(--ink-2)}
+.appmenu .menu-v{margin-left:auto;font-size:12.5px;font-weight:600;color:var(--ink-3)}
+.appmenu .menu-foot{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:11.5px;font-weight:600;color:var(--ink-3);text-align:center;cursor:default;-webkit-user-select:none;user-select:none}
+
+/* ---- install guide v0.34: real-looking phone screens, bigger and in your face ---- */
+.ig-modal{max-width:640px}
+.ig-wrap .ig-head h2{font-size:24px;letter-spacing:-.02em}
+.ig-wrap .ig-head .big{font-size:40px}
+.ig-steps li{grid-template-columns:132px 1fr;gap:16px;padding:12px;background:#fff;border:1px solid var(--line)}
+.ig-steps li span{font-size:15px}
+.ig-steps li span::before{background:var(--blue);color:#fff}
+.ig{width:132px;height:auto;display:block;filter:drop-shadow(0 10px 20px rgba(0,0,0,.14))}
+.ig.ig-pc{width:100%;max-width:300px}
+.ig-steps li:has(.ig-pc){grid-template-columns:1fr;gap:10px}
+@media(max-width:480px){.ig-steps li{grid-template-columns:112px 1fr;gap:12px;padding:10px}.ig{width:112px}.ig-modal{max-height:96vh}.ig-wrap .ig-head h2{font-size:22px}}
+
+/* ---- importer: structure card (v0.34) ---- */
+.imp-st-grid{display:grid;gap:10px;font-size:13.5px}
+.imp-st-grid b{display:block;margin-bottom:2px}
+.appmenu .menu button .emo{display:inline-grid;place-items:center;width:18px;flex:0 0 auto}
+
+/* ---- feedback: where it lands + creator mail (v0.35) ---- */
+.fb-sub{margin:10px 0 0 58px;padding:12px 14px;border-radius:12px;background:var(--surface-2)}
+@media(max-width:560px){.fb-sub{margin-left:0}}
+.nbadge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--blue);color:#fff;font-size:11.5px;font-weight:800;margin-left:6px}
+
+/* ---- dashboard v0.36: team first, folder panel that scales to hundreds of folders ---- */
+.tfilter .tsel{-webkit-appearance:none;appearance:none;padding:8px 32px 8px 14px;border:1px solid var(--line-2);border-radius:999px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23111' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;font-weight:700;font-size:13px;width:auto;max-width:min(60vw,320px);line-height:1.2;cursor:pointer}
+.fpanel.many{border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:0 0 12px;background:#fff}
+.fpanel.many .fchips{margin:0;max-height:168px;overflow:auto}
+.fbar{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.fbar .tlbl{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap}
+.fbar .tlbl b{color:var(--ink);margin-left:4px}
+.fsearch{flex:1;min-width:0;padding:8px 12px;border:1px solid var(--line-2);border-radius:10px;background:var(--surface-2);font-size:13.5px}
+.fch.ghost{border-style:dashed;color:var(--ink-2)}
+
+/* language stays in the bar (v12.36) */
+.tb-lang{padding:8px 10px !important;gap:6px !important}
+@media(max-width:560px){.tb-lang .tb-langc{display:none}.tb-lang{padding:8px !important}}

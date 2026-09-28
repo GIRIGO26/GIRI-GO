@@ -2,7 +2,7 @@
    v0.29: the shell (index.html) is served from the cache at once and refreshed in the background – a cold start no longer waits
    for GitHub. When the fresh copy differs, the page is told (→ version check → reload at a safe moment). "?v=" loads bypass the cache. */
 const CACHE = 'giri-go-shell';
-const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png?v=2', './icons/icon-512.png?v=2'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE).catch(() => {}))); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('message', e => { if(e.data === 'skipWaiting') self.skipWaiting(); });

@@ -19,7 +19,7 @@ async function replaceStepMedia(instr, step, blob, meta){
   if(step.mediaPath && G.sb) G.sb.storage.from('media').remove([step.mediaPath]).catch(()=>{});
   const mid = uid(); await putMedia({id:mid, blob, w:m.w, h:m.h, type:m.type, ws:instr.ws, instrId:instr.id});
   Object.assign(step, {type:m.type, mediaId:mid, mediaUrl:null, mediaPath:null, w:m.w, h:m.h, duration:m.duration, trimStart:0, trimEnd:m.duration, poster:m.poster||null});
-  step.ann = (step.ann||[]).map(a => Object.assign({}, a, {t:0}));
+  step.ann = (step.ann||[]).map(a => Object.assign({}, a, {t:0})); delete step.placeholder;
   runUploads();
 }
 

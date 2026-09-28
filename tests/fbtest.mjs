@@ -35,7 +35,14 @@ d.on('console', mm => { if(mm.type()==='error' && !/Failed to load|CORS|ERR_/.te
 await d.goto(BASE+'/index3.html#/edit/'+vid2); await d.waitForTimeout(2000);
 console.log('hash:', await d.evaluate(()=>location.hash), 'editor:', await d.$$eval('.editor', x=>x.length), 'page h1:', await d.$eval('#app', e => (e.querySelector('h1,.title')||{}).value || (e.querySelector('h1')||{}).textContent));
 console.log('banner:', await d.$eval('#fb-banner', e => e.hidden ? 'hidden' : e.textContent.trim()));
-console.log('settings toggle:', !!(await d.$('#fbk')));
+console.log('settings toggle:', !!(await d.$('#fbk')), '| stats button badge:', await d.$eval('#res', e => e.textContent.trim().replace(/\s+/g,' ')), '| badge visible:', await d.$eval('#res-n', e => !e.hidden));
+// v0.35: where feedback lands + creator mail toggle (default on, saved as fbNotify)
+{ const tb = await d.$('[data-tab="settings"]'); if(tb) await tb.click(); await d.waitForTimeout(300); }
+console.log('fb-sub:', await d.$eval('#fb-sub', e => e.hidden ? 'hidden' : e.textContent.trim().replace(/\s+/g,' ').slice(0, 120)), '| notify checked:', await d.$eval('#fbn', e => e.checked));
+await d.click('#fbn'); await d.waitForTimeout(500); console.log('fbNotify saved:', await d.evaluate(()=>window.__tables.instructions.find(r=>r.id===location.hash.split('/')[2]).data.fbNotify)); await d.click('#fbn'); await d.waitForTimeout(400);
+await d.click('#fbnr'); await d.waitForTimeout(400); console.log('reviewers saved:', await d.evaluate(()=>window.__tables.instructions.find(r=>r.id===location.hash.split('/')[2]).data.fbNotifyReviewers)); await d.click('#fbnr'); await d.waitForTimeout(300);
+await d.click('#fbk'); await d.waitForTimeout(300); console.log('feedback off hides sub:', await d.$eval('#fb-sub', e => e.hidden)); await d.click('#fbk'); await d.waitForTimeout(400);
+{ const tb = await d.$('[data-tab="steps"]'); if(tb) await tb.click(); await d.waitForTimeout(300); }
 const before = await d.evaluate(()=>window.__tables.instructions[0].data.steps.map(s=>s.kind||s.type).join(','));
 await d.goto(BASE+'/index3.html#/edit/'+vid2+'/fb/fb1'); await d.waitForTimeout(3000);
 const after = await d.evaluate(()=>window.__tables.instructions[0].data.steps.map(s=>s.kind||s.type).join(','));

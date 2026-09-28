@@ -1,3 +1,5 @@
+import { mirrorAll, mirrorList, mirrorMerge, mirrorRaw, netErr } from './offline.js';
+import { t } from './i18n.js';
 import { toast } from './helpers.js';
 import { saveInstr } from './passwords.js';
 import { G, S } from './state.js';
@@ -34,11 +36,31 @@ const rememberRemote = instr => { for(const s of instr.steps||[]){ if(s.mediaUrl
 
 const rowToInstr = r => { const i = r.data || {}; i.id = r.id; i.ws = r.ws; i.status = r.status; i.title = r.title; i.updatedAt = new Date(r.updated_at).getTime(); rememberRemote(i); return i; };
 
+// delta sync: ask the server only for id + updated_at (a few bytes per instruction) and fetch full rows just for what changed
+// since the local mirror – instead of the complete table (posters, translations, history …) on every page load
 const loadInstrs = async () => {
   if(!G.sb || !S.user) { S.instrs = []; return; }
-  const {data, error} = await G.sb.from('instructions').select('*').eq('ws', S.user.ws).is('deleted_at', null).order('updated_at', {ascending:false});
-  if(error){ toast(error.message); S.instrs = []; return; }
-  S.instrs = data.map(rowToInstr);
+  const t0 = performance.now(); const sig0 = S.instrs.map(i => i.id+':'+(i.updatedAt||0)).join(',');
+  const offlineFallback = async error => { const local = await mirrorList(); S.instrs = local.sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0)); if(!netErr(error)) toast(error.message); else toast(t('offline_copy')); };
+  let heads = null, error = null;
+  // v12.37.1: page through the heads – PostgREST returns at most 1000 rows per request, large imports were cut off at 1000
+  try{ heads = []; for(let from = 0; ; from += 1000){ const {data, error:e} = await G.sb.from('instructions').select('id, updated_at').eq('ws', S.user.ws).is('deleted_at', null).order('updated_at', {ascending:false}).order('id').range(from, from+999); if(e) throw e; heads.push(...(data||[])); if(!data || data.length < 1000) break; } }catch(e){ error = e; }
+  if(error) return offlineFallback(error);
+  const have = await mirrorRaw(); const local = new Map(have.map(m => [m.id, m.row]));
+  const need = heads.filter(h => { const l = local.get(h.id); return !l || (l.updatedAt||0) !== new Date(h.updated_at).getTime(); }).map(h => h.id);
+  const fresh = new Map();
+  for(let k = 0; k < need.length; k += 20){ // in chunks – URL length
+    let rows = null; try{ ({data:rows, error} = await G.sb.from('instructions').select('*').in('id', need.slice(k, k+20))); }catch(e){ error = e; }
+    if(error) return offlineFallback(error);
+    (rows||[]).forEach(r => fresh.set(r.id, rowToInstr(r)));
+  }
+  const mem = new Map(S.instrs.map(i => [i.id, i])); // unchanged rows keep their in-memory object (editor/capture hold references)
+  const rows = heads.map(h => fresh.get(h.id) || mem.get(h.id) || local.get(h.id)).filter(Boolean);
+  rows.forEach(i => { if(!fresh.has(i.id)) rememberRemote(i); });
+  S.instrs = await mirrorMerge(rows, have); await mirrorAll(S.instrs, fresh, have);
+  G.lastSync = Date.now(); const changed = S.instrs.map(i => i.id+':'+(i.updatedAt||0)).join(',') !== sig0;
+  G.perf.sync = {ms: Math.round(performance.now()-t0), heads: heads.length, fetched: need.length, changed};
+  return changed;
 };
 
 export { LANGS, FLAGS, langName, srcTexts, strHash, srcHash, translateInstr, hasTx, withLang, rememberRemote, rowToInstr, loadInstrs };

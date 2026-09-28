@@ -4,7 +4,7 @@ const d = await (await browser.newContext({viewport:{width:1280,height:900}})).n
 await d.goto(BASE+'/index3.html'); await d.waitForTimeout(2200);
 await d.evaluate(()=>{ localStorage.setItem('gg_lang','de'); sessionStorage.setItem('gg_dash','all'); const st = window.__tables.instructions[0].data.steps.filter(s=>!s.kind)[0]; st.ann = [{id:'a1', type:'arrow', x:.2, y:.2, x2:.45, y2:.45, color:'blue', t:0, size:.14}]; });
 const vid = await d.evaluate(()=>window.__tables.instructions[0].id);
-await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1500); await d.click('[data-tab="steps"]'); await d.waitForTimeout(600);
+await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1500); { const tb = await d.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await d.waitForTimeout(600);
 console.log('panel hidden before select:', await d.$eval('#ann3d', e => e.hidden));
 await d.click('.ann-pill'); await d.waitForTimeout(400);
 console.log('panel hidden after select:', await d.$eval('#ann3d', e => e.hidden), 'sliders:', await d.$$eval('#ann3d input[data-k]', x => x.map(i=>i.dataset.k)), 'chips:', await d.$$eval('#ann3d [data-anim]', x => x.map(b=>b.textContent)));

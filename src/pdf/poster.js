@@ -1,3 +1,4 @@
+import { ensureShareKey, publicLink } from '../core/links.js';
 import { realSteps } from '../core/auth.js';
 import { modal, toast } from '../core/helpers.js';
 import { fmtD, t } from '../core/i18n.js';
@@ -11,6 +12,16 @@ import { hexToRgb, saveFile, slug } from '../views/results.js';
 
 /* ---------- Project poster: one A4 sheet with a QR tile per instruction ---------- */
 const qrDataUrl = async (text, size) => { const tmp = document.createElement('div'); tmp.style.position='fixed'; tmp.style.left='-9999px'; document.body.appendChild(tmp); let out = null; try{ new QRCode(tmp, {text, width:size||512, height:size||512, colorDark:'#000000', colorLight:'#ffffff', correctLevel:QRCode.CorrectLevel.M}); await new Promise(r=>setTimeout(r,60)); const c = tmp.querySelector('canvas'); out = c ? c.toDataURL('image/png') : ((tmp.querySelector('img')||{}).src || null); }catch(e){} tmp.remove(); return out; };
+
+// image → PNG data URL + aspect ratio (logos); null when it cannot be read
+const loadImgData = url => new Promise(res => { if(!url) return res(null); const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => { try{ const cv = document.createElement('canvas'); cv.width = i.naturalWidth; cv.height = i.naturalHeight; cv.getContext('2d').drawImage(i, 0, 0); res({data: cv.toDataURL('image/png'), ratio: cv.width/cv.height}); }catch(e){ res(null); } }; i.onerror = () => res(null); i.src = url; });
+// biggest box with this aspect ratio inside maxW × maxH – nothing gets stretched
+const fitBox = (ratio, maxW, maxH) => { let w = maxW, h = w/ratio; if(h > maxH){ h = maxH; w = h*ratio; } return {w, h}; };
+let giriLogo = null; const giriLogoData = async () => { if(giriLogo!==null) return giriLogo; giriLogo = (await loadImgData('icons/giri-logo.png')) || false; return giriLogo; };
+// "made with GIRI Go" line at the bottom of a sheet
+async function giriFooter(doc, F, W, y, extra){ const g = await giriLogoData(); let x = W/2; const txt = extra ? `${extra}  ·  go.ar-giri.de` : 'go.ar-giri.de'; F(false); doc.setFontSize(7.5); doc.setTextColor(150); const tw = doc.getTextWidth(txt);
+  if(g){ const b = fitBox(g.ratio, 22, 6); const total = b.w + 3 + tw; x = (W-total)/2; try{ doc.addImage(g.data, 'PNG', x, y - b.h + 1.2, b.w, b.h); }catch(e){} doc.text(txt, x + b.w + 3, y, {align:'left'}); }
+  else doc.text('GIRI  ·  ' + txt, W/2, y, {align:'center'}); }
 
 // cover-crop an image data URL to a given aspect ratio (w/h) – posters never show squashed pictures
 const coverCrop = (dataUrl, ratio, maxW) => new Promise(res => { const i = new Image(); i.onload = () => { const sw = i.naturalWidth, sh = i.naturalHeight; let cw = sw, ch = Math.round(sw/ratio); if(ch > sh){ ch = sh; cw = Math.round(sh*ratio); } const sc = Math.min(1, (maxW||900)/cw); const c = document.createElement('canvas'); c.width = Math.round(cw*sc); c.height = Math.round(ch*sc); c.getContext('2d').drawImage(i, (sw-cw)/2, (sh-ch)/2, cw, ch, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', .85)); }; i.onerror = () => res(null); i.src = dataUrl; });
@@ -33,7 +44,7 @@ async function exportPosterPdf(f, list, opts){
   if(!window.jspdf){ toast('jsPDF n/a'); return; } toast(t('pdf_making'));
   const {jsPDF} = window.jspdf; const doc = new jsPDF({unit:'mm', format:'a4', putOnlyUsedFonts:true}); const W = 210, H = 297, M = 12; const F = await pdfFonts(doc, 'DE');
   const brand = await loadBrand(S.user.ws); const bc = hexToRgb(brand.color||'#004EAD'); const base = location.href.split('#')[0];
-  let logoData = null, logoRatio = 1; if(opts.brand && brand.logo){ try{ const img = await new Promise((res, rej) => { const i = new Image(); i.crossOrigin='anonymous'; i.onload=()=>res(i); i.onerror=rej; i.src = brand.logo; }); const cv = document.createElement('canvas'); cv.width=img.naturalWidth; cv.height=img.naturalHeight; cv.getContext('2d').drawImage(img,0,0); logoData = cv.toDataURL('image/png'); logoRatio = cv.width/cv.height; }catch(e){} }
+  const logo = opts.brand && brand.logo ? await loadImgData(brand.logo) : null;
   // tiles: 2 columns up to 4 instructions, else 3; page holds 2 or 3 rows
   const cols = list.length <= 4 ? 2 : 3, maxRows = cols===2 ? 2 : 3, perPage = cols*maxRows;
   const rowsPerPage = Math.min(maxRows, Math.ceil(list.length/cols)); // fewer instructions → taller tiles, no empty band
@@ -43,20 +54,20 @@ async function exportPosterPdf(f, list, opts){
   const qrS = Math.max(18, Math.min(tileW*0.5, tileH - imgH - 2*lineH - 16));
   const pages = Math.ceil(list.length/perPage);
   const header = (pg) => {
-    doc.setFillColor(...bc); doc.roundedRect(M, M, W-2*M, headH, 4, 4, 'F');
-    let lx = M+7; if(logoData){ const lh = 11, lw = Math.min(46, lh*logoRatio); doc.setFillColor(255); doc.roundedRect(lx-2, M+6, lw+4, lh+4, 2, 2, 'F'); try{ doc.addImage(logoData, 'PNG', lx, M+8, lw, lh); }catch(e){} lx += lw+8; }
-    doc.setTextColor(255); F(false); doc.setFontSize(9); doc.text((opts.brand && brand.name) ? brand.name.toUpperCase() : 'GIRI GO', lx, M+11);
-    F(true); doc.setFontSize(19); const tl = doc.splitTextToSize(f.name, W-2*M-(lx-M)-60)[0]; doc.text(tl, lx, M+21);
-    F(false); doc.setFontSize(8.5); doc.text(`${nOf(list.length,'instruction','instructions')}${pages>1?`  ·  ${pg}/${pages}`:''}`, W-M-6, M+11, {align:'right'});
-    doc.setFontSize(9); doc.text(t('poster_scan'), W-M-6, M+21, {align:'right'});
-    doc.setTextColor(140); doc.setFontSize(7.5); doc.text(`GIRI Go  ·  ${base.replace(/^https?:\/\//,'')}  ·  ${fmtD(Date.now())}`, W/2, H-M+2, {align:'center'});
+    // white header, brand colour as a stripe – logos keep their proportions and never sit in a white box
+    doc.setFillColor(...bc); doc.roundedRect(M, M, W-2*M, headH, 3, 3, 'F'); doc.setFillColor(255); doc.roundedRect(M, M+3, W-2*M, headH-3, 3, 3, 'F'); doc.rect(M, M+3, W-2*M, 4, 'F');
+    let lx = M+6; if(logo){ const b = fitBox(logo.ratio, 44, 16); try{ doc.addImage(logo.data, 'PNG', lx, M+7+(16-b.h)/2, b.w, b.h); }catch(e){} lx += b.w+7; }
+    doc.setTextColor(120); F(false); doc.setFontSize(8.5); doc.text((opts.brand && brand.name) ? brand.name.toUpperCase() : 'GIRI', lx, M+12);
+    doc.setTextColor(20); F(true); doc.setFontSize(19); const tl = doc.splitTextToSize(f.name, W-2*M-(lx-M)-58)[0]; doc.text(tl, lx, M+22);
+    doc.setTextColor(120); F(false); doc.setFontSize(8.5); doc.text(`${nOf(list.length,'instruction','instructions')}${pages>1?`  ·  ${pg}/${pages}`:''}`, W-M-6, M+12, {align:'right'});
+    doc.setTextColor(...bc); doc.setFontSize(9); doc.text(t('poster_scan'), W-M-6, M+22, {align:'right'});
   };
   for(let k=0; k<list.length; k++){
     const pg = Math.floor(k/perPage); if(k % perPage === 0){ if(k) doc.addPage(); header(pg+1); }
     const i = list[k]; const idx = k % perPage; const cx = M + (idx % cols)*(tileW+gap), cy = gridTop + Math.floor(idx/cols)*(tileH+gap);
     doc.setFillColor(255); doc.setDrawColor(215); doc.setLineWidth(.35); doc.roundedRect(cx, cy, tileW, tileH, 3.5, 3.5, 'FD');
     let y = cy;
-    if(opts.image){ const first = realSteps(i)[0]; let data = null; if(first){ try{ const imgs = await stepImages(first, 1); if(imgs[0]) data = await coverCrop(imgs[0], tileW/imgH, 900); }catch(e){} }
+    if(opts.image){ const first = realSteps(i).find(x => x.mediaId) || realSteps(i)[0]; let data = null; if(first){ try{ const imgs = await stepImages(first, 1); if(imgs[0]) data = await coverCrop(imgs[0], tileW/imgH, 900); }catch(e){} }
       if(data){ try{ doc.addImage(data, 'JPEG', cx+1.5, cy+1.5, tileW-3, imgH-1.5); }catch(e){} } else { doc.setFillColor(238); doc.rect(cx+1.5, cy+1.5, tileW-3, imgH-1.5, 'F'); }
       y = cy + imgH + 4; }
     else y = cy + 5;
@@ -64,13 +75,14 @@ async function exportPosterPdf(f, list, opts){
     doc.setFillColor(...bc); doc.circle(cx+tileW-8, cy+7, 4.2, 'F'); doc.setTextColor(255); F(true); doc.setFontSize(9); doc.text(String(k+1), cx+tileW-8, cy+8.4, {align:'center'});
     // title across the tile, then QR with the facts beside it
     doc.setTextColor(20); F(true); doc.setFontSize(titleFs); const lines = doc.splitTextToSize(i.title, tileW-10).slice(0, 2); doc.text(lines, cx+5, y+lineH); y += lines.length*lineH + 3;
-    const link = base + '#/v/' + i.id; const qr = await qrDataUrl(link, 384); const qy = Math.min(y, cy+tileH-qrS-7); if(qr){ try{ doc.addImage(qr, 'PNG', cx+4, qy, qrS, qrS); }catch(e){} }
+    await ensureShareKey(i); const link = publicLink(i); const qr = await qrDataUrl(link, 384); const qy = Math.min(y, cy+tileH-qrS-7); if(qr){ try{ doc.addImage(qr, 'PNG', cx+4, qy, qrS, qrS); }catch(e){} }
     const tx = cx + 4 + qrS + 4; F(false); doc.setFontSize(cols===2 ? 9 : 8); doc.setTextColor(90);
     const meta = [nOf(realSteps(i).length,'step','steps'), 'v'+i.version]; if(i.status!=='published') meta.push(t(i.status==='review'?'in_review':'draft'));
     meta.forEach((m, mi) => doc.text(m, tx, qy + 5 + mi*(cols===2 ? 5 : 4.4)));
     doc.setFontSize(7); doc.setTextColor(150); doc.text(doc.splitTextToSize(t('qr_scan'), tileW-qrS-14), tx, qy + qrS - 2);
   }
+  for(let p = 1; p <= pages; p++){ doc.setPage(p); await giriFooter(doc, F, W, H-M+2, fmtD(Date.now())); }
   const blob = doc.output('blob'); const ok = await saveFile(`poster-${slug(f.name)}.pdf`, blob, 'application/pdf'); if(ok) toast(t('pdf_done'));
 }
 
-export { qrDataUrl, coverCrop, posterDialog, exportPosterPdf };
+export { qrDataUrl, coverCrop, loadImgData, fitBox, giriFooter, posterDialog, exportPosterPdf };

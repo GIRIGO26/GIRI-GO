@@ -5,7 +5,7 @@ const errs=[]; const hook = p => { p.on('pageerror', e => errs.push(e.message+' 
 const anonCtx = await browser.newContext({viewport:{width:390,height:844}, isMobile:true, hasTouch:true});
 const a = await anonCtx.newPage(); hook(a);
 await a.goto(BASE+'/index3.html'); await a.waitForTimeout(500); await a.evaluate(()=>sessionStorage.setItem('gg_dash','all')); await a.goto(BASE+'/index3.html#/'); await a.waitForSelector('[data-a="more"]', {timeout:20000}); await a.waitForTimeout(500);
-const vid = await a.evaluate(()=>{ const r = window.__tables.instructions[0]; r.status='published'; return r.id; });
+const vid = await a.evaluate(()=>{ const r = window.__tables.instructions[0]; r.status='published'; return r.id + '/' + (r.data.shareKey||''); }); // v0.33: public links carry the share key
 // simulate anonymous: no session → the mock always has a session; emulate "not readable" by making from('instructions') return nothing for this id
 await a.evaluate(()=>{ window.__mockPw = 'geheim'; const r = window.__tables.instructions[0]; window.__hidden = r; window.__tables.instructions = []; window.__tables.instructions_hidden = [r]; });
 await a.goto(BASE+'/index3.html#/p/none'); await a.waitForTimeout(800); await a.goto(BASE+'/index3.html#/'); await a.waitForTimeout(800);
@@ -23,7 +23,7 @@ const d = await (await browser.newContext({viewport:{width:1280,height:900}})).n
 await d.goto(BASE+'/index3.html'); await d.waitForTimeout(1800);
 await d.evaluate(()=>{ sessionStorage.setItem('gg_dash','all'); });
 const id2 = await d.evaluate(()=>window.__tables.instructions[0].id);
-await d.goto(BASE+'/index3.html#/edit/'+id2); await d.waitForTimeout(1500); await d.click('[data-tab="steps"]'); await d.waitForTimeout(400);
+await d.goto(BASE+'/index3.html#/edit/'+id2); await d.waitForTimeout(1500); { const tb = await d.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await d.waitForTimeout(400);
 console.log('title fmtbar buttons:', await d.$$eval('[data-tf]', b => b.map(x => x.dataset.tf)));
 await d.click('#stitle'); await d.evaluate(()=>{ const i = document.querySelector('#stitle'); i.setSelectionRange(0, 9); });
 await d.click('[data-tf="keep"]'); await d.waitForTimeout(600);

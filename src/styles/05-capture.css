@@ -4,9 +4,6 @@
 .capture video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
 .capture video.mirror{transform:scaleX(-1)}
 .cap-top{position:relative;z-index:2;display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;background:linear-gradient(rgba(0,0,0,.65),transparent)}
-.cap-top .ttl{font-weight:700;font-size:14px;flex:1;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;background:none;color:#fff;text-align:left;display:inline-flex;align-items:center;gap:6px;min-width:0}
-.cap-top .ttl .pen{opacity:.6;display:inline-flex}
-.cap-top .ttl .pen svg{width:14px;height:14px}
 .cap-top .cnt{font-weight:800;font-size:13px;background:rgba(0,0,0,.55);padding:5px 10px;border-radius:999px;border:0}
 .cap-top label.round{display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
 .cap-bottom{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:12px 16px calc(18px + env(safe-area-inset-bottom,0px));background:linear-gradient(transparent,rgba(0,0,0,.78))}
@@ -56,3 +53,49 @@
 .modebar{position:absolute;left:50%;top:calc(66px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:8px;background:var(--blue);color:#fff;padding:6px 8px 6px 14px;border-radius:999px;font-weight:700;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
 .modebar button{color:#fff;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.2);display:inline-flex;align-items:center;justify-content:center}
 .modebar button svg{width:16px;height:16px}
+
+/* ---- v0.24: count left, done right ---- */
+.cap-top .spacer{flex:1}
+.cap-top .done-top{width:auto;height:40px;padding:0 16px 0 12px;border-radius:999px;background:var(--mint);color:var(--navy);font-weight:800;font-size:14px;display:inline-flex;align-items:center;gap:6px}
+.cap-top .done-top svg{width:20px;height:20px}
+
+/* ---- v0.30.1: camera – quiet overlays ---- */
+.cap-top .cnt{font-size:12px;font-weight:700;background:rgba(0,0,0,.35);padding:5px 9px;opacity:.9}
+.modebar.script{left:12px;right:12px;transform:none;display:block;max-width:640px;margin:0 auto;padding:9px 44px 9px 12px;border-radius:14px;background:rgba(10,18,34,.62);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 10px 30px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.14)}
+.modebar.script #modetxt{display:block}
+.modebar.script #modex{position:absolute;top:7px;right:8px}
+.modebar.script .cs-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 3px}
+.modebar.script .cs-meta .cs-m{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.75);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.modebar.script .cs-meta .cs-m b{color:var(--mint);font-size:12px}
+.modebar.script .cs-open{font-style:normal;color:var(--mint)}
+.modebar.script .cs-nav{display:inline-flex;gap:4px;margin:0;padding:0;border:0;flex:0 0 auto}
+.modebar.script .cs-nav button{width:30px;height:26px;border-radius:8px;background:rgba(255,255,255,.14);color:#fff;display:inline-flex;align-items:center;justify-content:center}
+.modebar.script .cs-nav button svg{width:16px;height:16px}
+.modebar.script .cs-nav button[disabled]{opacity:.3}
+.modebar.script .cs-body{cursor:pointer}
+.modebar.script .cs-title{font-size:16.5px;font-weight:800;line-height:1.2}
+.modebar.script .cs-warn{font-size:12.5px;font-weight:700;color:#ffd166;margin-top:4px}
+.modebar.script .cs-shot{font-size:12.5px;font-weight:600;margin-top:4px;padding:0;border:0;opacity:.92}
+.modebar.script .cs-desc{font-size:13px;font-weight:600;opacity:.88;margin-top:6px;display:block;-webkit-line-clamp:unset}
+.modebar.script .cs-doc{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11px;font-weight:700;opacity:.9}
+.modebar.script .cs-doc img{width:64px;height:48px;object-fit:cover;border-radius:8px;background:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.3)}
+.modebar.script .cs-more{display:none;font-size:11.5px;font-weight:700;color:rgba(255,255,255,.6);margin-top:4px}
+/* compact (default): number · chapter · open, title, one line of warning and one line of the shot hint – tap = everything */
+.modebar.script.compact .cs-title{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:16.5px}
+.modebar.script.compact .cs-warn,.modebar.script.compact .cs-shot{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.modebar.script.compact .cs-desc,.modebar.script.compact .cs-doc{display:none}
+.modebar.script.compact .cs-more{display:block}
+.modebar.script.compact .cs-meta{display:flex}
+.modebar.script.compact #modetxt{display:block}
+.cap-status.quiet{display:none}
+/* upload progress and offline chip: small, in the top row, never over the card or the shutter */
+body:has(.capture) .sync{top:calc(13px + env(safe-area-inset-top,0px));padding:5px 10px;font-size:11px;border-radius:999px;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:41}
+body:has(.capture) .sync .bar{width:44px;height:4px}
+body:has(.capture) .netpill{bottom:auto;top:calc(13px + env(safe-area-inset-top,0px));padding:6px 12px;font-size:11.5px;max-width:48vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:41;box-shadow:none}
+body.uploading:has(.capture) .netpill{display:none}
+@media(max-width:600px){
+  .modebar.script{padding:9px 44px 9px 12px;border-radius:14px;top:calc(62px + env(safe-area-inset-top,0px))}
+  .modebar.script .cs-title{font-size:16px}
+}
+/* toasts in the camera: above the strip, never over the shutter */
+body:has(.capture) .toast{bottom:calc(236px + env(safe-area-inset-bottom,0px))}

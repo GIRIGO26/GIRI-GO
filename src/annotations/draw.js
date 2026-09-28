@@ -1,3 +1,4 @@
+import { trackedAt } from './track.js';
 import { fitRect } from '../core/helpers.js';
 import { G } from '../core/state.js';
 import { hexToRgb } from '../views/results.js';
@@ -229,14 +230,15 @@ function animTick(now){ G.animRaf = 0; if(now - G.animLast < 30){ G.animRaf = re
   for(const cv of [...ANIM]){ if(!cv.isConnected){ ANIM.delete(cv); continue; } const b = cv.getBoundingClientRect(); if(b.bottom < -40 || b.top > innerHeight + 40) continue; try{ cv._redraw(); }catch(e){ ANIM.delete(cv); } }
   if(ANIM.size) G.animRaf = requestAnimationFrame(animTick); }
 
-function drawAll(canvas, anns, mw, mh, selId, timeFilter){
+// vt = current video time: symbols with a motion track are drawn where their spot is right now
+function drawAll(canvas, anns, mw, mh, selId, timeFilter, vt){
   const ctx = canvas.getContext('2d'); const dpr = window.devicePixelRatio||1;
   const bw = canvas.clientWidth, bh = canvas.clientHeight;
   if(canvas.width !== Math.round(bw*dpr) || canvas.height !== Math.round(bh*dpr)){ canvas.width = Math.round(bw*dpr); canvas.height = Math.round(bh*dpr); }
   ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,bw,bh);
   const r = fitRect(bw, bh, mw, mh); const now = performance.now()/1000; let animated = false;
-  anns.forEach(a => { if(timeFilter && !timeFilter(a)) return; if(a.anim) animated = true; drawAnn(ctx, a, r, a.id===selId, now); });
-  if(animated){ canvas._redraw = () => drawAll(canvas, anns, mw, mh, selId, timeFilter); ANIM.add(canvas); if(!G.animRaf) G.animRaf = requestAnimationFrame(animTick); } else ANIM.delete(canvas);
+  anns.forEach(a => { if(timeFilter && !timeFilter(a)) return; if(a.anim) animated = true; drawAnn(ctx, vt!=null && a.track ? trackedAt(a, vt) : a, r, a.id===selId, now); });
+  if(animated){ canvas._redraw = () => drawAll(canvas, anns, mw, mh, selId, timeFilter, vt); ANIM.add(canvas); if(!G.animRaf) G.animRaf = requestAnimationFrame(animTick); } else ANIM.delete(canvas);
   return r;
 }
 

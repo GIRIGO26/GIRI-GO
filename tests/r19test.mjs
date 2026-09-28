@@ -9,7 +9,7 @@ console.log('tab acts:', await d.$$eval('.tab-acts .btn', x => x.map(b=>b.textCo
 await d.click('[data-tab="settings"]'); await d.waitForTimeout(500);
 console.log('settings order:', await d.$$eval('#tab-settings .side-info:first-child label.toggle, #tab-settings .side-info:first-child .chkmodes', x => x.map(e => e.className+':'+(e.querySelector('input')||{}).id)));
 console.log('access details closed:', await d.$eval('details.acc', e => !e.open), 'summary:', await d.$eval('details.acc summary', e => e.textContent.trim()));
-console.log('tx how:', await d.$eval('#txcard', e => e.textContent.includes('PDF in dieser Sprache')));
+console.log('tx how:', await d.$eval('#txcard', e => /PDF herunterladen|Download PDF/.test(e.textContent) && !!e.querySelector('[data-pdforig]')));
 await d.screenshot({path:OUT+'/shots/r19-settings.png', fullPage:true});
 // viewer: no note button, feedback present, chk buttons only on confirm steps
 const m = await (await browser.newContext({viewport:{width:390,height:844}, isMobile:true, hasTouch:true, deviceScaleFactor:2})).newPage(); m.on('pageerror', e => errs.push('M '+e.message));

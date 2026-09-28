@@ -1,3 +1,5 @@
+import { go } from '../app/router.js';
+import { SESSION_DAYS_DEFAULT, sessionDays } from '../core/auth.js';
 import { $$, confirmM, el, esc, modal, promptM, toast } from '../core/helpers.js';
 import { t } from '../core/i18n.js';
 import { pwDialog, saveInstr } from '../core/passwords.js';
@@ -8,10 +10,11 @@ import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
 import { roleLbl } from './dashboard.js';
 import { debounce } from './editor.js';
+import { defaultGuide } from '../media/pdfimport.js';
 
 
 /* ---------- Admin panel: users, teams, project access ---------- */
-async function renderAdmin(app){
+async function renderAdmin(app, sub){
   topbar(app, {back:'/', sub:t('admin')});
   if(!S.user.isAdmin){ app.appendChild(el(`<main class="page page-narrow"><div class="card empty"><h2>${t('admin')}</h2><div>${t('only_admin')}</div></div></main>`)); return; }
   const ws = await loadWs(true); const {data:prows} = await G.sb.from('profiles').select('*').eq('ws', S.user.ws).order('created_at');
@@ -22,10 +25,26 @@ async function renderAdmin(app){
         <div class="tbl-wrap" style="margin-top:10px"><table class="res" id="utable"><thead><tr><th>${t('name')}</th><th>${t('email')}</th><th>${t('role')}</th><th></th></tr></thead><tbody></tbody></table></div>
         <div id="invites"></div></div>
       <div class="card side-info"><div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">${t('teams')}</h3><button class="btn ghost sm" id="newteam">${IC.plus} ${t('new_team')}</button></div><div id="teams" style="margin-top:10px"></div></div>
-      <div class="card side-info"><h3>${t('folder_access')}</h3><p class="muted" style="margin:0 0 10px">${t('folder_access_sub')}</p><div id="faccess"></div></div>
+      <div class="card side-info"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h3 style="margin:0">${t('folder_access')}</h3><button class="btn ghost sm" id="del-empty">${IC.trash} ${t('del_empty_folders')}</button></div><p class="muted" style="margin:8px 0 10px">${t('folder_access_sub')}</p><div id="faccess"></div></div>
       <div class="card side-info"><h3>${t('instr_access')}</h3><p class="muted" style="margin:0 0 10px">${t('instr_access_admin_sub')}</p><div id="iaccess2"></div></div>
+      <div class="card side-info ai-card" id="ai-card"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h3 style="margin:0"><span class="pdfi-ico ai sm">✦</span> ${t('ai_cfg')}</h3><span class="chip ${(ws.settings||{}).pdfGuide ? 'review' : 'draft'}" id="ai-state">${(ws.settings||{}).pdfGuide ? t('ai_cfg_custom') : t('ai_cfg_default')}</span></div>
+        <p class="muted" style="margin:8px 0 10px">${t('ai_cfg_sub')}</p>
+        <div class="field" style="margin:0"><textarea id="ai-guide" rows="14" style="box-sizing:border-box;font-size:13.5px;font-family:inherit">${esc((ws.settings||{}).pdfGuide || defaultGuide())}</textarea></div>
+        <p class="muted" style="margin:8px 0 10px;font-size:12.5px">${t('ai_cfg_fixed')}</p>
+        <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn mint sm" id="ai-save">${t('ai_cfg_save')}</button><button class="btn ghost sm" id="ai-reset">${t('pdfi_guide_reset')}</button></div></div>
+      <div class="card side-info" id="imp-card"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h3 style="margin:0">${IC.upload} ${t('imp_title')}</h3><button class="btn sm" id="imp-open">${t('imp_open')}</button></div><p class="muted" style="margin:8px 0 0">${t('imp_card_sub')}</p></div>
+      <div class="card side-info"><h3>${t('ws_settings')}</h3><div class="field" style="max-width:320px"><label for="s-days">${t('session_days')}</label><div class="row" style="flex-wrap:nowrap;align-items:center;gap:8px"><input id="s-days" type="number" min="1" max="365" step="1" value="${sessionDays()}" style="width:110px"><span class="muted">${t('days')}</span></div></div><p class="muted" style="margin:0">${t('session_days_sub')}</p></div>
     </div></main>`);
+  v.querySelector('#s-days').onchange = async e => { let n = Math.round(+e.target.value); if(!(n>0)) n = SESSION_DAYS_DEFAULT; n = Math.min(365, n); e.target.value = n; const settings = Object.assign({}, ws.settings||{}, {sessionDays:n}); try{ await saveWs({settings}); toast(t('saved')); }catch(err){} };
+  { const ta = v.querySelector('#ai-guide'), st = v.querySelector('#ai-state');
+    const setState = custom => { st.className = 'chip ' + (custom ? 'review' : 'draft'); st.textContent = custom ? t('ai_cfg_custom') : t('ai_cfg_default'); };
+    v.querySelector('#ai-save').onclick = async () => { const g = ta.value.trim(); const custom = g && g !== defaultGuide().trim(); try{ await saveWs({settings: Object.assign({}, ws.settings||{}, {pdfGuide: custom ? g : ''})}); ws.settings = Object.assign({}, ws.settings||{}, {pdfGuide: custom ? g : ''}); setState(custom); toast(t('ai_cfg_saved')); }catch(e){ toast(e.message||String(e)); } };
+    v.querySelector('#ai-reset').onclick = () => { ta.value = defaultGuide(); toast(t('pdfi_guide_reset_done')); }; }
+  v.querySelector('#imp-open').onclick = () => go('admin/import');
+  // v0.36: bulk cleanup after a structure import – folders without instructions
+  v.querySelector('#del-empty').onclick = async () => { const used = new Set((S.instrs||[]).map(i => i.folder).filter(Boolean)); const empties = (ws.folders||[]).filter(f => !used.has(f.id)); if(!empties.length){ toast(t('no_empty_folders')); return; } if(!(await confirmM(t('del_empty_folders_q', {n:empties.length})))) return; const keep = (ws.folders||[]).filter(f => used.has(f.id)); await saveWs({folders:keep}); ws.folders = keep; toast(t('del_empty_folders_done', {n:empties.length})); renderAccess(); };
   app.appendChild(v);
+  if(sub==='ai'){ const c = v.querySelector('#ai-card'); setTimeout(() => { c.scrollIntoView({behavior:'smooth', block:'start'}); c.classList.add('hl'); }, 80); }
   const emails = () => [...new Set([...people.map(p=>p.email), ...(ws.invites||[]).map(i=>i.email)])];
   function renderUsers(){
     const tb = v.querySelector('#utable tbody'); tb.innerHTML = people.map(p => `<tr data-id="${p.id}"><td><b>${esc(p.name||'')}</b>${p.id===S.user.id?` <span class="muted">(${t('you')})</span>`:''}</td><td>${esc(p.email)}</td><td><select data-role ${p.id===S.user.id?'disabled':''}>${ROLES.map(r=>`<option value="${r}" ${p.role===r?'selected':''}>${roleLbl(r)}</option>`).join('')}</select></td><td>${p.id!==S.user.id?`<button class="btn ghost sm del" data-rm title="${t('remove_user')}">${IC.trash}</button>`:''}</td></tr>`).join('');

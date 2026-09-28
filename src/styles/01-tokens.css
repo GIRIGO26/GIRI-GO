@@ -10,10 +10,10 @@
   --bg:#F5F6F8; --surface:#FFFFFF; --surface-2:#F2F3F6; --surface-3:#E8EAEE; --line:#E4E6EB; --line-2:#D3D6DC;
   --ink:#0B0B0C; --ink-2:#3B3F47; --ink-3:#7B808A;
   --accent:var(--blue); --accent-ink:#fff;
-  --shadow-1:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.05);
-  --shadow-2:0 2px 6px rgba(16,24,40,.05),0 14px 34px -10px rgba(1,39,86,.16);
+  --shadow-1:0 1px 2px rgba(16,24,40,.05);
+  --shadow-2:0 2px 4px rgba(16,24,40,.04),0 18px 40px -16px rgba(1,39,86,.22);
   --shadow:var(--shadow-1);
-  --radius:18px; --r-md:14px; --r-sm:10px;
+  --radius:14px; --r-md:12px; --r-sm:8px;
   --ease:cubic-bezier(.2,.8,.2,1);
   --font:'Montserrat',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
   padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
@@ -35,7 +35,12 @@
   --shadow-1:0 1px 2px rgba(0,0,0,.4); --shadow-2:0 14px 34px -10px rgba(0,0,0,.6);
 }
 *{box-sizing:border-box}
-html,body{height:100%;overflow-x:clip;max-width:100%;overscroll-behavior-x:none}
+html,body{overflow-x:clip;max-width:100%;overscroll-behavior-x:none}
+/* v0.28.2: body grows with the page (before: fixed to one screen + a two-colour html background → black bands behind long pages) */
+html{height:100%;background:#000} /* only visible when rubber-banding past the page (status-bar black) */
+body{min-height:100%;display:flow-root} /* flow-root: margins of the last element stay inside the page */
+body{touch-action:manipulation} /* no double-tap zoom */
+body::before{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:#000;z-index:21;pointer-events:none}
 body{margin:0;background:var(--bg);background-image:radial-gradient(1200px 420px at 50% -120px,rgba(0,78,173,.07),transparent 70%);background-repeat:no-repeat;color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;text-rendering:optimizeLegibility}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none;padding:0}

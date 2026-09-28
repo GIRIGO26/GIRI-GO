@@ -11,7 +11,7 @@ const vid = await d.evaluate(()=>window.__tables.instructions[0].id);
 await shot(d, 'dash-projects');
 await d.evaluate(()=>sessionStorage.setItem('gg_dash','all')); await d.goto(BASE+'/index3.html#/p/none'); await d.waitForTimeout(400); await d.goto(BASE+'/index3.html#/'); await d.waitForTimeout(900); await shot(d, 'dash-all');
 await d.goto(BASE+'/index3.html#/p/f1'); await d.waitForTimeout(900); await shot(d, 'project');
-await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1500); await d.click('[data-tab="steps"]'); await d.waitForTimeout(600); await shot(d, 'editor', {fullPage:true});
+await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1500); { const tb = await d.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await d.waitForTimeout(600); await shot(d, 'editor', {fullPage:true});
 await d.click('[data-tab="settings"]'); await d.waitForTimeout(400); await shot(d, 'editor-settings', {fullPage:true});
 await d.goto(BASE+'/index3.html#/results/'+vid); await d.waitForTimeout(1200); await shot(d, 'results', {fullPage:true});
 await d.goto(BASE+'/index3.html#/stats'); await d.waitForTimeout(1200); await shot(d, 'stats', {fullPage:true});
@@ -23,7 +23,7 @@ const m = await (await browser.newContext({viewport:{width:390,height:844}, isMo
 await m.goto(BASE+'/index3.html'); await m.waitForTimeout(2500); await m.evaluate(()=>{ localStorage.setItem('gg_lang','de'); }); await m.reload(); await m.waitForTimeout(2500);
 const vid2 = await m.evaluate(()=>window.__tables.instructions[0].id);
 await shot(m, 'm-dash', {fullPage:true});
-await m.goto(BASE+'/index3.html#/edit/'+vid2); await m.waitForTimeout(1500); await m.click('[data-tab="steps"]'); await m.waitForTimeout(600); await shot(m, 'm-editor', {fullPage:true});
+await m.goto(BASE+'/index3.html#/edit/'+vid2); await m.waitForTimeout(1500); { const tb = await m.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await m.waitForTimeout(600); await shot(m, 'm-editor', {fullPage:true});
 await m.goto(BASE+'/index3.html#/rec/'+vid2); await m.waitForTimeout(1500); await shot(m, 'm-capture');
 await m.evaluate(()=>{ window.__tables.instructions[0].status='published'; });
 await m.goto(BASE+'/index3.html#/'); await m.waitForTimeout(600);

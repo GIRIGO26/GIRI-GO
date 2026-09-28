@@ -7,7 +7,7 @@ await d.goto(BASE+'/index3.html'); await d.waitForTimeout(1800);
 await d.evaluate(()=>{ sessionStorage.setItem('gg_dash','all'); });
 const vid = await d.evaluate(()=>window.__tables.instructions[0].id);
 await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1500);
-await d.click('[data-tab="steps"]'); await d.waitForTimeout(400);
+{ const tb = await d.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await d.waitForTimeout(400);
 console.log('tools:', await d.$$eval('[data-tool]', b => b.map(x => x.dataset.tool)));
 // open the picker via the tool → empty state → upload two files → first becomes... (two files → stays open)
 await d.click('[data-tool="img"]'); await d.waitForTimeout(400);
@@ -37,7 +37,7 @@ await d.goto(BASE+'/index3.html#/'); await d.waitForTimeout(500);
 await d.goto(BASE+'/index3.html#/v/'+vid+'/1'); await d.waitForTimeout(1800);
 await d.screenshot({path:OUT+'/s4-viewer.png'});
 // drag ghost for emoji + img tools must not throw
-await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1200); await d.click('[data-tab="steps"]'); await d.waitForTimeout(300);
+await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1200); { const tb = await d.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await d.waitForTimeout(300);
 const tb = await d.$('[data-tool="emoji"]'); const bb = await tb.boundingBox(); await d.mouse.move(bb.x+10, bb.y+10); await d.mouse.down(); await d.mouse.move(bb.x+60, bb.y-200, {steps:5}); await d.mouse.up(); await d.waitForTimeout(300); await d.keyboard.press('Escape');
 console.log(errs.join('\n')||'NO ERRORS');
 await browser.close();

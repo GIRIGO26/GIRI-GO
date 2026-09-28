@@ -4,7 +4,7 @@ const page = await (await browser.newContext({viewport:{width:1200,height:900}})
 page.on('pageerror', e => errs.push(e.message+' '+(e.stack||'').split('\n').slice(0,3).join('|')));
 await page.goto(BASE+'/index3.html'); await page.waitForTimeout(2000);
 await page.evaluate(()=>sessionStorage.setItem('gg_dash','all')); await page.goto(BASE+'/index3.html#/'); await page.waitForTimeout(800);
-await page.click('[data-a="edit"]'); await page.waitForTimeout(1200); await page.click('[data-tab="steps"]'); await page.waitForTimeout(300);
+await page.click('.card.instr .title'); await page.waitForTimeout(1200); { const tb = await page.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await page.waitForTimeout(300);
 const before = await page.evaluate(()=>window.__tables.instructions[0].data.steps.map(s=>s.kind||s.type).join(','));
 // file picker import (2 photos + 1 video) after selected step 1
 await page.setInputFiles('.addstep input[type=file]', [TESTS+'/imp1.jpg', TESTS+'/test.webm', TESTS+'/imp2.jpg']); await page.waitForTimeout(3500);

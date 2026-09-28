@@ -1,3 +1,4 @@
+import { newShareKey } from '../core/links.js';
 import { saveInstr } from '../core/passwords.js';
 import { G, S, putMedia } from '../core/state.js';
 import { uid } from '../core/storage.js';
@@ -26,7 +27,7 @@ async function seedImpl(){
     {t:'Mit 10 Nm anziehen', d:'Drehmomentschlüssel Nr. 3.', hue:30, w:'Handschuhe tragen', ann:[{type:'warn',x:.8,y:.22},{type:'text',x:.35,y:.8,text:'10 Nm',color:'yellow'}]},
     {ch:'Prüfung', t:'Sichtprüfung Spalt', d:'Spaltmaß max. 0,5 mm.', hue:340, ann:[{type:'check',x:.5,y:.5}]}
   ];
-  const instr = {id:uid(), ws:S.user.ws, title:'Beispiel: Spannvorrichtung rüsten', example:true, createdBy:S.user.name, createdAt:Date.now(), updatedAt:Date.now(), status:'draft', version:0, approvals:{tech:null, dsgvo:null}, checklist:true, steps:[], history:[]};
+  const instr = {id:uid(), ws:S.user.ws, title:'Beispiel: Spannvorrichtung rüsten', example:true, shareKey:newShareKey(), createdBy:S.user.name, createdAt:Date.now(), updatedAt:Date.now(), status:'draft', version:0, approvals:{tech:null, dsgvo:null}, checklist:true, steps:[], history:[]};
   for(const s of steps){
     if(s.ch) instr.steps.push({id:uid(), kind:'chapter', title:s.ch});
     const blob = await mkImg(s.t, s.hue); const mid = uid();

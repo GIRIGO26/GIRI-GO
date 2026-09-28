@@ -30,3 +30,10 @@
 .spin{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
 .spin.sm{width:18px;height:18px;border-width:2.5px;display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* v0.29: navigation timing chip (hidden unless switched on) */
+.perf-chip{position:fixed;left:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:60;max-width:calc(100vw - 20px);padding:6px 10px;border-radius:10px;background:rgba(10,18,34,.88);color:#fff;font:600 11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;text-align:left;box-shadow:0 6px 20px rgba(0,0,0,.3);backdrop-filter:blur(8px)}
+.perf-chip b{color:#03D39B}
+.perf-chip .perf-log{display:none;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.2);opacity:.85}
+.perf-chip.open .perf-log{display:block}
+.topbar .ver{cursor:default;-webkit-user-select:none;user-select:none}

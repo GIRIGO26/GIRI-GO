@@ -13,7 +13,7 @@ import { debounce } from './editor.js';
 /* ---------- Results ---------- */
 async function renderResults(app, id){
   const instr = S.instrs.find(i=>i.id===id); if(!instr) return go('');
-  topbar(app, {back:'/', sub:t('stats')});
+  topbar(app, {back:'/', sub:t('stats_fb')});
   const steps = realSteps(instr);
   const [{data:rows, error}, {data:vrows}, {data:fbrows}] = await Promise.all([
     G.sb.from('runs').select('*').eq('instr_id', id).order('started_at', {ascending:false}),

@@ -35,3 +35,24 @@
 /* legacy login blocks (unused templates kept harmless) */
 .login-wrap{max-width:440px;margin:40px auto;padding:28px}
 .login-card{padding:26px}
+
+/* ---- v0.23: instructions saved on this device (worker without login) ---- */
+.offl{padding:16px 18px;margin-bottom:14px}
+.offl-list{display:grid;gap:6px}
+.offl-it{display:grid;grid-template-columns:48px 1fr auto;gap:12px;align-items:center;padding:8px;border-radius:14px;text-decoration:none;color:var(--ink);background:var(--surface-2)}
+.offl-it:hover{background:var(--surface-3)}
+.offl-it img{width:48px;height:48px;border-radius:10px;object-fit:cover;background:var(--surface-3);display:block}
+.offl-it span{display:flex;flex-direction:column;min-width:0}
+.offl-it b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.offl-it small{font-size:12px;color:var(--ink-3);font-weight:600}
+.offl-it .x{width:30px;height:30px;border-radius:999px;color:var(--ink-3);font-size:18px;font-weight:800}
+.offl-it .x:hover{background:var(--surface);color:var(--red)}
+
+/* ---- v0.24: compact login on phones, code-first in the installed app ---- */
+.l-visual[hidden]{display:none}
+@media(max-width:900px){.l-visual{height:min(34vw,160px)}.login2{padding-top:8px}}
+.wait.app .otp{border-top:0;padding-top:4px;margin-top:6px}
+.wait.app .otp label{font-size:13px;font-weight:700;color:var(--ink)}
+.wait.app .otp input{font-size:26px;padding:14px}
+.l-new{display:block;margin:-6px 0 14px;font-size:13px;font-weight:700;color:var(--blue);text-align:left;padding:2px 0}
+.l-new:hover{text-decoration:underline}

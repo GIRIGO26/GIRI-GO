@@ -4,7 +4,7 @@ const d = await (await browser.newContext({viewport:{width:1366,height:900}})).n
 await d.goto(BASE+'/index3.html'); await d.waitForTimeout(2200);
 await d.evaluate(()=>{ localStorage.setItem('gg_lang','de'); });
 const vid = await d.evaluate(()=>window.__tables.instructions[0].id);
-await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1800); await d.click('[data-tab="steps"]'); await d.waitForTimeout(600);
+await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1800); { const tb = await d.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await d.waitForTimeout(600);
 const panel = await d.$('.steps-panel'); await panel.screenshot({path:OUT+'/shots/addstep.png'});
 console.log('add card:', await d.$eval('.addstep', e => e.textContent.replace(/\s+/g,' ').trim()));
 // import via the card: two fake image files → appended at the end

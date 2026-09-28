@@ -1,3 +1,4 @@
+import { mirrorPut, flushDirty, netErr, schedulePill } from './offline.js';
 import { esc, modal, toast } from './helpers.js';
 import { t } from './i18n.js';
 import { G, S } from './state.js';
@@ -25,16 +26,26 @@ function pwDialog(name, has){
 const fetchInstr = async id => { if(!G.sb) return null; const {data} = await G.sb.from('instructions').select('*').eq('id', id).maybeSingle(); return data ? rowToInstr(data) : null; };
  const ownWrites = new Set();
 
-const saveInstr = async i => {
-  i.updatedAt = Date.now(); if(!G.sb) return;
+// one row → server; true on success. Used by saveInstr and by the offline queue.
+const upsertInstrRow = async i => {
   const {id, ws, status, title, updatedAt, ...rest} = i; const data = Object.assign({}, rest);
-  G.saving++;
-  ownWrites.add(updatedAt); if(ownWrites.size > 200){ const first = ownWrites.values().next().value; ownWrites.delete(first); }
-  const {error} = await G.sb.from('instructions').upsert({id, ws, status, title, updated_at: new Date(updatedAt).toISOString(), data});
-  G.saving--;
-  if(error) toast(error.message);
+  G.saving++; ownWrites.add(updatedAt); if(ownWrites.size > 200){ const first = ownWrites.values().next().value; ownWrites.delete(first); }
+  try{ const {error} = await G.sb.from('instructions').upsert({id, ws, status, title, updated_at: new Date(updatedAt).toISOString(), data}); if(error) throw error; return true; }
+  catch(e){ if(!netErr(e)) toast(e.message||String(e)); return false; }
+  finally { G.saving--; }
 };
+// saves go to the local mirror first (dirty), then to the server; without network they stay dirty and are pushed later
+const saveInstr = async (i, opts) => {
+  if(!(opts && opts.keepDate)) i.updatedAt = Date.now(); if(!G.sb) return; // keepDate: the importer keeps the original Classic date
+  if(i.ws === (S.user && S.user.ws) && !S.instrs.some(x => x.id === i.id)) S.instrs.unshift(i); // new instruction: in memory at once (v0.29 – navigation no longer waits for a server round trip)
+  (i.steps||[]).forEach(s => { if(s.mediaId && !s.mediaUrl && S.remoteUrl.has(s.mediaId)){ s.mediaUrl = S.remoteUrl.get(s.mediaId); } }); // uploaded here meanwhile → never save it without its URL
+  await mirrorPut(i, true);
+  const ok = await upsertInstrRow(i);
+  if(ok){ await mirrorPut(i, false); } else { toast(t('saved_offline')); }
+  schedulePill();
+};
+const retrySaves = () => flushDirty(upsertInstrRow);
 
 const deleteInstr = async i => { if(!G.sb) return; const paths = (i.steps||[]).filter(s=>s.mediaPath).map(s=>s.mediaPath); if(paths.length) await G.sb.storage.from('media').remove(paths).catch(()=>{}); for(const s of i.steps||[]) if(s.mediaId) await DB.del('media', s.mediaId); await G.sb.from('instructions').delete().eq('id', i.id); };
 
-export { sha256Hex, mkPw, lockNames, pwDialog, fetchInstr, ownWrites, saveInstr, deleteInstr };
+export { upsertInstrRow, retrySaves, sha256Hex, mkPw, lockNames, pwDialog, fetchInstr, ownWrites, saveInstr, deleteInstr };

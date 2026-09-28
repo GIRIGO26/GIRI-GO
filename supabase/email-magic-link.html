@@ -1,11 +1,12 @@
 <!-- Supabase → Authentication → Email Templates → Magic Link: kompletten Body durch diesen ersetzen.
-     Subject: GIRI Go – Anmelden -->
+     Subject: GIRI Go – Dein Code: {{ .Token }} -->
 <div style="font-family:Montserrat,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#000">
   <div style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#004EAD;font-weight:800;margin-bottom:12px">GIRI Go</div>
-  <h2 style="font-size:22px;margin:0 0 12px">Anmelden</h2>
-  <p style="font-size:15px;line-height:1.5;margin:0 0 20px">Tippe auf den Button – du wirst direkt angemeldet. In der installierten App auf dem Handy: einfach den Code eingeben.</p>
-  <p style="margin:0 0 24px"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#004EAD;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:10px">Jetzt anmelden</a></p>
-  <p style="font-size:13px;color:#525252;margin:0 0 6px">Dein Code (1 Stunde gültig):</p>
-  <p style="font-size:30px;font-weight:800;letter-spacing:.2em;margin:0 0 24px">{{ .Token }}</p>
-  <p style="font-size:12px;color:#8A8A8A;margin:0">Nicht angefordert? Einfach ignorieren – der Link funktioniert nur einmal.</p>
+  <h2 style="font-size:22px;margin:0 0 6px">Dein Anmelde-Code</h2>
+  <p style="font-size:14px;color:#525252;margin:0 0 14px">Eine Stunde gültig – in GIRI Go eingeben:</p>
+  <p style="font-size:38px;font-weight:800;letter-spacing:.22em;margin:0 0 22px;background:#F2F3F6;border-radius:12px;padding:16px 18px;text-align:center">{{ .Token }}</p>
+  <p style="font-size:14px;line-height:1.5;margin:0 0 10px;color:#525252">Am PC oder im Browser geht es auch per Klick:</p>
+  <p style="margin:0 0 22px"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#004EAD;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:10px">Im Browser anmelden</a></p>
+  <p style="font-size:13px;line-height:1.5;color:#525252;margin:0 0 18px;border-left:3px solid #03D39B;padding-left:10px"><b>GIRI Go als App auf dem Home-Bildschirm?</b> Dann dort den Code oben eingeben – der Button öffnet nur den Browser, nicht die App.</p>
+  <p style="font-size:12px;color:#8A8A8A;margin:0">Nicht angefordert? Einfach ignorieren – Code und Link funktionieren nur einmal.</p>
 </div>

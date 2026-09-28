@@ -1,8 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-// GIRI Go – translate (v7). Three modes:
-//  A) { instrId, target, pw? } – public viewer: translates a PUBLISHED instruction (or returns the cached
+// GIRI Go – translate (v8). Three modes:
+//  A) { instrId, target, pw?, key? } – public viewer: translates a PUBLISHED instruction (or returns the cached
 //                             translation) and caches it in instructions.data.translations[target]
 //  B) { texts[], target }  – signed-in user: raw text translation (editor)
 //  C) { ui:[{k,v}], target } – app UI strings (German source); cached per string in public.ui_tx (public, bounded)
@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
     const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const apikey = req.headers.get("apikey") || "";
-    const allowed = [anon, Deno.env.get("PUBLISHABLE_KEY") || "", "sb_publishable_eDo9afwf0tBuFqu1-yYyGg_2Tk3uv_L"].filter(Boolean);
+    const allowed = [anon, Deno.env.get("PUBLISHABLE_KEY") || "", "sb_publishable_eDo9afwf0tBuFqu1-yYyGg_2Tk3uv_L", "sb_publishable_DPCsusG0yVnugNpJaB-vpA_-DLUJaLW"].filter(Boolean);
     if (!allowed.includes(apikey)) return json({ error: "forbidden" }, 403);
     const admin = createClient(url, service);
     const { data: key, error: kerr } = await admin.rpc("get_deepl_key");
@@ -124,8 +124,9 @@ Deno.serve(async (req: Request) => {
       }
       // password-protected links (project/team password): the viewer sends the password it unlocked with
       if (row.status === "published") {
-        const { data: gate } = await admin.rpc("open_instr", { p_id: row.id, p_pw: body.pw ? String(body.pw) : null });
-        if (gate && gate.locked) {
+        // v0.33: public links carry a share key – without the right key (stale/guessed link) only signed-in users may translate
+        const { data: gate } = await admin.rpc("open_instr", { p_id: row.id, p_pw: body.pw ? String(body.pw) : null, p_key: body.key ? String(body.key) : null });
+        if (!gate || gate.locked || gate.stale) {
           const auth = req.headers.get("Authorization") || "";
           const uc = createClient(url, anon, { global: { headers: { Authorization: auth } } });
           const { data: { user } } = await uc.auth.getUser();

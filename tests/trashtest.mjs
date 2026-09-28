@@ -21,7 +21,7 @@ console.log('chapters:', await d.evaluate(()=>window.__tables.instructions[0].da
 await d.goto(BASE+'/index3.html#/'); await d.waitForTimeout(800);
 await d.click('[data-a="more"]'); await d.waitForTimeout(300); await d.click('[data-m="del"]'); await d.waitForTimeout(300); await d.click('.modal [data-ok]'); await d.waitForTimeout(800);
 console.log('dashboard cards:', await d.$$eval('.instr', x => x.length), 'deleted_at set:', await d.evaluate(()=>!!window.__tables.instructions[0].deleted_at));
-await d.click('a[href="#/trash"]'); await d.waitForTimeout(1200);
+await d.click('#tbmenu'); await d.waitForTimeout(200); await d.click('[data-m="trash"]'); await d.waitForTimeout(1200);
 console.log('trash page cards:', await d.$$eval('.instr.trash', x => x.length), 'meta:', await d.$eval('.instr.trash .meta', e => e.textContent.trim()));
 await d.screenshot({path:OUT+'/shots/t2-trash-page.png'});
 await d.click('.instr.trash [data-a="restore"]'); await d.waitForTimeout(800);
@@ -48,9 +48,6 @@ console.log('version on mobile visible:', await m.evaluate(()=>{ const e = docum
 await m.goto(BASE+'/index3.html#/rec/'+vid2); await m.waitForTimeout(2000);
 console.log('capture top buttons:', await m.$$eval('.cap-top > *', x => x.map(e => e.id || e.className)), 'done button:', !!(await m.$('#done')));
 await m.click('#strip2 .st'); await m.waitForTimeout(400);
-console.log('modebar:', await m.$eval('#modebar', e => e.hidden ? 'hidden' : e.textContent.trim()), 'delete btn:', !!(await m.$('#modedel')));
-const nBefore = await m.evaluate(()=>window.__tables.instructions[0].data.steps.filter(s=>!s.kind).length);
-await m.click('#modedel'); await m.waitForTimeout(300); await m.click('.modal [data-ok]'); await m.waitForTimeout(600);
-console.log('steps before/after capture delete:', nBefore, await m.evaluate(()=>window.__tables.instructions[0].data.steps.filter(s=>!s.kind).length), 'trash:', await m.evaluate(()=>(window.__tables.instructions[0].data.trash||[]).length));
+console.log('modebar:', await m.$eval('#modebar', e => e.hidden ? 'hidden' : e.textContent.trim().slice(0,60)), '| delete button in camera (removed in v0.30.1, lives in the editor):', !!(await m.$('#modedel')));
 await m.screenshot({path:OUT+'/shots/t4-capture.png'});
 console.log(errs.join('\n')||'NO ERRORS'); await browser.close();

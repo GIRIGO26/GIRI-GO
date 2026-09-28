@@ -51,10 +51,10 @@ console.log('local run cleared after auto-finish:', await m.evaluate(()=>!localS
 // 6) editor: settings radios + per-step checkbox + access card
 await m.evaluate(()=>{ sessionStorage.setItem('gg_dash','all'); });
 await m.goto(BASE+'/index3.html#/edit/'+vid); await m.waitForTimeout(1500);
-await m.click('[data-tab="settings"]'); await m.waitForTimeout(300);
+await m.click('#more'); await m.waitForTimeout(200); await m.click('.modal-bg [data-m="settings"]'); await m.waitForTimeout(300);
 console.log('radios:', await m.$$eval('input[name="cm"]', r => r.map(x => x.value+(x.checked?'*':''))), 'access teams:', await m.$$eval('[data-itm]', r => r.length));
 await m.click('details.acc summary'); await m.waitForTimeout(200); await m.click('[data-itm]'); await m.waitForTimeout(300); console.log('instr.teams:', JSON.stringify(await m.evaluate(()=>window.__tables.instructions[0].data.teams)));
-await m.click('[data-tab="steps"]'); await m.waitForTimeout(500);
+{ const tb = await m.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await m.waitForTimeout(500);
 console.log('sconf checkbox present (custom):', !!(await m.$('#sconf')), 'row marks:', await m.$$eval('.srow small', s => s.filter(x => x.textContent.includes('☑')).length));
 await m.screenshot({path:OUT+'/c4-editor-settings.png', fullPage:true});
 // 7) desktop overview look
@@ -67,5 +67,15 @@ await d.goto(BASE+'/index3.html#/v/'+vid2); await d.waitForTimeout(1800); await 
 await d.goto(BASE+'/index3.html#/admin'); await d.waitForTimeout(1200);
 console.log('admin instr matrix rows:', await d.$$eval('#iaccess2 tr[data-i]', r => r.length));
 await d.screenshot({path:OUT+'/c6-admin.png', fullPage:true});
+// v0.28.3: the first chapter (with the selected step inside) must stay collapsed across redraws; admin AI card + dashboard entry
+{ const iid = await d.evaluate(() => { const T = window.__tables.instructions; return (T.find(r => (r.data.steps||[]).filter(s => s.kind==='chapter').length > 1) || T[0]).id; });
+  await d.goto(BASE+'/index3.html#/edit/'+iid); await d.waitForTimeout(1200);
+  await d.click('.chrow >> nth=0 >> .chev'); await d.waitForTimeout(250);
+  await d.evaluate(() => { const i = document.querySelector('#stitle'); i.value = i.value + ' x'; i.dispatchEvent(new Event('input')); }); await d.waitForTimeout(900);
+  console.log('first chapter stays collapsed after redraw:', await d.$eval('.chrow >> nth=0', e => e.classList.contains('coll')) ? 'YES' : 'NO – BUG');
+  await d.goto(BASE+'/index3.html#/admin/ai'); await d.waitForTimeout(1500);
+  const box = await d.$eval('#ai-card', e => e.getBoundingClientRect()); console.log('AI config card on screen:', box.top >= 0 && box.top < 400 && box.height > 200 ? 'YES' : JSON.stringify(box));
+  await d.fill('#ai-guide', 'Mein Leitfaden: kurz.'); await d.click('#ai-save'); await d.waitForTimeout(400);
+  console.log('AI guide saved to workspace:', await d.evaluate(() => (window.__tables.workspaces[0].settings||{}).pdfGuide)); }
 console.log(errs.join('\n')||'NO ERRORS');
 await browser.close();
