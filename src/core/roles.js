@@ -28,14 +28,15 @@ const roleRank = r => RANK[normRole(r)] ?? 0;
 const roleIcon = r => ICON[normRole(r)] || '';
 const isOrgAdmin = () => !!(S.user && (S.user.isAdmin || S.user.role === 'admin'));
 
-// the roles I hold in the given teams (none given → the workspace role)
+// the roles I hold in the given teams: none given → the workspace role; teams given → only my roles in those teams
+// (not a member of any of them → no rights). Mirror of my_roles_in() in the database (migration v008).
 const rolesIn = teamIds => {
   if(!S.user) return [];
   if(isOrgAdmin()) return ['team_admin'];
   const ids = new Set(teamIds || []);
-  const mine = ids.size ? teamsOf().filter(tm => ids.has(tm.id)) : [];
-  const roles = mine.map(tm => ((tm.members || []).find(m => (m.email || '').toLowerCase() === myEmail()) || {}).role).filter(Boolean).map(normRole);
-  return roles.length ? roles : [normRole(S.user.role)];
+  if(!ids.size) return [normRole(S.user.role)];
+  const mine = teamsOf().filter(tm => ids.has(tm.id));
+  return mine.map(tm => ((tm.members || []).find(m => (m.email || '').toLowerCase() === myEmail()) || {}).role).filter(Boolean).map(normRole);
 };
 const myRoles = instr => rolesIn(instrTeams(instr));
 const canIn = (teamIds, cap) => rolesIn(teamIds).some(r => capsOf(r).includes(cap));

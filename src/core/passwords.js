@@ -56,7 +56,16 @@ const upsertInstrRow = async (i, force) => {
     } else { const {error} = await G.sb.from('instructions').upsert(row); if(error) throw error; }
     i._base = updatedAt; return true;
   }
-  catch(e){ if(!netErr(e)) toast(e.message||String(e)); return false; }
+  catch(e){
+    // v12.45: the database refused (no right for this change – approvals, publishing, editing another team's instruction):
+    // the change is void, so the server's version replaces the local copy instead of being retried as "saved offline"
+    if(e && e.code === '42501'){
+      toast(t('no_right_saved'));
+      try{ const {data: srv} = await G.sb.from('instructions').select('*').eq('id', id).maybeSingle();
+        if(srv){ const theirs = rowToInstr(srv); Object.keys(i).forEach(k => { delete i[k]; }); Object.assign(i, theirs); await mirrorPut(i, false); G.conflictReload = true; } }catch(e2){}
+      return true;
+    }
+    if(!netErr(e)) toast(e.message||String(e)); return false; }
   finally { G.saving--; }
 };
 // saves go to the local mirror first (dirty), then to the server; without network they stay dirty and are pushed later

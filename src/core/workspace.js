@@ -30,9 +30,4 @@ const needsConfirm = (instr, st, idx, arr) => { if(!instr.checklist || st.kind==
 
 const confirmSteps = instr => (instr.steps||[]).filter((st,i,arr) => needsConfirm(instr, st, i, arr));
 
-// v12.39: eight team roles (see roles.js); legacy names keep working
-const ROLE_RANK = {viewer:0, editor:1, tech_approver:2, compliance_approver:2, reviewer:3, approver:3, compliance_manager:3, creator:4, admin:5, team_admin:5};
-
-const effRole = instr => { if(!S.user) return 'viewer'; if(S.user.isAdmin) return 'team_admin'; const ft = instrTeams(instr); const mine = teamsOf().filter(tm => ft.includes(tm.id)); const roles = mine.map(tm => ((tm.members||[]).find(m => (m.email||'').toLowerCase()===myEmail())||{}).role).filter(r => ROLE_RANK[r]!=null); if(roles.length) return roles.sort((a,b)=>ROLE_RANK[b]-ROLE_RANK[a])[0]; return S.user.role; };
-
-export { loadWsLocal, loadWs, saveWs, myEmail, teamsOf, folderTeams, folderName, instrTeams, canSee, needsConfirm, confirmSteps, ROLE_RANK, effRole };
+export { loadWsLocal, loadWs, saveWs, myEmail, teamsOf, folderTeams, folderName, instrTeams, canSee, needsConfirm, confirmSteps };

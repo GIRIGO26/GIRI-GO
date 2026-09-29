@@ -9,6 +9,7 @@ import { uid } from '../core/storage.js';
 import { htmlToMd } from '../core/richtext.js';
 import { rememberRemote } from '../core/translate.js';
 import { saveWs } from '../core/workspace.js';
+import { can } from '../core/roles.js';
 import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
 import { grabFrame, posterFromCanvas } from './dashboard.js';
@@ -204,7 +205,7 @@ async function renderImporter(app){
     const ctx = {folderMap:folderByOld, symbols:new Map(), projects:list.projects||[]};
     for(const it of items){ const row = el(`<div class="imp-row"><b>${esc(it.name||'–')}</b><span class="imp-st muted">${t('imp_waiting')}</span></div>`); rows.appendChild(row); it._row = row; }
     let ok = 0, fail = 0;
-    const runOne = async it => { const st = it._row.querySelector('.imp-st'); st.className = 'imp-st muted'; try{ const r = await importOne(it, conn, opts, ctx, msg => { st.textContent = msg; }); const sk = r._skipped||0; delete r._skipped; st.innerHTML = `<b style="color:var(--mint-ink)">✓ ${t('imp_ok')}</b>${sk?` <span class="muted">· ${t('imp_skipped', {n:sk})}</span>`:''}`; it._row.classList.add('ok'); ok++; done.set(it.id, true); sel.delete(it.id); }
+    const runOne = async it => { const st = it._row.querySelector('.imp-st'); st.className = 'imp-st muted'; try{ const r = await importOne(it, conn, opts, ctx, msg => { st.textContent = msg; }); const sk = r._skipped||0; delete r._skipped; const dg = !!r._downgraded; delete r._downgraded; st.innerHTML = `<b style="color:var(--mint-ink)">✓ ${t('imp_ok')}</b>${sk?` <span class="muted">· ${t('imp_skipped', {n:sk})}</span>`:''}${dg?` <span class="muted">· ${t('imp_as_draft')}</span>`:''}`; it._row.classList.add('ok'); ok++; done.set(it.id, true); sel.delete(it.id); }
       catch(e){ fail++; st.innerHTML = `<span style="color:var(--red)">${esc(e.message||String(e))}</span> <button class="btn ghost sm" data-retry>${t('imp_retry')}</button>`; st.querySelector('[data-retry]').onclick = () => { fail--; runOne(it); }; } };
     for(const it of items){ it._row.scrollIntoView({block:'nearest'}); await runOne(it); }
     v.querySelector('#imp-end').hidden = false; toast(t('imp_summary', {ok, fail}));
@@ -285,8 +286,13 @@ async function importOne(summary, conn, opts, ctx, say){
       instr.steps.push(step);
     }
   }
-  // status: keep "published" published (with the old approvals noted), everything else arrives as a draft
-  if(opts.status && I.published){
+  // v12.45: the server checks rights per instruction (team of the folder / of the instruction) – say so before uploading anything
+  if(!can(instr, 'edit')) throw new Error(t('imp_e_noedit'));
+  // status: keep "published" published (with the old approvals noted), everything else arrives as a draft.
+  // Without both approval rights for this instruction's teams the server would refuse the approvals → it stays a draft.
+  if(opts.status && I.published && !(can(instr, 'approve_tech') && can(instr, 'approve_dsgvo'))){
+    instr.history.push({version:0, at:Date.now(), by:S.user.name, note:t('imp_no_approve_right')}); instr._downgraded = true;
+  } else if(opts.status && I.published){
     const now = Date.now(); const ap = I.approvals || {}; const by = x => (x && x.user && ([x.user.first_name, x.user.last_name].filter(Boolean).join(' ') || x.user.email)) || 'Import'; const at = x => (x && Date.parse(x.at)) || now;
     instr.status = 'published'; instr.version = I.version || 1; instr.approvals = {tech:{by:by(ap.technical), at:at(ap.technical)}, dsgvo:{by:by(ap.privacy), at:at(ap.privacy)}};
     // v12.37.1: the version keeps its original date (last approval, else last change in Classic) instead of the import moment

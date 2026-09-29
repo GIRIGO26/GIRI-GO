@@ -438,6 +438,36 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Installations-Hinweis**: nach „Später“/× bleibt eine schmale Zeile „📲 GIRI Go als App installieren · So geht’s“ auf der Startseite, solange die App nicht installiert ist (PC und Telefon).
 - Tests `animtest`, `libtest`, `check4` angepasst. 38 Tests grün.
 
+## v12.45.0 – Rechte auf dem Server (Freigaben, Team-Sichtbarkeit, Rollen), DSGVO-Auskunft/-Löschung
+Bis hierhin prüfte die Datenbank nur grob (Workspace, „mehr als Viewer“); wer freigeben, veröffentlichen oder fremde Team-Anleitungen
+ändern darf, entschied allein die Oberfläche. Jetzt entscheidet die Datenbank – mit denselben Regeln wie `src/core/roles.js`.
+- **Migration `v005_server_side_authorisation`**: Rollen/Fähigkeiten als SQL (`norm_role`, `role_caps`, `my_roles_in`, `my_can`, `my_can_any`);
+  Policies pro Team-Rolle (Anlegen/Löschen = Bearbeitungsrecht, Ändern = Bearbeiten oder Freigabe-/Sperrrecht); Trigger `instr_authz_guard`:
+  technische bzw. DSGVO-Freigabe nur mit der passenden Rolle, **Veröffentlichen nur mit beiden Freigaben**, Inhaltsänderungen nur mit
+  Bearbeitungsrecht (Metadaten wie Freigaben/Status/Historie zählen nicht als Inhalt); Service-Rolle und Wartungsfunktionen bleiben frei.
+- **`v006`**: Org-Admin = `is_admin` **oder** Rolle `admin` – wie `my_admin()` und die App. **`v007`**: `profiles.role` akzeptiert die acht
+  Classic-Rollen (bisher scheiterten Rollen-Menü und Einladungen mit Editor/Tech-Freigeber/… an einer alten DB-Prüfung).
+- **`v008` Team-Sichtbarkeit als Policy, schnell**: Spalte `instructions.teams_eff` (eigene Teams ∪ Ordner-Teams, nur existierende), per
+  Trigger auf `instructions` und Kaskade aus `workspaces` (Ordner/Teams geändert) gepflegt; die Select-Policy vergleicht die Spalte mit den
+  Teams des Aufrufers (einmal pro Abfrage ermittelt). Kopf-Abfrage der 1.095 Anleitungen: 710 ms → 1,5 ms. Außerdem: **keine Rechte in
+  fremden Teams** – eine Anleitung mit Team, in dem man nicht Mitglied ist, gibt keine Rolle mehr (vorher fiel die DB und die App auf die
+  Workspace-Rolle zurück; ein Creator konnte so Anleitungen für fremde Teams anlegen). `rolesIn()` in der App gleichgezogen.
+- **`v009`**: Trigger-Funktionen nicht per API aufrufbar, `search_path` der Helfer fixiert. Advisor: 0 ERROR; WARNs = gewollte öffentliche
+  Werker-Funktionen und Policy-Helfer, die nur über den Aufrufer Auskunft geben.
+- **DSGVO**: `gdpr_export_user(email)` (Profil, Team-Mitgliedschaften, Einladungen, erstellte/bearbeitete/freigegebene Anleitungen, Feedback,
+  Durchläufe, KI-Protokoll als JSON) und `gdpr_erase_user(email)` (Login + Profil + Mitgliedschaften + Einladungen weg; Name in Anleitungen,
+  Freigaben, Historie, Feedback, Durchläufen → „Gelöschter Nutzer“; KI-Protokoll entkoppelt; die Anleitungen bleiben der Firma) – nur Org-Admins.
+  Admin → Nutzer: ⤓ Auskunft als JSON-Datei, 🗑 Nutzer löschen (mit Erklärung im Bestätigungsdialog).
+- **Tests**: `supabase/tests/authz.sql` – 29 Prüfungen als simulierte Nutzer (Creator, Editor, Viewer, Tech-Freigeber, Team-Viewer/-Editor,
+  Admin, anonym): Sichtbarkeit, Anlegen/Ändern/Löschen, Freigaben, Veröffentlichen, Kaskade der Team-Spalte, DSGVO-Export/-Löschung,
+  Laufzeit der Kopf-Abfrage; jede Schreibaktion läuft in einem Savepoint und wird zurückgerollt. Alle 29 grün auf Frankfurt.
+  Neuer Playwright-Test `authztest` (Admin-DSGVO-Knöpfe, abgelehnte Änderung, Sichtbarkeit fremder Ordner).
+- **App**: lehnt der Server eine Änderung ab (42501), wird sie nicht als „offline gespeichert“ endlos wiederholt, sondern verworfen und der
+  Serverstand geladen (Hinweis). Classic-Import: ohne Bearbeitungsrecht für das Team der Anleitung wird die Zeile übersprungen (klare Meldung
+  statt Serverfehler); ohne beide Freigaberechte kommt eine in Classic veröffentlichte Anleitung als Entwurf mit Vermerk in der Historie.
+  `effRole`/`ROLE_RANK` (ungenutzt) entfernt.
+- `supabase/schema.sql` um v005–v009 ergänzt; `ARCHITECTURE.md` (§3 Sicherheit, §4 Datenmodell, §7 Schulden) aktualisiert.
+
 ## v12.44.1 – Sicherheits-Aufräumen, CI, Architektur-Dokument, größere Emoji-Kacheln
 - **Migrations-Helfer entfernt**: im alten Irland-Projekt `giri_export`, `giri_export_delta`, `giri_export_vault` gelöscht; im Frankfurt-Projekt `_mig_fetch`/`_mig_fetch_delta`/`_mig_apply` und die Tabellen `_mig`/`_mig_obj` (Migration `v004_cleanup_migration_helpers`); die Edge Functions `mig-env` (alt) und `mig-copy` (neu) antworten nur noch 410 und tragen keine Logik/Geheimnisse mehr (im Dashboard löschen). Supabase-Advisor: keine ERROR-Meldungen mehr; die verbleibenden WARNs sind gewollte öffentliche Funktionen (`open_instr`, `instr_public`, `instr_locked`, `feedback_poke` – Werker-Links ohne Login) und der Hinweis „Leaked-Password-Protection“ (es gibt keine Passwörter: Login per Code/Link oder Google).
 - `purge_trash()` nur noch für die Service-Rolle, `my_can_write()` nicht mehr anonym aufrufbar, `search_path` der URL-Rewrite-Trigger fixiert.
