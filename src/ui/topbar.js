@@ -1,7 +1,7 @@
 import { signOutAll } from '../core/auth.js';
 import { installGuide, isStandalone } from '../app/pwa.js';
 import { go, render } from '../app/router.js';
-import { APP_VERSION } from '../core/config.js';
+import { APP_VERSION, LEGAL } from '../core/config.js';
 import { $$, el, esc, modal, toast } from '../core/helpers.js';
 import { I18N, langMenu, loadUiLang, t } from '../core/i18n.js';
 import { G, S } from '../core/state.js';
@@ -37,7 +37,7 @@ function appMenu(){
       <div class="menu-h">${t('menu_app')}</div>
       ${isStandalone()?'':`<button data-m="install"><span class="emo">📲</span> ${t('install_app')}</button>`}<button data-m="profile">${IC.edit} ${t('menu_profile')}</button><button data-m="logout">${IC.close} ${t('logout')}</button>
     </div>
-    <div class="menu-foot app-ver">GIRI v${APP_VERSION} · ${esc(u.ws)}</div></div>`, (bg, close) => {
+    <div class="menu-foot app-ver">GIRI v${APP_VERSION} · ${esc(u.ws)}</div><div class="menu-legal"><a href="${LEGAL.imprint}" target="_blank" rel="noopener">${t('imprint')}</a> · <a href="${LEGAL.legal}" target="_blank" rel="noopener">${t('privacy_dpa')}</a></div></div>`, (bg, close) => {
     $$('[data-m]', bg).forEach(b => b.onclick = async () => { const m = b.dataset.m; if(m==='lang'){ close(); pickLang(); return; } close();
       if(m==='newf'){ const nf = await newFolderDlg(); if(nf) go('p/'+nf.id); } else if(m==='stats') go('stats'); else if(m==='trash') go('trash'); else if(m==='brand') brandModal(); else if(m==='admin') go('admin'); else if(m==='ai') go('admin/ai'); else if(m==='import') go('admin/import'); else if(m==='install') installGuide(); else if(m==='profile') profileModal(); else if(m==='logout'){ await signOutAll(); go(''); render(); } });
   });

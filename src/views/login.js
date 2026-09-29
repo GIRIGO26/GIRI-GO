@@ -1,3 +1,4 @@
+import { LEGAL } from '../core/config.js';
 import { go, render } from '../app/router.js';
 import { confirmM, el, esc, toast } from '../core/helpers.js';
 import { cacheDel, cacheList } from '../core/viewcache.js';
@@ -37,6 +38,7 @@ function renderLogin(app){
       </div>
     </section>
     <section class="l-visual" aria-hidden="true" ${isStandalone() ? 'hidden' : ''}><img id="l-img" src="login.jpg" alt=""><div class="l-cap"><b>${t('hero_kicker')}</b><span>${t('hero_cap')}</span></div></section>
+    <footer class="l-legal"><a href="${LEGAL.imprint}" target="_blank" rel="noopener">${t('imprint')}</a><span>·</span><a href="${LEGAL.legal}" target="_blank" rel="noopener">${t('privacy_dpa')}</a><span>·</span><span>© AR-Experts GmbH</span></footer>
   </main>`);
   const img = v.querySelector('#l-img'); img.onerror = () => { img.remove(); v.querySelector('.l-visual').classList.add('fallback'); };
   try{ v.querySelector('#li-email').value = localStorage.getItem('gg_email')||''; }catch(e){}

@@ -27,21 +27,46 @@ const fetchInstr = async id => { if(!G.sb) return null; const {data} = await G.s
  const ownWrites = new Set();
 
 // one row → server; true on success. Used by saveInstr and by the offline queue.
-const upsertInstrRow = async i => {
-  const {id, ws, status, title, updatedAt, ...rest} = i; const data = Object.assign({}, rest);
+// v12.39: two editors on one instruction – every save is conditional on the server still holding the version this copy was loaded
+// from (i._base = server updated_at at load / last save). A save that finds a newer row asks: take the server version, or overwrite.
+let conflictOpen = null;
+const conflictDialog = async (mine, theirs) => {
+  if(conflictOpen) return conflictOpen; // one dialog at a time (autosave may fire again meanwhile)
+  const by = (theirs.history && theirs.history.length ? theirs.history[theirs.history.length-1].by : '') || theirs.lastBy || '';
+  conflictOpen = modal(`<h2>${esc(t('conflict_title'))}</h2><p class="muted" style="margin:0 0 14px">${esc(t('conflict_sub', {t: mine.title, w: by || t('conflict_someone'), d: new Date(theirs.updatedAt).toLocaleTimeString()}))}</p>
+    <div class="row wrap"><button class="btn" data-ok="theirs">${esc(t('conflict_theirs'))}</button><button class="btn ghost" data-ok="mine">${esc(t('conflict_mine'))}</button></div>`,
+    (bg, close) => { bg.querySelectorAll('[data-ok]').forEach(b => b.onclick = () => close(b.dataset.ok)); });
+  const r = await conflictOpen; conflictOpen = null; return r || 'theirs';
+};
+const upsertInstrRow = async (i, force) => {
+  const {id, ws, status, title, updatedAt, _base, ...rest} = i; const data = Object.assign({}, rest);
   G.saving++; ownWrites.add(updatedAt); if(ownWrites.size > 200){ const first = ownWrites.values().next().value; ownWrites.delete(first); }
-  try{ const {error} = await G.sb.from('instructions').upsert({id, ws, status, title, updated_at: new Date(updatedAt).toISOString(), data}); if(error) throw error; return true; }
+  try{
+    const row = {id, ws, status, title, updated_at: new Date(updatedAt).toISOString(), data};
+    if(_base && !force){
+      const {data: hit, error} = await G.sb.from('instructions').update(row).eq('id', id).eq('updated_at', new Date(_base).toISOString()).select('id'); if(error) throw error;
+      if(!hit || !hit.length){ // the server moved on since this copy was loaded
+        const {data: srv} = await G.sb.from('instructions').select('*').eq('id', id).maybeSingle();
+        if(srv && !ownWrites.has(Date.parse(srv.updated_at))){
+          const theirs = rowToInstr(srv); G.saving--; const choice = await conflictDialog(i, theirs); G.saving++;
+          if(choice==='theirs'){ Object.keys(i).forEach(k => { delete i[k]; }); Object.assign(i, theirs); await mirrorPut(i, false); G.conflictReload = true; toast(t('conflict_loaded')); return true; }
+        }
+        const {error: e2} = await G.sb.from('instructions').upsert(row); if(e2) throw e2; // overwrite (or the row vanished / was our own write)
+      }
+    } else { const {error} = await G.sb.from('instructions').upsert(row); if(error) throw error; }
+    i._base = updatedAt; return true;
+  }
   catch(e){ if(!netErr(e)) toast(e.message||String(e)); return false; }
   finally { G.saving--; }
 };
 // saves go to the local mirror first (dirty), then to the server; without network they stay dirty and are pushed later
 const saveInstr = async (i, opts) => {
-  if(!(opts && opts.keepDate)) i.updatedAt = Date.now(); if(!G.sb) return; // keepDate: the importer keeps the original Classic date
+  if(!(opts && opts.keepDate)) i.updatedAt = Date.now(); if(S.user) i.lastBy = S.user.name; if(!G.sb) return; // keepDate: the importer keeps the original Classic date
   if(i.ws === (S.user && S.user.ws) && !S.instrs.some(x => x.id === i.id)) S.instrs.unshift(i); // new instruction: in memory at once (v0.29 – navigation no longer waits for a server round trip)
   (i.steps||[]).forEach(s => { if(s.mediaId && !s.mediaUrl && S.remoteUrl.has(s.mediaId)){ s.mediaUrl = S.remoteUrl.get(s.mediaId); } }); // uploaded here meanwhile → never save it without its URL
   await mirrorPut(i, true);
   const ok = await upsertInstrRow(i);
-  if(ok){ await mirrorPut(i, false); } else { toast(t('saved_offline')); }
+  if(ok){ await mirrorPut(i, false); if(G.conflictReload){ G.conflictReload = false; try{ const {render} = await import('../app/router.js'); render(); }catch(e){} } } else { toast(t('saved_offline')); }
   schedulePill();
 };
 const retrySaves = () => flushDirty(upsertInstrRow);

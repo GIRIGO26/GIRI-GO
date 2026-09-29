@@ -11,7 +11,8 @@ import { mdToHtml, mdToPlain, titleHtml } from '../core/richtext.js';
 import { G, S, mediaUrl } from '../core/state.js';
 import { DB, uid } from '../core/storage.js';
 import { FLAGS, LANGS, srcHash, translateInstr, withLang } from '../core/translate.js';
-import { canSee, confirmSteps, effRole, folderTeams } from '../core/workspace.js';
+import { can } from '../core/roles.js';
+import { canSee, confirmSteps, folderTeams } from '../core/workspace.js';
 import { attachDropImport, importFiles, replaceStepMedia } from '../media/import.js';
 import { exportPDF } from '../pdf/export.js';
 import { IC } from '../ui/icons.js';
@@ -26,14 +27,16 @@ async function renderEditor(app, id, selStepId, fbId){
   const instr = S.instrs.find(i=>i.id===id); if(!instr || !canSee(instr)) return go('');
   if(selStepId === 'fb'){ fbId = fbId || null; selStepId = null; } else fbId = null;
   topbar(app, {back:'/', sub: t('edit')});
-  const myRole = effRole(instr); const canApprove = myRole==='reviewer' || myRole==='creator';
+  // v12.39: capabilities from the team roles – editing, technical approval and privacy approval are separate rights
+  const canEdit = can(instr, 'edit'), canTech = can(instr, 'approve_tech'), canDsgvo = can(instr, 'approve_dsgvo'), canLinks = can(instr, 'links');
+  const myRole = canEdit ? 'editor' : 'viewer'; const canApprove = canTech && canDsgvo; const canApproveKey = k => k==='tech' ? canTech : canDsgvo;
   let tab = 'steps'; try{ tab = sessionStorage.getItem('gg_tab_'+id) || 'steps'; }catch(e){}
   const v = el(`<main class="page">
     <div class="ed-head"><div class="title-wrap"><input class="title" id="ititle" value="${esc(instr.title)}" placeholder="${t('title')}" ${myRole==='viewer'?'disabled':''}><button class="pen-btn" id="rename" title="${t('rename')}">${IC.edit}</button></div>
       <div class="ed-meta"><span class="chip dot ${instr.status}" id="stchip">${t(instr.status==='review'?'in_review':instr.status)}</span><span class="muted tnum">v${instr.version}</span><span class="muted" id="ed-n"></span></div>
       <div class="ed-acts"><button class="btn mint sm" id="rec">${IC.cam} ${t('record')}</button><button class="btn sm" id="cta" hidden></button><button class="btn ghost icon" id="more" title="${t('more')}">${IC.more}</button></div></div>
     <div class="ed-tabs"><div class="tabs" id="tabs"><button data-tab="steps" class="${tab==='steps'?'on':''}">${t('steps')} <span class="tnum cnt" id="scount"></span></button><button data-tab="settings" class="${tab==='settings'?'on':''}">${t('tab_settings')}</button></div>
-      <div class="tab-acts"><button class="btn ghost sm" id="share">${IC.share} ${t('share')}</button><button class="btn ghost sm" id="pdf">${IC.pdf} ${t('pdf')}</button><button class="btn ghost sm" id="res">${IC.eye} ${t('stats_fb')}<span class="nbadge" id="res-n" hidden></span></button></div></div>
+      <div class="tab-acts"><button class="btn ghost sm" id="share" ${canLinks?'':'hidden'}>${IC.share} ${t('share')}</button><button class="btn ghost sm" id="pdf">${IC.pdf} ${t('pdf')}</button><button class="btn ghost sm" id="res">${IC.eye} ${t('stats_fb')}<span class="nbadge" id="res-n" hidden></span></button></div></div>
     <div class="fb-banner" id="fb-banner" hidden><span>${IC.msg} <b id="fb-n"></b></span><a class="btn sm" href="#/results/${instr.id}" id="fb-open">${t('fb_view')}</a></div>
     <div class="editor" id="tab-steps" data-pane="${selStepId ? 'step' : 'list'}" ${tab!=='steps'?'hidden':''}>
       <aside class="card steps-panel"><div class="ph"><b>${t('steps')}</b><span class="muted" style="font-size:11px;font-weight:600" id="trash-hint"></span></div>
@@ -480,7 +483,7 @@ async function renderEditor(app, id, selStepId, fbId){
     a.innerHTML = `<h3>${t('approvals')}</h3><div class="flow"><span class="${instr.status==='draft'?'cur':'done'}">1 · ${t('draft')}</span><span class="${instr.status==='review'?'cur':(instr.status==='published'?'done':'')}">2 · ${t('in_review')}</span><span class="${instr.status==='published'?'cur':''}">3 · ${t('published')}</span></div><div class="notice ${instr.status==='published'?'':'blue'}" style="margin-bottom:10px">${note}</div>
       <div class="approve-box">
         ${['tech','dsgvo'].map(k => `<div class="appr ${ap[k]?'ok':''}"><div><b>${t(k)}</b><small>${ap[k]?`${t('approved_by')} ${esc(ap[k].by)} · ${fmtDate(ap[k].at)}`:t('pending')}</small></div>
-          ${instr.status==='review' && !ap[k] ? (canApprove ? `<div class="row"><button class="btn ghost sm" data-rej="${k}">${t('reject')}</button><button class="btn mint sm" data-ok="${k}">${t('approve')}</button></div>` : `<span class="muted">${t('only_reviewer')}</span>`) : ''}</div>`).join('')}
+          ${instr.status==='review' && !ap[k] ? (canApproveKey(k) ? `<div class="row"><button class="btn ghost sm" data-rej="${k}">${t('reject')}</button><button class="btn mint sm" data-ok="${k}">${t('approve')}</button></div>` : `<span class="muted">${t('only_reviewer')}</span>`) : ''}</div>`).join('')}
       </div>
       <div class="row" style="margin-top:12px">${instr.status==='draft' && myRole!=='viewer' && realSteps(instr).length ? `<button class="btn" id="submit">${t('submit_review')}</button>`:''}${instr.status==='review' && myRole!=='viewer' ? `<button class="btn ghost sm" id="todraft">${t('back_to_draft')}</button>`:''}${instr.status==='published' ? `<span class="muted">${t('locked_hint')}</span>`:''}</div>
       ${instr.history.length ? `<h3 style="margin-top:14px">${t('history')}</h3><div class="hist">${[...instr.history].reverse().map(h=>`<div><b>v${h.version}</b> · ${fmtDate(h.at)} · ${esc(h.by)} — ${esc(h.note)}</div>`).join('')}</div>`:''}`;

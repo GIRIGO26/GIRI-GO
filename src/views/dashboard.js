@@ -12,7 +12,8 @@ import { titleHtml } from '../core/richtext.js';
 import { online } from '../core/offline.js';
 import { G, S, mediaUrl } from '../core/state.js';
 import { uid } from '../core/storage.js';
-import { canSee, effRole, folderName, instrTeams, saveWs, teamsOf } from '../core/workspace.js';
+import { canSee, folderName, instrTeams, saveWs, teamsOf } from '../core/workspace.js';
+import { can, canAny, canApproveAny, canIn, normRole, roleIcon } from '../core/roles.js';
 import { posterDialog } from '../pdf/poster.js';
 import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
@@ -21,7 +22,7 @@ import { exportPDFAsk, shareModal } from './share.js';
 
 
 /* ---------- Dashboard ---------- */
-const roleLbl = r => r==='admin' ? t('role_admin') : r==='reviewer' ? t('approver') : t(r||'viewer');
+const roleLbl = r => r==='admin' ? t('role_admin') : `${roleIcon(r)} ${t('r_'+normRole(r))}`.trim();
 
 const nOf = (n, one, many) => `${n} ${t(n===1 ? one : many)}`;
 
@@ -61,7 +62,8 @@ async function moveToFolderDlg(i, after){
 const statChips = (id, statMap) => { const s = statMap[id]; if(!s) return ''; return `${s.views?`<span title="${t('views_total')}">${IC.eye} ${s.views}</span>`:''}${s.fb?`<button class="fbchip" data-a="feedback" title="${t('feedback')}">${IC.msg} ${s.fb}</button>`:''}`; };
 // v0.30: the instruction is the hero – tap = open, one ⋯ for everything else (before: four buttons on every card)
 function instrCard(i, statMap, opts={}){
-  const st = realSteps(i); const first = st.find(x => x.mediaId) || st[0]; const role = effRole(i); const fname = opts.showFolder ? folderName(i.folder) : '';
+  const st = realSteps(i); const first = st.find(x => x.mediaId) || st[0]; const fname = opts.showFolder ? folderName(i.folder) : '';
+  const cEdit = can(i, 'edit'), cLinks = can(i, 'links'), cStats = can(i, 'analytics') || cEdit, cApprove = can(i, 'approve_tech') || can(i, 'approve_dsgvo'); // v12.39: capabilities instead of one role
   const card = el(`<article class="card instr st-${i.status}" data-sid="${i.id}">
     <img class="thumb" alt="" src="" loading="lazy" decoding="async">
     <div class="ibody"><div class="title">${titleHtml(i.title)} ${i.example?`<span class="example-tag">${t('example')}</span>`:''}</div>
@@ -73,9 +75,9 @@ function instrCard(i, statMap, opts={}){
     else if(a==='feedback'){ try{ sessionStorage.setItem('gg_rtab_'+i.id, 'feedback'); }catch(e){} go('results/'+i.id); }
     else if(a==='del'){ if(await confirmM(t('confirm_del_instr',{t:i.title}), t('delete'))){ try{ await trashInstr(i); toast(t('trashed_instr')); }catch(e){ toast(e.message||String(e)); } render(); } } };
   card.onclick = e => { const b = e.target.closest('[data-a]');
-    if(!b){ if(e.target.closest('a, button')) return; act(role!=='viewer' ? 'edit' : 'preview'); return; }
+    if(!b){ if(e.target.closest('a, button')) return; act(cEdit || (cApprove && i.status==='review') ? 'edit' : 'preview'); return; }
     const a = b.dataset.a;
-    if(a==='more'){ modal(`<div class="menu"><div class="menu-h">${esc(i.title)}</div>${role!=='viewer' ? `<button data-m="edit">${IC.edit} ${t('edit')}</button><button data-m="rec">${IC.cam} ${t('record_next')}</button>`:''}<button data-m="preview">${IC.play} ${t('preview')}</button><button data-m="share">${IC.share} ${t('share')}</button><button data-m="pdf">${IC.pdf} ${t('pdf')}</button><button data-m="results">${IC.eye} ${t('stats')}</button>${role!=='viewer' ? `<button data-m="folder">${IC.folder} ${t('move_to_folder')}</button><button data-m="del" class="del">${IC.trash} ${t('delete')}</button>`:''}</div>`, (bg, close) => { $$('[data-m]', bg).forEach(x => x.onclick = () => { close(); act(x.dataset.m); }); }); return; }
+    if(a==='more'){ modal(`<div class="menu"><div class="menu-h">${esc(i.title)}</div>${cEdit ? `<button data-m="edit">${IC.edit} ${t('edit')}</button><button data-m="rec">${IC.cam} ${t('record_next')}</button>`:''}${!cEdit && cApprove ? `<button data-m="edit">${IC.check} ${t('menu_approve')}</button>`:''}<button data-m="preview">${IC.play} ${t('preview')}</button>${cLinks ? `<button data-m="share">${IC.share} ${t('share')}</button>`:''}${cEdit || cLinks ? `<button data-m="pdf">${IC.pdf} ${t('pdf')}</button>`:''}${cStats ? `<button data-m="results">${IC.eye} ${t('stats')}</button>`:''}${cEdit ? `<button data-m="folder">${IC.folder} ${t('move_to_folder')}</button><button data-m="del" class="del">${IC.trash} ${t('delete')}</button>`:''}</div>`, (bg, close) => { $$('[data-m]', bg).forEach(x => x.onclick = () => { close(); act(x.dataset.m); }); }); return; }
     act(a); };
   return card;
 }
@@ -85,7 +87,7 @@ function instrCard(i, statMap, opts={}){
 async function renderDashboard(app, pid){
   topbar(app, {back: pid ? '/' : null, sub: pid ? (pid==='none' ? t('no_folder') : (folderName(pid) || t('folder'))) : t('instructions')});
   const visible = S.instrs.filter(canSee); const hiddenN = S.instrs.length - visible.length;
-  const isEditor = S.user.role!=='viewer' || S.user.isAdmin;
+  const isEditor = canAny('edit'); const canProjects = canAny('projects'); // v12.39
   const folders = visFolders();
   // views / open feedback never delay the first paint – last known numbers now, both queries in parallel in the background,
   // fresh numbers are patched into the cards
@@ -102,8 +104,8 @@ async function renderDashboard(app, pid){
   const showTeams = tl.length >= 2; if(!showTeams) teamF = '';
   // status filter (the "waiting for approval" to-do) and search
   let stF = ''; try{ stF = sessionStorage.getItem('gg_stf') || ''; }catch(e){} let q = '';
-  const canApprove = S.user.isAdmin || S.user.role==='reviewer' || S.user.role==='admin';
-  const revN = visible.filter(i => i.status==='review' && inTeam(i, teamF)).length; if(!revN && stF==='review') stF = '';
+  const canApprove = canApproveAny();
+  const revN = visible.filter(i => i.status==='review' && inTeam(i, teamF) && (can(i, 'approve_tech') || can(i, 'approve_dsgvo'))).length; if(!revN && stF==='review') stF = '';
   const inFolder = (i, fid) => fid==='all' ? true : fid==='none' ? isLoose(i) : i.folder===fid;
   const cnt = fid => visible.filter(i => inFolder(i, fid) && inTeam(i, teamF)).length;
   const looseN = cnt('none');
@@ -117,7 +119,7 @@ async function renderDashboard(app, pid){
   let fq = ''; let hideEmpty = null; try{ hideEmpty = sessionStorage.getItem('gg_fhide'); }catch(e){} hideEmpty = hideEmpty==null ? fol.length > 20 : hideEmpty==='1';
   const folderChips = () => { const emptyN = fol.filter(x => !cnt(x.id) && x.id!==pid).length; const shown = fol.filter(x => x.id===pid || (!fq || x.name.toLowerCase().includes(fq) || visible.some(i => i.folder===x.id && matchQ(i))) && (!hideEmpty || cnt(x.id) > 0));
     const more = Math.max(0, shown.length - 60); const show = shown.slice(0, 60);
-    return `<a class="fch ${!pid?'on':''}" href="#/" data-f="all">${t('all_f')} <span>${cnt('all')}</span></a>${show.map(x => `<a class="fch ${pid===x.id?'on':''}" href="#/p/${x.id}" data-f="${x.id}">${IC.folder} ${esc(x.name)}${x.pw?' 🔒':''} <span>${cnt(x.id)}</span></a>`).join('')}${looseN ? `<a class="fch ${pid==='none'?'on':''}" href="#/p/none" data-f="none">${t('no_folder')} <span>${looseN}</span></a>`:''}${isEditor?`<button class="fch add" id="fadd" title="${t('new_folder')}">${IC.plus}</button>`:''}${more ? `<span class="muted" style="font-size:12.5px">${t('folders_more', {n:more})}</span>` : ''}${manyF && !shown.length && fq ? `<span class="muted">${t('no_result')}</span>` : ''}`; };
+    return `<a class="fch ${!pid?'on':''}" href="#/" data-f="all">${t('all_f')} <span>${cnt('all')}</span></a>${show.map(x => `<a class="fch ${pid===x.id?'on':''}" href="#/p/${x.id}" data-f="${x.id}">${IC.folder} ${esc(x.name)}${x.pw?' 🔒':''} <span>${cnt(x.id)}</span></a>`).join('')}${looseN ? `<a class="fch ${pid==='none'?'on':''}" href="#/p/none" data-f="none">${t('no_folder')} <span>${looseN}</span></a>`:''}${canProjects?`<button class="fch add" id="fadd" title="${t('new_folder')}">${IC.plus}</button>`:''}${more ? `<span class="muted" style="font-size:12.5px">${t('folders_more', {n:more})}</span>` : ''}${manyF && !shown.length && fq ? `<span class="muted">${t('no_result')}</span>` : ''}`; };
   const emptyCount = () => fol.filter(x => !cnt(x.id) && x.id!==pid).length;
   const hideBtn = () => { const n = emptyCount(); return manyF && n ? `<button class="flink" id="fhide">${hideEmpty ? t('folders_show_empty', {n}) : t('folders_hide_empty', {n})}</button>` : ''; };
   // v12.38.2: many folders → two rows visible, the rest folds out (no scrollbar inside a card); a search shows everything that matches
@@ -135,7 +137,7 @@ async function renderDashboard(app, pid){
     if(fbN) items.push(`<button class="ibx ${stF==='fb'?'on':''}" id="todo-fb">${IC.msg}<span>${fbN===1?t('inbox_fb_one'):t('inbox_fb_many',{n:fbN})}</span><b>${stF==='fb' ? '×' : '→'}</b></button>`);
     return items.length ? `<span class="tlbl">${t('inbox_h')}</span>${items.join('')}` : ''; };
   const v = el(`<main class="page dash">
-    <div class="dash-head"><div class="dash-title">${f ? `<div class="eyebrow">${IC.folder} ${t('folder')}</div>` : ''}<h1>${f ? esc(f.name) : t('dash_h1')}${f && f.id!=='none' && isEditor ? `<button class="pen-btn" id="fren" title="${t('rename_folder')}">${IC.edit}</button>`:''}</h1>${!f ? `<p class="dash-sub">${[nOf(visible.length,'instruction','instructions'), showTeams ? nOf(tl.length,'team','teams') : '', folders.length ? nOf(folders.length,'folder','folders') : ''].filter(Boolean).join(' · ')}</p>` : ''}</div></div>
+    <div class="dash-head"><div class="dash-title">${f ? `<div class="eyebrow">${IC.folder} ${t('folder')}</div>` : ''}<h1>${f ? esc(f.name) : t('dash_h1')}${f && f.id!=='none' && canIn(f.teams, 'projects') ? `<button class="pen-btn" id="fren" title="${t('rename_folder')}">${IC.edit}</button>`:''}</h1>${!f ? `<p class="dash-sub">${[nOf(visible.length,'instruction','instructions'), showTeams ? nOf(tl.length,'team','teams') : '', folders.length ? nOf(folders.length,'folder','folders') : ''].filter(Boolean).join(' · ')}</p>` : ''}</div></div>
     <div class="dash-bar">${isEditor ? `<button class="btn primary" id="new">${IC.plus} ${t('new_instr')}</button>`:''}<label class="searchwrap">${IC.search || ''}<input class="search" id="q" type="search" placeholder="${t('search_ph')}" autocomplete="off"></label></div>
     <div class="inbox" id="inbox">${inboxHtml()}</div>
     <div id="inst-slot"></div>
@@ -188,7 +190,7 @@ async function renderDashboard(app, pid){
       if(withContent){ for(const i of inside){ try{ await trashInstr(i); }catch(e){ toast(e.message); return; } } }
       await saveWs({folders:(S.wsRow.folders||[]).filter(x=>x.id!==f.id)}); toast(withContent ? t('del_folder_done_all',{n:inside.length}) : t('del_folder_done')); go(''); };
     const rn = v.querySelector('#fren'); if(rn) rn.onclick = doRename;
-    const fm = v.querySelector('#fmore'); if(fm) fm.onclick = () => modal(`<div class="menu"><div class="menu-h">${esc(f.name)}</div><button data-m="poster">${IC.qr} ${t('poster')}</button>${isEditor?`<button data-m="rename">${IC.edit} ${t('rename_folder')}</button><button data-m="pw">${f.pw?'🔒':'🔓'} ${t('link_pw')}</button><button data-m="del" class="del">${IC.trash} ${t('del_folder')}</button>`:''}</div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='poster') posterDialog(f, rows()); else if(m==='rename') doRename(); else if(m==='pw') doPw(); else doDel(); }); });
+    const fm = v.querySelector('#fmore'); if(fm) fm.onclick = () => modal(`<div class="menu"><div class="menu-h">${esc(f.name)}</div><button data-m="poster">${IC.qr} ${t('poster')}</button>${canIn(f.teams, 'projects')?`<button data-m="rename">${IC.edit} ${t('rename_folder')}</button><button data-m="pw">${f.pw?'🔒':'🔓'} ${t('link_pw')}</button><button data-m="del" class="del">${IC.trash} ${t('del_folder')}</button>`:''}</div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='poster') posterDialog(f, rows()); else if(m==='rename') doRename(); else if(m==='pw') doPw(); else doDel(); }); });
   } else if(f && f.id==='none'){ const fm = v.querySelector('#fmore'); if(fm) fm.remove(); }
 }
 

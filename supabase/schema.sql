@@ -688,3 +688,49 @@ begin
 end $$;
 drop trigger if exists ws_rewrite_old_urls on public.workspaces;
 create trigger ws_rewrite_old_urls before insert or update on public.workspaces for each row execute function public.ws_rewrite_old_urls();
+-- ============================================================
+-- v12.39 – roles & permissions like GIRI Classic (8 team roles + org admin)
+-- Server side: anyone who is more than a viewer somewhere (workspace role or any team role) may write rows of the
+-- workspace; the fine-grained capabilities (edit vs. approve vs. links …) are enforced in the app per instruction.
+-- ============================================================
+create or replace function public.my_can_write() returns boolean language sql stable security definer set search_path=public as $$
+  select coalesce((
+    select p.is_admin or p.role not in ('viewer')
+        or exists (
+          select 1 from public.workspaces w, jsonb_array_elements(coalesce(w.teams,'[]'::jsonb)) tm, jsonb_array_elements(coalesce(tm->'members','[]'::jsonb)) m
+          where w.ws = p.ws and lower(m->>'email') = lower(p.email) and coalesce(m->>'role','viewer') <> 'viewer')
+    from public.profiles p where p.id = auth.uid()), false) $$;
+revoke all on function public.my_can_write() from public; grant execute on function public.my_can_write() to authenticated, anon, service_role;
+
+drop policy if exists instr_write on public.instructions;
+create policy instr_write on public.instructions for insert to authenticated with check (ws = my_ws() and my_can_write());
+drop policy if exists instr_update on public.instructions;
+create policy instr_update on public.instructions for update to authenticated using (ws = my_ws() and my_can_write()) with check (ws = my_ws());
+drop policy if exists instr_delete on public.instructions;
+create policy instr_delete on public.instructions for delete to authenticated using (ws = my_ws() and my_can_write());
+drop policy if exists ws_insert on public.workspaces;
+create policy ws_insert on public.workspaces for insert to authenticated with check (ws = my_ws() and (my_can_write() or my_admin()));
+drop policy if exists ws_update on public.workspaces;
+create policy ws_update on public.workspaces for update to authenticated using (ws = my_ws() and (my_can_write() or my_admin())) with check (ws = my_ws());
+drop policy if exists feedback_delete on public.feedback;
+create policy feedback_delete on public.feedback for delete to authenticated using (ws = my_ws() and (my_can_write() or my_admin()));
+
+-- invites may carry any of the eight roles (+ admin)
+create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path to 'public' as $function$
+declare v_ws text; v_cnt int; v_role text; v_domain text; v_email text; v_admin boolean := false;
+begin
+  v_email := lower(coalesce(new.email, new.raw_user_meta_data->>'email', new.raw_user_meta_data->>'preferred_username', new.id::text || '@no-email.local'));
+  v_domain := split_part(v_email,'@',2);
+  if v_domain = '' or v_domain in ('gmail.com','googlemail.com','outlook.com','outlook.de','hotmail.com','hotmail.de','live.com','live.de','msn.com','yahoo.com','yahoo.de','icloud.com','me.com','mac.com','web.de','gmx.de','gmx.net','gmx.at','gmx.ch','t-online.de','freenet.de','aol.com','proton.me','protonmail.com','posteo.de','mail.de','mailbox.org','yandex.com','ymail.com')
+    then v_ws := v_email; else v_ws := v_domain; end if;
+  select count(*) into v_cnt from public.profiles where ws = v_ws;
+  select i->>'role' into v_role from public.workspaces w, jsonb_array_elements(coalesce(w.invites,'[]'::jsonb)) i where w.ws = v_ws and lower(i->>'email') = v_email limit 1;
+  if v_role = 'admin' then v_admin := true; end if;
+  if v_role = 'reviewer' then v_role := 'approver'; end if;
+  if v_role is null or v_role not in ('admin','viewer','editor','approver','tech_approver','compliance_approver','compliance_manager','creator','team_admin') then v_role := 'creator'; end if; -- uninvited colleagues of the domain keep joining as creators (unchanged)
+  insert into public.profiles (id, email, name, role, ws, is_admin)
+  values (new.id, v_email, coalesce(nullif(new.raw_user_meta_data->>'name',''), nullif(new.raw_user_meta_data->>'full_name',''), split_part(v_email,'@',1)), v_role, v_ws, (v_cnt = 0) or v_admin)
+  on conflict (id) do nothing;
+  update public.workspaces set invites = coalesce((select jsonb_agg(i) from jsonb_array_elements(invites) i where lower(i->>'email') <> v_email), '[]'::jsonb) where ws = v_ws;
+  return new;
+end $function$;

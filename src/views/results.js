@@ -3,7 +3,8 @@ import { realSteps } from '../core/auth.js';
 import { $$, el, esc, toast } from '../core/helpers.js';
 import { LOCALE, fmtDate, t } from '../core/i18n.js';
 import { G, S } from '../core/state.js';
-import { confirmSteps, effRole } from '../core/workspace.js';
+import { can } from '../core/roles.js';
+import { confirmSteps } from '../core/workspace.js';
 import { barChart, runDetailsModal } from '../ui/charts.js';
 import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
@@ -20,7 +21,7 @@ async function renderResults(app, id){
     G.sb.from('views').select('*').eq('instr_id', id).order('started_at', {ascending:false}).limit(2000),
     G.sb.from('feedback').select('*').eq('instr_id', id).order('created_at', {ascending:false}) ]);
   const fbs = (fbrows||[]).sort((a,b) => (a.status==='open'?0:1)-(b.status==='open'?0:1) || (new Date(b.created_at)-new Date(a.created_at))); const fbOpen = fbs.filter(f => f.status==='open').length;
-  const canEditFb = ['creator','reviewer','admin'].includes(effRole(instr)) || S.user.isAdmin;
+  const canEditFb = can(instr, 'edit'); // v12.39
   const fbCard = f => { const st = f.step_id ? steps.find(x => x.id===f.step_id) : null; const no = st ? steps.indexOf(st)+1 : f.step_no;
     return `<article class="card fbcard ${f.status}" data-fb="${f.id}"><div class="fbmedia">${f.media_url ? (f.media_type==='video' ? `<video src="${esc(f.media_url)}" controls playsinline preload="metadata"></video>` : `<img src="${esc(f.media_url)}" alt="" loading="lazy">`) : `<div class="fbnomedia">${IC.msg}</div>`}</div>
       <div class="fbbody"><div class="row" style="gap:6px;flex-wrap:wrap"><span class="chip ${f.kind==='process'?'review':'published'}">${f.kind==='process'?t('fb_process'):t('fb_quality')}</span>${no?`<span class="chip">${t('step')} ${no}${st?' · '+esc(st.title||''):''}</span>`:''}${f.status!=='open'?`<span class="chip">${f.status==='done'?'✓ '+t('fb_done'):t('fb_dismissed')}</span>`:''}</div>

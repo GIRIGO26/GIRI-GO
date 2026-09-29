@@ -147,8 +147,9 @@ async function renderImporter(app){
   v.querySelector('#imp-all').onclick = () => { $$('#imp-tree input[data-id]', v).forEach(c => { c.checked = true; sel.add(c.dataset.id); }); renderTree(); };
   v.querySelector('#imp-none').onclick = () => { $$('#imp-tree input[data-id]', v).forEach(c => { c.checked = false; sel.delete(c.dataset.id); }); renderTree(); };
   /* ---- organisation structure: users → invites/roles, teams → teams, projects → folders with team access ---- */
-  const ROLE_MAP = {team_admin:'creator', creator:'creator', editor:'creator', approver:'reviewer', technical_approver:'reviewer', compliance_approver:'reviewer', compliance_manager:'reviewer', viewer:'viewer'};
-  const RANK = {viewer:0, reviewer:1, creator:2, admin:3};
+  // v12.39: the eight Classic roles exist 1:1 in GIRI Go
+  const ROLE_MAP = {team_admin:'team_admin', creator:'creator', editor:'editor', approver:'approver', technical_approver:'tech_approver', compliance_approver:'compliance_approver', compliance_manager:'compliance_manager', viewer:'viewer'};
+  const RANK = {viewer:0, editor:1, tech_approver:2, compliance_approver:2, approver:3, compliance_manager:3, creator:4, team_admin:5, admin:6};
   const domainOf = e => (e||'').split('@')[1] || '';
   let struct = null;
   async function loadStructure(){

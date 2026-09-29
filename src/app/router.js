@@ -4,6 +4,7 @@ import { migratePosters } from '../core/posters.js';
 import { online, schedulePill, mirrorList } from '../core/offline.js';
 import { renderTrash } from '../views/trash.js';
 import { reloadForUpdate, updateSafe } from './pwa.js';
+import { canAny } from '../core/roles.js';
 import { ensureSeed } from './seed.js';
 import { loadProfile, sessionExpired, signOutAll } from '../core/auth.js';
 import { $, el, toast } from '../core/helpers.js';
@@ -98,7 +99,7 @@ async function render(){
     P.mode = 'mit Server'; app.innerHTML = `<main class="page"><div class="skel"><div class="sk line"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div></main>`; // skeleton instead of a spinner
     const ts = performance.now(); await Promise.all([loadInstrs(), loadWs(needWs)]); if(stale()) return; P.syncMs = Math.round(performance.now()-ts);
   }
-  if(!S.instrs.length && S.user.role!=='viewer' && online()){ await ensureSeed(); await loadInstrs(); if(stale()) return; }
+  if(!S.instrs.length && canAny('edit') && online()){ await ensureSeed(); await loadInstrs(); if(stale()) return; }
   app.innerHTML = '';
   setTimeout(migratePosters, 1500);
   if(sessionExpired()){ await signOutAll(); toast(t('session_expired')); go(''); return renderLogin(app); }

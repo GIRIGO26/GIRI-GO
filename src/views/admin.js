@@ -9,6 +9,7 @@ import { folderName, folderTeams, loadWs, saveWs } from '../core/workspace.js';
 import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
 import { roleLbl } from './dashboard.js';
+import { ROLES as TEAM_ROLES, CAPS, capsOf, normRole, roleIcon } from '../core/roles.js';
 import { debounce } from './editor.js';
 import { defaultGuide } from '../media/pdfimport.js';
 
@@ -18,13 +19,20 @@ async function renderAdmin(app, sub){
   topbar(app, {back:'/', sub:t('admin')});
   if(!S.user.isAdmin){ app.appendChild(el(`<main class="page page-narrow"><div class="card empty"><h2>${t('admin')}</h2><div>${t('only_admin')}</div></div></main>`)); return; }
   const ws = await loadWs(true); const {data:prows} = await G.sb.from('profiles').select('*').eq('ws', S.user.ws).order('created_at');
-  const people = prows||[]; const ROLES = ['admin','creator','reviewer','viewer']; const TROLES = ['creator','reviewer','viewer'];
+  const CAPKEYS = ['view','edit','approve_tech','approve_dsgvo','lock','links','projects','users','team','analytics'];
+  const people = prows||[]; const ROLES = ['admin', ...TEAM_ROLES.slice().reverse()]; const TROLES = TEAM_ROLES.slice().reverse(); // v12.39: the eight Classic roles (+ org admin at workspace level)
   const v = el(`<main class="page"><div class="dash-head"><div><h1>${t('admin')}</h1><div class="sub">${t('admin_sub')} · ${esc(S.user.ws)}</div></div></div>
     <div class="settings" style="max-width:900px">
       <div class="card side-info"><div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">${t('users')} <span class="muted tnum">${people.length}</span></h3><button class="btn sm" id="invite">${IC.plus} ${t('invite')}</button></div>
         <div class="tbl-wrap" style="margin-top:10px"><table class="res" id="utable"><thead><tr><th>${t('name')}</th><th>${t('email')}</th><th>${t('role')}</th><th></th></tr></thead><tbody></tbody></table></div>
         <div id="invites"></div></div>
       <div class="card side-info"><div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">${t('teams')}</h3><button class="btn ghost sm" id="newteam">${IC.plus} ${t('new_team')}</button></div><div id="teams" style="margin-top:10px"></div></div>
+      <details class="card side-info roles-card"><summary><h3 style="margin:0;display:inline">${t('roles_h')}</h3> <span class="muted">${t('roles_sub')}</span></summary>
+        <p class="muted" style="margin:10px 0">${t('roles_principle')}</p>
+        <div class="tbl-wrap"><table class="res roles"><thead><tr><th>${t('role')}</th><th>${t('roles_desc')}</th>${CAPKEYS.map(c => `<th title="${t('cap_'+c)}">${t('cap_'+c+'_s')}</th>`).join('')}</tr></thead><tbody>
+          ${TEAM_ROLES.map(r => `<tr><td><b>${roleIcon(r)} ${t('r_'+r)}</b></td><td class="muted">${t('rd_'+r)}</td>${CAPKEYS.map(c => `<td class="cap ${capsOf(r).includes(c) || (c==='view') ? 'y' : 'n'}">${capsOf(r).includes(c) || c==='view' ? '✓' : '·'}</td>`).join('')}</tr>`).join('')}
+        </tbody></table></div>
+        <p class="muted" style="margin:10px 0 0;font-size:12.5px">${t('roles_notes')}</p></details>
       <div class="card side-info"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h3 style="margin:0">${t('folder_access')}</h3><button class="btn ghost sm" id="del-empty">${IC.trash} ${t('del_empty_folders')}</button></div><p class="muted" style="margin:8px 0 10px">${t('folder_access_sub')}</p><div id="faccess"></div></div>
       <div class="card side-info"><h3>${t('instr_access')}</h3><p class="muted" style="margin:0 0 10px">${t('instr_access_admin_sub')}</p><div id="iaccess2"></div></div>
       <div class="card side-info ai-card" id="ai-card"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h3 style="margin:0"><span class="pdfi-ico ai sm">✦</span> ${t('ai_cfg')}</h3><span class="chip ${(ws.settings||{}).pdfGuide ? 'review' : 'draft'}" id="ai-state">${(ws.settings||{}).pdfGuide ? t('ai_cfg_custom') : t('ai_cfg_default')}</span></div>
@@ -47,7 +55,7 @@ async function renderAdmin(app, sub){
   if(sub==='ai'){ const c = v.querySelector('#ai-card'); setTimeout(() => { c.scrollIntoView({behavior:'smooth', block:'start'}); c.classList.add('hl'); }, 80); }
   const emails = () => [...new Set([...people.map(p=>p.email), ...(ws.invites||[]).map(i=>i.email)])];
   function renderUsers(){
-    const tb = v.querySelector('#utable tbody'); tb.innerHTML = people.map(p => `<tr data-id="${p.id}"><td><b>${esc(p.name||'')}</b>${p.id===S.user.id?` <span class="muted">(${t('you')})</span>`:''}</td><td>${esc(p.email)}</td><td><select data-role ${p.id===S.user.id?'disabled':''}>${ROLES.map(r=>`<option value="${r}" ${p.role===r?'selected':''}>${roleLbl(r)}</option>`).join('')}</select></td><td>${p.id!==S.user.id?`<button class="btn ghost sm del" data-rm title="${t('remove_user')}">${IC.trash}</button>`:''}</td></tr>`).join('');
+    const tb = v.querySelector('#utable tbody'); tb.innerHTML = people.map(p => `<tr data-id="${p.id}"><td><b>${esc(p.name||'')}</b>${p.id===S.user.id?` <span class="muted">(${t('you')})</span>`:''}</td><td>${esc(p.email)}</td><td><select data-role ${p.id===S.user.id?'disabled':''}>${ROLES.map(r=>`<option value="${r}" ${(p.role==='admin' ? 'admin' : normRole(p.role))===r?'selected':''}>${roleLbl(r)}</option>`).join('')}</select></td><td>${p.id!==S.user.id?`<button class="btn ghost sm del" data-rm title="${t('remove_user')}">${IC.trash}</button>`:''}</td></tr>`).join('');
     $$('tr[data-id]', tb).forEach(tr => { const p = people.find(x=>x.id===tr.dataset.id);
       tr.querySelector('[data-role]').onchange = async e => { const role = e.target.value; const {error} = await G.sb.from('profiles').update({role, is_admin: role==='admin'}).eq('id', p.id); if(error){ toast(error.message); e.target.value = p.role; return; } p.role = role; p.is_admin = role==='admin'; toast(t('saved')); };
       const rm = tr.querySelector('[data-rm]'); if(rm) rm.onclick = async () => { if(!(await confirmM(t('remove_user_q',{e:p.email})))) return; const {error} = await G.sb.from('profiles').delete().eq('id', p.id); if(error){ toast(error.message); return; } people.splice(people.indexOf(p),1); renderUsers(); toast(t('deleted')); }; });
@@ -64,7 +72,7 @@ async function renderAdmin(app, sub){
   function renderTeams(){
     const tw = v.querySelector('#teams'); const teams = ws.teams||[];
     tw.innerHTML = teams.length ? teams.map(tm => `<div class="team" data-t="${tm.id}"><div class="row" style="justify-content:space-between;align-items:center"><input class="tname" value="${esc(tm.name)}" placeholder="${t('team_ph')}"><button class="btn ghost sm" data-tpw title="${t('link_pw')}">${tm.pw?'🔒':'🔓'} ${t('link_pw_short')}</button><button class="btn ghost sm del" data-delt title="${t('delete')}">${IC.trash}</button></div>
-      <div class="members">${(tm.members||[]).map((m,k)=>`<div class="mem"><span>${esc(m.email)}</span><select data-mrole="${k}">${TROLES.map(r=>`<option value="${r}" ${m.role===r?'selected':''}>${roleLbl(r)}</option>`).join('')}</select><button data-mrm="${k}" title="${t('remove')}">×</button></div>`).join('')}</div>
+      <div class="members">${(tm.members||[]).map((m,k)=>`<div class="mem"><span>${esc(m.email)}</span><select data-mrole="${k}">${TROLES.map(r=>`<option value="${r}" ${normRole(m.role)===r?'selected':''}>${roleLbl(r)}</option>`).join('')}</select><button data-mrm="${k}" title="${t('remove')}">×</button></div>`).join('')}</div>
       <div class="row" style="margin-top:8px"><input class="madd" list="dl-emails" placeholder="${t('member_email')}" style="flex:1;min-width:0"><button class="btn ghost sm" data-madd>${IC.plus} ${t('add_member')}</button></div></div>`).join('') + `<datalist id="dl-emails">${emails().map(e=>`<option value="${esc(e)}">`).join('')}</datalist>` : `<p class="muted" style="margin:0">${t('no_teams')}</p>`;
     $$('.team', tw).forEach(box => { const tm = teams.find(x=>x.id===box.dataset.t);
       box.querySelector('.tname').oninput = e => { tm.name = e.target.value; debounce('team'+tm.id, () => saveWs({teams}).then(renderAccess)); };

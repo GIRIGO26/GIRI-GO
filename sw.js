@@ -7,7 +7,20 @@ const CACHE = 'giri-go-shell';
 const plain = async r => new Response(await r.clone().arrayBuffer(), {status: r.status, statusText: r.statusText, headers: r.headers});
 const CORE = ['./', './manifest.webmanifest', './icons/icon-192.png?v=2', './icons/icon-512.png?v=2'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(async c => { await c.addAll(CORE).catch(() => {}); try{ const r = await fetch('./', {cache:'no-cache'}); if(r.ok) await c.put('./index.html', await plain(r)); }catch(e){} })); });
-self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+// v12.39: a new service worker rescues installed apps that are stuck on an old shell – app versions before 12.37.1 had a dead
+// in-page version check and never reloaded on their own. On activation: fetch the current shell, and if the cached one is older,
+// swap it and send every open window to the new version (home-screen apps on iOS/Android included).
+const verOf = txt => { const m = /APP_VERSION = '([^']+)'/.exec(txt||''); return m ? m[1] : ''; };
+const newer = (a, b) => { const A = a.split('.').map(Number), B = b.split('.').map(Number); for(let i = 0; i < 3; i++){ if((A[i]||0) !== (B[i]||0)) return (A[i]||0) > (B[i]||0); } return false; };
+const rescueClients = async () => { try{
+  const c = await caches.open(CACHE); const cached = await c.match('./index.html'); const oldV = cached ? verOf(await cached.clone().text()) : '';
+  const r = await fetch('./', {cache:'no-cache'}); if(!r.ok) return; const txt = await r.clone().text(); const newV = verOf(txt); if(!newV) return;
+  await c.put('./index.html', new Response(txt, {status:200, headers: r.headers}));
+  if(oldV && !newer(newV, oldV)) return;
+  const wins = await self.clients.matchAll({type:'window', includeUncontrolled:true});
+  for(const w of wins){ try{ w.postMessage({type:'shell-updated', v:newV}); if(!oldV || newer('12.37.1', oldV) || oldV==='dev'){ if('navigate' in w) await w.navigate(w.url.split('?')[0] + '?v=' + newV + (w.url.includes('#') ? '#' + w.url.split('#')[1] : '')); } }catch(e){} }
+}catch(e){} };
+self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()).then(rescueClients)); });
 self.addEventListener('message', e => { if(e.data === 'skipWaiting') self.skipWaiting(); });
 self.addEventListener('fetch', e => {
   const req = e.request; if(req.method !== 'GET') return;
