@@ -16,7 +16,7 @@ const open = async (role) => {
   await d.keyboard.press('Escape'); await d.waitForTimeout(200);
   await d.goto(BASE+'/index3.html#/edit/'+id); await d.waitForTimeout(1500);
   const openedEditor = await d.evaluate(() => !!document.querySelector('#ititle'));
-  const ed = await d.evaluate(() => ({ opened: !!document.querySelector('#ititle'), titleEditable: !document.querySelector('#ititle').disabled, share: !!(document.querySelector('#share') && !document.querySelector('#share').hidden), okTech: !!document.querySelector('[data-ok="tech"]'), okDsgvo: !!document.querySelector('[data-ok="dsgvo"]'), addStep: !!document.querySelector('.add-step, [data-addstep], .srow.add') }));
+  const ed = await d.evaluate(() => ({ opened: !!document.querySelector('#ititle'), titleEditable: !document.querySelector('#ititle').disabled, share: (() => { const m = document.querySelector('#more'); if(!m) return false; m.click(); const has = !!document.querySelector('.modal-bg [data-m="share"]'); const bg = document.querySelector('.modal-bg'); if(bg) bg.remove(); return has; })(), okTech: !!document.querySelector('[data-ok="tech"]'), okDsgvo: !!document.querySelector('[data-ok="dsgvo"]'), addStep: !!document.querySelector('.add-step, [data-addstep], .srow.add') }));
   await ctx.close();
   return {dash, menu, ed};
 };

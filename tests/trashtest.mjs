@@ -10,7 +10,7 @@ console.log('panel header buttons:', await d.$$eval('.steps-panel .ph button, .s
 console.log('row delete on selected:', !!(await d.$('.srow.sel [data-rowdel]')));
 await d.click('.srow.sel [data-rowdel]'); await d.waitForTimeout(300); await d.click('.modal [data-ok]'); await d.waitForTimeout(600);
 console.log('steps after trash:', await d.evaluate(()=>window.__tables.instructions[0].data.steps.filter(s=>!s.kind).length), 'trash:', await d.evaluate(()=>(window.__tables.instructions[0].data.trash||[]).map(t => t.title+'@'+t.at)));
-console.log('trash box:', await d.$eval('.trashbox summary', e => e.textContent.trim()), 'hint:', await d.$eval('#trash-hint', e => e.textContent));
+console.log('trash box:', await d.$eval('.trashbox summary', e => e.textContent.trim()), '| no panel heading any more:', !(await d.$('.steps-panel .ph')));
 await d.click('.trashbox summary'); await d.waitForTimeout(200); await d.screenshot({path:OUT+'/shots/t1-editor-trash.png'});
 await d.click('.trashbox [data-restore]'); await d.waitForTimeout(600);
 console.log('steps after restore:', await d.evaluate(()=>window.__tables.instructions[0].data.steps.filter(s=>!s.kind).length), 'first title:', await d.evaluate(()=>window.__tables.instructions[0].data.steps.filter(s=>!s.kind)[0].title), 'trash box gone:', !(await d.$('.trashbox')));

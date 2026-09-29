@@ -5,8 +5,8 @@ const d = await (await browser.newContext({viewport:{width:1366,height:900}})).n
 await d.goto(BASE+'/index3.html'); await d.waitForTimeout(2200); await d.evaluate(()=>localStorage.setItem('gg_lang','de')); await d.reload(); await d.waitForTimeout(2200);
 const vid = await d.evaluate(()=>window.__tables.instructions[0].id);
 await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1500);
-console.log('tab acts:', await d.$$eval('.tab-acts .btn', x => x.map(b=>b.textContent.trim())));
-await d.click('[data-tab="settings"]'); await d.waitForTimeout(500);
+console.log('head buttons:', await d.$$eval('.ed-acts > button', x => x.filter(b => !b.hidden).map(b => b.id)));
+await d.click('#more'); await d.waitForTimeout(200); await d.click('.modal-bg [data-m="settings"]'); await d.waitForTimeout(500);
 console.log('settings order:', await d.$$eval('#tab-settings .side-info:first-child label.toggle, #tab-settings .side-info:first-child .chkmodes', x => x.map(e => e.className+':'+(e.querySelector('input')||{}).id)));
 console.log('access details closed:', await d.$eval('details.acc', e => !e.open), 'summary:', await d.$eval('details.acc summary', e => e.textContent.trim()));
 console.log('tx how:', await d.$eval('#txcard', e => /PDF herunterladen|Download PDF/.test(e.textContent) && !!e.querySelector('[data-pdforig]')));

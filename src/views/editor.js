@@ -13,19 +13,20 @@ import { G, S, mediaUrl } from '../core/state.js';
 import { DB, uid } from '../core/storage.js';
 import { FLAGS, LANGS, srcHash, translateInstr, withLang } from '../core/translate.js';
 import { can } from '../core/roles.js';
-import { canSee, confirmSteps, folderTeams } from '../core/workspace.js';
+import { canSee, confirmSteps, folderTeams, saveWs } from '../core/workspace.js';
 import { attachDropImport, importFiles, replaceStepMedia } from '../media/import.js';
 import { exportPDF } from '../pdf/export.js';
 import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
 import { grabFrame, nOf, posterCache, stepPoster, stepPosterSync } from './dashboard.js';
 import { exportPDFAsk, shareModal } from './share.js';
-import { emojiPicker, symbolPicker } from './symbols.js';
+import { emojiPicker, symbolFromFile, symbolPicker } from './symbols.js';
 
 
 /* ---------- Editor ---------- */
 async function renderEditor(app, id, selStepId, fbId){
   const instr = S.instrs.find(i=>i.id===id); if(!instr || !canSee(instr)) return go('');
+  if(!Array.isArray(instr.steps)) instr.steps = []; instr.steps.forEach(st => { if(st && st.kind!=='chapter' && !Array.isArray(st.ann)) st.ann = []; }); if(!instr.approvals) instr.approvals = {tech:null, dsgvo:null}; if(!Array.isArray(instr.history)) instr.history = [];
   if(selStepId === 'fb'){ fbId = fbId || null; selStepId = null; } else fbId = null;
   topbar(app, {back:'/', sub: t('edit')});
   // v12.39: capabilities from the team roles – editing, technical approval and privacy approval are separate rights
@@ -35,12 +36,10 @@ async function renderEditor(app, id, selStepId, fbId){
   const v = el(`<main class="page">
     <div class="ed-head"><div class="title-wrap"><input class="title" id="ititle" value="${esc(instr.title)}" placeholder="${t('title')}" ${myRole==='viewer'?'disabled':''}><button class="pen-btn" id="rename" title="${t('rename')}">${IC.edit}</button></div>
       <div class="ed-meta"><span class="chip dot ${instr.status}" id="stchip">${t(instr.status==='review'?'in_review':instr.status)}</span><span class="muted tnum">v${instr.version}</span><span class="muted" id="ed-n"></span></div>
-      <div class="ed-acts"><button class="btn mint sm" id="rec">${IC.cam} ${t('record')}</button><button class="btn sm" id="cta" hidden></button><button class="btn ghost icon" id="more" title="${t('more')}">${IC.more}</button></div></div>
-    <div class="ed-tabs"><div class="tabs" id="tabs"><button data-tab="steps" class="${tab==='steps'?'on':''}">${t('steps')} <span class="tnum cnt" id="scount"></span></button><button data-tab="settings" class="${tab==='settings'?'on':''}">${t('tab_settings')}</button></div>
-      <div class="tab-acts"><button class="btn ghost sm" id="share" ${canLinks?'':'hidden'}>${IC.share} ${t('share')}</button><button class="btn ghost sm" id="pdf">${IC.pdf} ${t('pdf')}</button><button class="btn ghost sm" id="res">${IC.eye} ${t('stats_fb')}<span class="nbadge" id="res-n" hidden></span></button></div></div>
+      <div class="ed-acts"><button class="btn mint sm" id="rec">${IC.cam} <span>${t('record')}</span></button><button class="btn ghost sm" id="prev" title="${t('preview')}">${IC.play} <span>${t('preview')}</span></button><button class="btn sm" id="cta" hidden></button><button class="btn ghost icon" id="more" title="${t('more')}">${IC.more}<span class="nbadge dot" id="res-n" hidden></span></button></div></div>
     <div class="fb-banner" id="fb-banner" hidden><span>${IC.msg} <b id="fb-n"></b></span><a class="btn sm" href="#/results/${instr.id}" id="fb-open">${t('fb_view')}</a></div>
     <div class="editor" id="tab-steps" data-pane="${selStepId ? 'step' : 'list'}" ${tab!=='steps'?'hidden':''}>
-      <aside class="card steps-panel"><div class="ph"><b>${t('steps')}</b><span class="muted" style="font-size:11px;font-weight:600" id="trash-hint"></span></div>
+      <aside class="card steps-panel">
         <button class="noshot-bar" id="noshot-bar" hidden></button><div class="slist" id="slist"></div>
         <div class="shortcuts">${t('shortcuts')}</div></aside>
       <section class="ed-main">
@@ -48,7 +47,7 @@ async function renderEditor(app, id, selStepId, fbId){
         <div class="card props" id="props"></div>
       </section>
     </div>
-    <div class="settings" id="tab-settings" ${tab!=='settings'?'hidden':''}><button class="sback" data-sback>${IC.back} ${t('back_steps')}</button>
+    <div class="settings" id="tab-settings" ${tab!=='settings'?'hidden':''}><button class="sback always" data-sback>${IC.back} ${t('back_steps')}</button>
       <div class="card side-info"><h3>${t('tab_settings')}</h3>
         <label class="toggle"><input type="checkbox" id="chk" ${instr.checklist?'checked':''}> <span>${t('checklist')}<br><span class="muted" style="font-weight:500">${t('checklist_sub')}</span></span></label>
         <div class="chkmodes" id="chkmodes" ${instr.checklist?'':'hidden'}>${[['all','cm_all','cm_all_sub'],['chapter','cm_chapter','cm_chapter_sub'],['custom','cm_custom','cm_custom_sub']].map(([k,l,sub])=>`<label><input type="radio" name="cm" value="${k}" ${(instr.checkMode||'all')===k?'checked':''}> <span>${t(l)}<br><span class="muted" style="font-weight:500">${t(sub)}</span></span></label>`).join('')}</div>
@@ -62,12 +61,13 @@ async function renderEditor(app, id, selStepId, fbId){
       <div class="card side-info" id="appr"></div>
     </div></main>`);
   app.appendChild(v);
-  $$('#tabs button', v).forEach(b => b.onclick = () => { tab = b.dataset.tab; try{ sessionStorage.setItem('gg_tab_'+id, tab); }catch(e){} $$('#tabs button', v).forEach(x=>x.classList.toggle('on', x===b)); v.querySelector('#tab-steps').hidden = tab!=='steps'; v.querySelector('#tab-settings').hidden = tab!=='settings'; if(tab==='steps') setTimeout(()=>window.dispatchEvent(new Event('resize')), 30); });
+  // v12.43: no tab row – the steps are the editor; approval & settings, link/QR, PDF and statistics live in the ⋯ menu, preview is a button
+  const showTab = k => { tab = k; try{ sessionStorage.setItem('gg_tab_'+id, tab); }catch(e){} v.querySelector('#tab-steps').hidden = tab!=='steps'; v.querySelector('#tab-settings').hidden = tab!=='settings'; if(tab==='steps') setTimeout(()=>window.dispatchEvent(new Event('resize')), 30); else window.scrollTo({top:0}); };
+  { const sb = v.querySelector('[data-sback]'); if(sb) sb.onclick = () => showTab('steps'); }
   v.querySelector('#rec').onclick = () => go('rec/'+instr.id);
-  v.querySelector('#share').onclick = () => shareModal(instr);
-  v.querySelector('#pdf').onclick = () => exportPDFAsk(instr);
-  const rb = v.querySelector('#res'); if(rb) rb.onclick = () => go('results/'+instr.id);
-  v.querySelector('#more').onclick = () => modal(`<div class="menu"><button data-m="undo" ${undo.length?'':'disabled'}>${IC.undo} ${t('undo')}</button><button data-m="redo" ${redo.length?'':'disabled'}>${IC.redo} ${t('redo')}</button><div class="menu-sep"></div><button data-m="preview">${IC.play} ${t('preview')}</button><button data-m="share">${t('share')}</button><button data-m="pdf">${t('pdf')}</button><button data-m="results">${t('stats')}</button><button data-m="settings">${t('tab_settings')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='undo') doUndo(); else if(m==='redo') doRedo(); else if(m==='preview') go('preview/'+instr.id); else if(m==='share') shareModal(instr); else if(m==='pdf') exportPDFAsk(instr); else if(m==='results') go('results/'+instr.id); else if(m==='settings') v.querySelector('[data-tab="settings"]').click(); }); });
+  v.querySelector('#prev').onclick = () => go('preview/'+instr.id);
+  let fbOpenN = 0;
+  v.querySelector('#more').onclick = () => modal(`<div class="menu"><div class="menu-h">${esc(instr.title)}</div><button data-m="undo" ${undo.length?'':'disabled'}>${IC.undo} ${t('undo')}</button><button data-m="redo" ${redo.length?'':'disabled'}>${IC.redo} ${t('redo')}</button><div class="menu-sep"></div>${canLinks ? `<button data-m="share">${IC.share} ${t('share')}</button>` : ''}<button data-m="pdf">${IC.pdf} ${t('pdf')}</button><button data-m="results">${IC.eye} ${t('stats_fb')}${fbOpenN ? `<span class="nbadge">${fbOpenN}</span>` : ''}</button><div class="menu-sep"></div><button data-m="settings">${IC.gear} ${t('tab_settings')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='undo') doUndo(); else if(m==='redo') doRedo(); else if(m==='share') shareModal(instr); else if(m==='pdf') exportPDFAsk(instr); else if(m==='results') go('results/'+instr.id); else if(m==='settings') showTab('settings'); }); });
   const setChip = () => { const c = v.querySelector('#stchip'); c.className = 'chip dot '+instr.status; c.textContent = t(instr.status==='review'?'in_review':instr.status); updateCTA(); };
   function updateCTA(){ const b = v.querySelector('#cta'); b.hidden = true; b.className = 'btn sm'; const narrow = matchMedia('(max-width:560px)').matches;
     if(instr.status==='draft' && realSteps(instr).length && myRole!=='viewer'){ b.hidden = false; b.textContent = t(narrow ? 'submit_review_short' : 'submit_review'); b.onclick = submitForReview; }
@@ -97,8 +97,9 @@ async function renderEditor(app, id, selStepId, fbId){
   // v0.30 phone: the step list and the step itself are two screens – "list" (overview) or "step" (one step, full width); the PC shows both
   const isPhone = () => window.innerWidth < 901;
   const setPane = p => { const ed = v.querySelector('#tab-steps'); ed.dataset.pane = p; if(p==='step') window.scrollTo({top:0}); else setTimeout(() => { const r = v.querySelector(`.srow[data-id="${sel}"]`); if(r) r.scrollIntoView({block:'center'}); }, 30); };
-  { const sb = v.querySelector('[data-sback]'); if(sb) sb.onclick = () => v.querySelector('[data-tab="steps"]').click(); }
   let stageCleanup = null, stageApi = null, warnOpen = false;
+  // step bar (back / previous / next) by delegation: it keeps working whatever happens to the rest of the stage
+  { const st = v.querySelector('#stage'); st.addEventListener('click', e => { const b = e.target.closest('[data-back],[data-prev],[data-next]'); if(!b || b.disabled) return; if(b.hasAttribute('data-back')){ setPane('list'); return; } const rs = realSteps(instr); const k = rs.findIndex(x => x.id===sel); const nx = b.hasAttribute('data-prev') ? rs[k-1] : rs[k+1]; if(nx) selectStep(nx.id); }); }
   let collapsed = new Set(); try{ collapsed = new Set(JSON.parse(localStorage.getItem('gg_coll_'+id)||'[]')); }catch(e){}
   let openedFor = null; // which selection already had its chapter auto-opened
   const saveColl = () => { try{ localStorage.setItem('gg_coll_'+id, JSON.stringify([...collapsed])); }catch(e){} };
@@ -128,8 +129,9 @@ async function renderEditor(app, id, selStepId, fbId){
   /* --- step list --- */
   // "add step": record, pick photos/videos from the library, or drop files – always at the end of the list
   function addStepCard(){
-    const c = el(`<div class="addstep"><div class="as-t">${IC.plus} ${t('add_step')}</div><div class="as-b"><button class="btn mint sm" data-rec>${IC.cam}<span>${t('record')}</span></button><label class="btn ghost sm" style="cursor:pointer">${IC.upload}<span>${t('pick_files_short')}</span><input type="file" multiple accept="image/*,video/*" hidden></label><button class="btn ghost sm" data-ch title="${t('add_chapter')}">${IC.note}<span>${t('new_chapter')}</span></button></div><div class="as-sub">${t('add_step_sub')}</div></div>`);
+    const c = el(`<div class="addstep"><div class="as-t">${IC.plus} ${t('add_step')}</div><div class="as-b"><button class="btn mint sm" data-rec>${IC.cam}<span>${t('record')}</span></button><label class="btn ghost sm" style="cursor:pointer">${IC.upload}<span>${t('pick_files_short')}</span><input type="file" multiple accept="image/*,video/*" hidden></label><button class="btn ghost sm" data-empty title="${t('empty_step_sub')}">${IC.text}<span>${t('empty_step')}</span></button><button class="btn ghost sm" data-ch title="${t('add_chapter')}">${IC.note}<span>${t('new_chapter')}</span></button></div><div class="as-sub">${t('add_step_sub')}</div></div>`);
     c.querySelector('[data-rec]').onclick = () => go(`rec/${instr.id}`);
+    c.querySelector('[data-empty]').onclick = () => addEmptyStep(null);
     c.querySelector('[data-ch]').onclick = () => addChapter();
     c.querySelector('input').onchange = async e => { const fs = [...e.target.files]; e.target.value = ''; if(!fs.length) return; const added = await importFiles(instr, fs, null); if(!added.length) return; snapshot(); setChip(); renderApprovals(); sel = added[0].id; renderList(); renderStage(); setTimeout(() => focusRow(sel), 50); };
     return c; }
@@ -148,13 +150,13 @@ async function renderEditor(app, id, selStepId, fbId){
     try{ if(sel) sessionStorage.setItem('gg_sel_'+id, sel); }catch(e){}
     // the chapter of the selected step is always open (e.g. coming back from the camera with a fresh step)
     if(sel !== openedFor){ openedFor = sel; let ch = null; for(const s of instr.steps){ if(s.kind==='chapter') ch = s; else if(s.id===sel){ if(ch && collapsed.has(ch.id)){ collapsed.delete(ch.id); saveColl(); } break; } } }
-    v.querySelector('#scount').textContent = realSteps(instr).length; const edn = v.querySelector('#ed-n'); if(edn) edn.textContent = '· ' + nOf(realSteps(instr).length, 'step', 'steps');
+    const edn = v.querySelector('#ed-n'); if(edn) edn.textContent = '· ' + nOf(realSteps(instr).length, 'step', 'steps');
     if(!instr.steps.length){ list.innerHTML = `<div class="muted" style="padding:10px">${t('no_steps')}</div>`; if(myRole!=='viewer') list.appendChild(addStepCard()); }
-    instr.steps.forEach((s, idx) => {
+    instr.steps.forEach((s, idx) => { try{
       if(s.kind==='chapter'){
         curCh = s; const [cs, ce] = chapterBlock(idx); const cnt = ce-cs-1; const isC = collapsed.has(s.id);
         const chIdx = instr.steps.slice(0, idx).filter(x => x.kind==='chapter').length;
-        const r = el(`<div class="chrow ${isC?'coll':''}" data-id="${s.id}" style="--chc:${['#004EAD','#03D39B','#F5A524','#8B5CF6','#EC4899','#0EA5E9'][chIdx % 6]}"><span class="grip" title="drag">${IC.grip}</span><button class="chev" title="${isC?t('expand'):t('collapse')}">${IC.down}</button><input value="${esc(s.title)}" placeholder="${t('chapter')}"><button class="chlbl" type="button">${esc(s.title)||t('chapter')}</button><span class="cnt tnum">${cnt}</span><button class="mini" data-up title="${t('move_up')}">${IC.up}</button><button class="mini" data-dn title="${t('move_down')}">${IC.down}</button><button class="mini x" title="${t('delete')}">${IC.trash}</button><button class="mini chmore" title="${t('more')}">${IC.more}</button></div>`);
+        const r = el(`<div class="chrow ${isC?'coll':''}" data-id="${s.id}" style="--chc:${['#004EAD','#03D39B','#F5A524','#8B5CF6','#EC4899','#0EA5E9'][chIdx % 6]}"><span class="grip" title="drag">${IC.grip}</span><button class="chev" title="${isC?t('expand'):t('collapse')}">${IC.down}</button><input value="${esc(s.title)}" placeholder="${t('chapter')}"><button class="chlbl" type="button">${esc(s.title)||t('chapter')}</button><span class="cnt tnum" data-lbl="${isC ? (cnt===1 ? t('step') : t('steps')) : ''}">${cnt}</span><button class="mini" data-up title="${t('move_up')}">${IC.up}</button><button class="mini" data-dn title="${t('move_down')}">${IC.down}</button><button class="mini x" title="${t('delete')}">${IC.trash}</button><button class="mini chmore" title="${t('more')}">${IC.more}</button></div>`);
         const toggle = () => { if(collapsed.has(s.id)) collapsed.delete(s.id); else collapsed.add(s.id); saveColl(); renderList(); };
         r.querySelector('.chlbl').onclick = toggle;
         r.querySelector('.chmore').onclick = () => modal(`<div class="menu"><div class="menu-h">${esc(s.title)||t('chapter')}</div><button data-m="ren">${IC.edit} ${t('ch_rename')}</button><button data-m="up" ${idx===0?'disabled':''}>${IC.up} ${t('move_up')}</button><button data-m="dn">${IC.down} ${t('move_down')}</button><button data-m="del" class="del">${IC.trash} ${t('delete')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = async () => { close(); const m = b.dataset.m; if(m==='up') moveChapter(idx, -1); else if(m==='dn') moveChapter(idx, 1); else if(m==='del'){ instr.steps.splice(idx,1); await touch(); renderList(); } else { const name = await promptM(t('ch_rename'), t('chapter_ph'), s.title||''); if(name!==null){ s.title = name.trim(); await touch(); renderList(); } } }); });
@@ -168,7 +170,7 @@ async function renderEditor(app, id, selStepId, fbId){
       n++;
       if(curCh && collapsed.has(curCh.id)) return;
       const chC = curCh ? ['#004EAD','#03D39B','#F5A524','#8B5CF6','#EC4899','#0EA5E9'][instr.steps.slice(0, instr.steps.indexOf(curCh)).filter(x => x.kind==='chapter').length % 6] : 'transparent';
-      const r = el(`<div class="srow ${s.id===sel?'sel':''} ${curCh?'in-ch':''}" data-id="${s.id}" tabindex="0" style="--chc:${chC}"><span class="grip" title="drag">${IC.grip}</span><span class="n tnum">${n}</span><div class="th-wrap ${s.mediaId?'':'noshot'} ${s.placeholder?'ph':''}">${s.mediaId ? '<img class="th" alt="">' : `<span class="th">${IC.cam}</span>`}${s.placeholder ? `<u class="phtag">${t('ph_tag')}</u>` : ''}${s.type==='video'?`<span class="vd tnum">${fmtSec(Math.max(0,(s.trimEnd||s.duration)-(s.trimStart||0)))}s</span>`:''}</div><div class="tt">${titleHtml(s.title)||`<span class="muted">${t('step')} ${n}</span>`}${myRole!=='viewer' ? `<button class="mini x rowdel" data-rowdel title="${t('delete')}">${IC.trash}</button>`:''}<small>${instr.checklist && (instr.checkMode||'all')!=='all' && confirmSteps(instr).includes(s) ? '☑ ' : ''}${s.ann.length?s.ann.length+' ⌖':''} ${s.desc?'· '+esc(mdToPlain(s.desc).replace(/\n+/g,' ').slice(0,30)):''}</small></div></div>`);
+      const r = el(`<div class="srow ${s.id===sel?'sel':''} ${curCh?'in-ch':''}" data-id="${s.id}" tabindex="0" style="--chc:${chC}"><span class="grip" title="drag">${IC.grip}</span><span class="n tnum">${n}</span><div class="th-wrap ${s.mediaId?'':'noshot'} ${s.placeholder?'ph':''} ${s.textOnly?'txt':''}">${s.mediaId ? '<img class="th" alt="">' : `<span class="th">${s.textOnly ? IC.text : IC.cam}</span>`}${s.placeholder ? `<u class="phtag">${t('ph_tag')}</u>` : ''}${s.type==='video'?`<span class="vd tnum">${fmtSec(Math.max(0,(s.trimEnd||s.duration)-(s.trimStart||0)))}s</span>`:''}</div><div class="tt">${titleHtml(s.title)||`<span class="muted">${t('step')} ${n}</span>`}${myRole!=='viewer' ? `<button class="mini x rowdel" data-rowdel title="${t('delete')}">${IC.trash}</button>`:''}<small>${instr.checklist && (instr.checkMode||'all')!=='all' && confirmSteps(instr).includes(s) ? '☑ ' : ''}${s.ann.length?s.ann.length+' ⌖':''} ${s.desc?'· '+esc(mdToPlain(s.desc).replace(/\n+/g,' ').slice(0,30)):''}</small></div></div>`);
       if(s.mediaId){ const known = stepPosterSync(s); if(known) r.querySelector('.th').src = known; else stepPoster(s).then(u => { if(u) r.querySelector('.th').src = u; }); }
       const rd = r.querySelector('[data-rowdel]'); if(rd) rd.onclick = e => { e.stopPropagation(); delStep(s); };
       r.onclick = e => { if(e.target.closest('.grip')) return; selectStep(s.id); if(isPhone()) setPane('step'); };
@@ -181,13 +183,13 @@ async function renderEditor(app, id, selStepId, fbId){
         else if(e.key==='Enter'){ e.preventDefault(); const ti = v.querySelector('#stitle'); if(ti) ti.focus(); }
       };
       attachDrag(r, idx); list.appendChild(r);
-    });
+    }catch(e){ console.error('step row', s && s.id, e); const r = el(`<div class="srow ${s.id===sel?'sel':''}" data-id="${s.id}" tabindex="0"><span class="grip"></span><span class="n tnum">${n}</span><div class="th-wrap noshot"><span class="th">${IC.warn}</span></div><div class="tt">${esc(s.title||'')}<small>${esc(String(e && e.message || e))}</small></div></div>`); r.onclick = () => { selectStep(s.id); if(isPhone()) setPane('step'); }; list.appendChild(r); } });
     if(instr.steps.length && myRole!=='viewer') list.appendChild(addStepCard());
     renderTrashBox(list);
   }
   // deleted steps stay here for 30 days – bring them back or drop them for good
   function renderTrashBox(list){
-    const tr = instr.trash||[]; const hint = v.querySelector('#trash-hint'); if(hint) hint.textContent = tr.length ? `${IC.trash ? '' : ''}${nOf(tr.length, 'trashed_one', 'trashed_many')}` : '';
+    const tr = instr.trash||[];
     if(!tr.length) return;
     const box = el(`<details class="trashbox"><summary>${IC.trash} ${t('trash')} <span class="cnt tnum">${tr.length}</span></summary><div class="tlist"></div><div class="muted" style="font-size:11px;margin-top:6px">${t('trash_steps_sub')}</div></details>`);
     const tl = box.querySelector('.tlist');
@@ -253,6 +255,12 @@ async function renderEditor(app, id, selStepId, fbId){
       document.addEventListener('pointerup',up); document.addEventListener('pointercancel',up);
     });
   }
+  // v12.43: a step without a picture – text only for now, the picture can follow (camera / file) at any time
+  async function addEmptyStep(after){
+    const ns = {id:uid(), type:'empty', textOnly:true, w:1280, h:720, duration:0, trimStart:0, trimEnd:0, title:'', desc:'', warn:'', ann:[]};
+    const at = after ? instr.steps.indexOf(after) : instr.steps.length-1; instr.steps.splice(at+1, 0, ns);
+    sel = ns.id; await touch(); renderList(); renderStage(); if(isPhone()) setPane('step');
+    setTimeout(() => { const ti = v.querySelector('#stitle'); if(ti) ti.focus(); }, 80); }
   async function addChapter(){
     const selStep = instr.steps.find(s=>s.id===sel); const n = selStep ? realSteps(instr).indexOf(selStep)+1 : 0;
     const name = await promptM(selStep ? t('chapter_before',{n}) : t('add_chapter'), t('chapter_ph'), ''); if(name===null) return;
@@ -261,19 +269,26 @@ async function renderEditor(app, id, selStepId, fbId){
     setTimeout(()=>{ const row = v.querySelector(`.chrow[data-id="${ch.id}"]`); if(row) row.scrollIntoView({block:'center', behavior:'smooth'}); }, 50); toast(selStep ? t('chapter_added',{n}) : t('saved')); };
 
   /* --- stage (media + annotation + trim) --- */
-  async function renderStage(){
+  // an error while building the stage must not leave a dead screen: it is reported, the step bar stays usable
+  async function renderStage(){ try{ await renderStageInner(); }catch(e){ console.error('stage', e); toast((G.LANG==='de' ? 'Anzeige-Fehler: ' : 'Display error: ') + (e && e.message || e)); } }
+  async function renderStageInner(){
     if(stageCleanup){ stageCleanup(); stageCleanup=null; }
     const stage = v.querySelector('#stage'), props = v.querySelector('#props');
     const s = instr.steps.find(x=>x.id===sel);
     if(!s){ stage.innerHTML = `<div class="empty"><h2>${t('no_steps')}</h2><button class="btn mint" id="rec2">${IC.cam} ${t('record')}</button></div>`; stage.querySelector('#rec2').onclick=()=>go('rec/'+instr.id); props.innerHTML=''; return; }
-    const url = s.mediaId ? await mediaUrl(s.mediaId) : null; const noShot = !s.mediaId;
     const isV = s.type==='video';
     const n = realSteps(instr).indexOf(s)+1;
     const rs = realSteps(instr); const k = rs.indexOf(s); const stepbar = `<div class="stepbar"><button class="sb-back" data-back>${IC.back}<span>${t('back_steps')}</span></button><b class="tnum" title="${t('step_of', {n:k+1, total:rs.length})}">${k+1} ${t('of')} ${rs.length}</b><span class="sb-nav"><button data-prev ${k<=0?'disabled':''} title="${t('cap_prev')}">${IC.up}</button><button data-next ${k>=rs.length-1?'disabled':''} title="${t('cap_next_btn')}">${IC.down}</button><button data-mmore title="${t('more')}">${IC.more}</button></span></div>`;
+    // v12.43: the step bar goes up before anything is awaited – moving between steps must work even when the picture is slow or
+    // the device store hangs (its buttons are handled by the delegated listener on the stage, see stageNav)
+    stage.innerHTML = `${stepbar}<div class="stage-skel"><div class="sk"></div></div>`;
+    let url = null; if(s.mediaId){ try{ url = await Promise.race([mediaUrl(s.mediaId), new Promise(r => setTimeout(() => r(undefined), 3000))]); }catch(e){ url = undefined; } if(url === undefined){ console.warn('media url fallback', s.mediaId); url = s.mediaUrl || null; } }
+    if(sel !== s.id || stage !== v.querySelector('#stage')) return; // another step was chosen meanwhile
+    const noShot = !s.mediaId;
     // v12.41: one symbol library – docked under the picture on the PC (#symdock), behind the blue button on the phone (#tools-open)
     stage.innerHTML = noShot ? `${stepbar}<div class="row desk" style="justify-content:space-between;margin-bottom:10px"><b>${t('step')} ${n} ${t('of')} ${realSteps(instr).length}</b><button class="btn ghost sm del" id="del" title="${t('delete_step')}">${IC.trash} ${t('delete')}</button></div>
-      <div class="noshot-stage"><div class="ns-ico">${IC.cam}</div><div class="ns-h">${t('noshot')}</div><div class="ns-title">${titleHtml(s.title)||`${t('step')} ${n}`}</div>${s.shot ? `<div class="ns-shot">🎬 ${esc(s.shot)}</div>` : ''}<p class="muted">${t('noshot_sub')}</p>
-        <div class="ns-acts"><button class="btn mint" id="retake">${IC.cam} ${t('noshot_rec')}</button><label class="btn ghost" style="cursor:pointer">${IC.upload} ${t('pick_files_short')}<input type="file" accept="video/*,image/*" hidden id="repl-file"></label><button class="btn ghost" id="after" hidden></button></div></div>` : `${stepbar}<div class="row desk" style="justify-content:space-between;margin-bottom:10px"><b>${t('step')} ${n} ${t('of')} ${realSteps(instr).length}</b><button class="btn ghost sm del" id="del" title="${t('delete_step')}">${IC.trash} ${t('delete')}</button></div>
+      <div class="noshot-stage ${s.textOnly?'textonly':''}"><div class="ns-ico">${s.textOnly ? IC.text : IC.cam}</div><div class="ns-h">${s.textOnly ? t('text_step') : t('noshot')}</div><div class="ns-title">${titleHtml(s.title)||`${t('step')} ${n}`}</div>${s.shot ? `<div class="ns-shot">🎬 ${esc(s.shot)}</div>` : ''}<p class="muted">${s.textOnly ? t('text_step_sub') : t('noshot_sub')}</p>
+        <div class="ns-acts"><button class="btn ${s.textOnly?'ghost':'mint'}" id="retake">${IC.cam} ${s.textOnly ? t('record') : t('noshot_rec')}</button><label class="btn ghost" style="cursor:pointer">${IC.upload} ${t('pick_files_short')}<input type="file" accept="video/*,image/*" hidden id="repl-file"></label><button class="btn ghost" id="after" hidden></button></div></div>` : `${stepbar}<div class="row desk" style="justify-content:space-between;margin-bottom:10px"><b>${t('step')} ${n} ${t('of')} ${realSteps(instr).length}</b><button class="btn ghost sm del" id="del" title="${t('delete_step')}">${IC.trash} ${t('delete')}</button></div>
       ${s.placeholder ? `<div class="ph-banner"><span>${IC.pdf}</span><div>${t('ph_banner')}</div><button class="btn mint sm" id="ph-rec">${IC.cam} ${t('noshot_rec')}</button><button class="btn ghost sm" id="ph-keep">${t('ph_keep')}</button></div>` : ''}
       <div class="media-box" id="mbox"><div class="vbg" id="mbg"></div>${isV?`<video id="med" src="${url}" muted playsinline autoplay loop preload="auto"></video>`:`<img id="med" src="${url}" alt="">`}<canvas class="ann sel-mode" id="acv"></canvas><div class="pausetag" id="ptag" hidden></div></div>
       <div class="ann-list" id="annlist"></div><div class="ann3d" id="ann3d" hidden></div>
@@ -281,7 +296,8 @@ async function renderEditor(app, id, selStepId, fbId){
         <div class="trim-labels"><span>${IC.scissors} ${t('trim_hint')}</span><span class="tnum"><b id="tcur">0,0</b> / <span id="tsv">${fmtSec(s.trimStart||0)}</span>–<span id="tev">${fmtSec(s.trimEnd||s.duration)}</span> s <span id="annt" class="muted"></span></span></div></div>`:''}
       <button class="tools-cta" id="tools-open"><span class="tc-ico">${IC.plus}</span><span><b>${t('mark_img')}</b><small>${t('mark_img_sub')}</small></span></button>
       <div class="symdock" id="symdock"></div>
-      <div class="retake"><button class="btn ghost sm" id="retake">${IC.cam} ${t('retake')}</button><button class="btn ghost sm" id="after">${IC.plus} ${t('rec_after')}</button><label class="btn ghost sm" style="cursor:pointer">${IC.upload} ${t('replace_file')}<input type="file" accept="video/*,image/*" hidden id="repl-file"></label></div>`;
+      <div class="mact"><div class="mact-g"><span class="mact-l">${t('mact_this')}</span><button class="btn ghost sm" id="retake">${IC.cam} ${t('retake')}</button><label class="btn ghost sm" style="cursor:pointer">${IC.upload} ${t('replace_file')}<input type="file" accept="video/*,image/*" hidden id="repl-file"></label></div>
+        <div class="mact-g"><span class="mact-l">${t('mact_after')}</span><button class="btn ghost sm" id="after">${IC.cam} ${t('record')}</button><label class="btn ghost sm" style="cursor:pointer">${IC.upload} ${t('pick_files_short')}<input type="file" accept="video/*,image/*" multiple hidden id="after-file"></label><button class="btn ghost sm" id="after-empty">${IC.note} ${t('empty_step')}</button></div></div>`;
     props.innerHTML = `${s.shot && !noShot ? `<div class="shot-hint" title="${t('shot_hint')}">🎬 <span>${esc(s.shot)}</span><button data-shotx title="${t('delete')}">×</button></div>` : ''}<div class="two"><div class="field"><label for="stitle">${t('title')}</label><input id="stitle" value="${esc(s.title)}" placeholder="${t('step_title_ph')}"><div class="fmtbar sm"><button data-tf="b" title="${t('fmt_bold')}"><b>B</b></button><button data-tf="link" title="${t('fmt_link')}">🔗 ${t('fmt_link')}</button><button data-tf="keep" title="${t('fmt_keep')}">🔒 ${t('fmt_keep')}</button></div></div><div class="field warnf ${s.warn || warnOpen ? '' : 'closed'}"><label for="swarn">${t('warn')}</label><input id="swarn" value="${esc(s.warn||'')}" placeholder="⚠"><button class="lnk" type="button" data-addwarn>⚠ ${t('add_warn')}</button></div></div>
       <div class="field"><label for="sdesc">${t('desc')}</label><textarea id="sdesc" placeholder="${t('desc_ph')}">${esc(s.desc)}</textarea><div class="fmtbar"><button data-f="b" title="${t('fmt_bold')}"><b>B</b></button><button data-f="ul" title="${t('fmt_ul')}">•&thinsp;${t('fmt_ul')}</button><button data-f="ol" title="${t('fmt_ol')}">1.&thinsp;${t('fmt_ol')}</button><button data-f="link" title="${t('fmt_link')}">🔗 ${t('fmt_link')}</button><button data-f="keep" title="${t('fmt_keep')}">🔒 ${t('fmt_keep')}</button></div><div class="rich rich-prev" id="sprev" hidden></div><div class="fmt-hint">${esc(t('fmt_hint'))}</div></div>
       ${instr.checklist && (instr.checkMode||'all')==='custom' ? `<label class="toggle" style="margin-top:6px"><input type="checkbox" id="sconf" ${s.confirm?'checked':''}> <span>${t('step_confirm')}<br><span class="muted" style="font-weight:500">${t('step_confirm_sub')}</span></span></label>` : ''}`;
@@ -294,7 +310,15 @@ async function renderEditor(app, id, selStepId, fbId){
     const updPrev = () => { const has = /\*\*|==|\[.+\]\(|^\s*[-*•]\s|^\s*\d+[.)]\s|https?:\/\//m.test(s.desc||''); sprev.hidden = !has; if(has) sprev.innerHTML = mdToHtml(s.desc); };
     ta.oninput = e => { s.desc = e.target.value; updPrev(); debounce('sd', touch); }; updPrev();
     const fire = () => ta.dispatchEvent(new Event('input'));
-    const wrapSel = (pre, post, ph) => { const st = ta.selectionStart, en = ta.selectionEnd, val = ta.value; const inner = val.slice(st,en) || ph; ta.value = val.slice(0,st)+pre+inner+post+val.slice(en); ta.focus(); ta.setSelectionRange(st+pre.length, st+pre.length+inner.length); fire(); };
+    // v12.43: bold / keep work line by line – three selected lines become three bold lines (markers never span a line break),
+    // list prefixes stay outside the markers, and applying it again to already marked lines removes the markers
+    const wrapSel = (pre, post, ph) => { const st = ta.selectionStart, en = ta.selectionEnd, val = ta.value; const inner = val.slice(st,en);
+      if(!inner.includes('\n')){ const txt = inner || ph; const wrapped = txt.startsWith(pre) && txt.endsWith(post) && txt.length >= pre.length+post.length; const out = wrapped ? txt.slice(pre.length, txt.length-post.length) : pre+txt+post; ta.value = val.slice(0,st)+out+val.slice(en); ta.focus(); if(wrapped) ta.setSelectionRange(st, st+out.length); else ta.setSelectionRange(st+pre.length, st+pre.length+txt.length); fire(); return; }
+      const split = l => { const m = l.match(/^(\s*(?:[-*•]\s|\d+[.)]\s)?)([\s\S]*)$/); return [m[1], m[2]]; };
+      const lines = inner.split('\n'); const isW = b => b.startsWith(pre) && b.endsWith(post) && b.length >= pre.length+post.length;
+      const all = lines.filter(l => l.trim()).every(l => isW(split(l)[1]));
+      const out = lines.map(l => { const [pfx, body] = split(l); if(!body.trim()) return l; return pfx + (all ? body.slice(pre.length, body.length-post.length) : pre+body+post); }).join('\n');
+      ta.value = val.slice(0,st)+out+val.slice(en); ta.focus(); ta.setSelectionRange(st, st+out.length); fire(); };
     const prefixLines = fn => { const st = ta.selectionStart, en = ta.selectionEnd, val = ta.value; const ls = val.lastIndexOf('\n', st-1)+1; let le = val.indexOf('\n', en); if(le<0) le = val.length; const out = val.slice(ls, le).split('\n').map(fn).join('\n'); ta.value = val.slice(0,ls)+out+val.slice(le); ta.focus(); ta.setSelectionRange(ls, ls+out.length); fire(); };
     $$('[data-f]', props).forEach(b => b.onclick = async () => { const f = b.dataset.f;
       if(f==='b') wrapSel('**','**', G.LANG==='de'?'Text':'text'); else if(f==='keep') wrapSel('==','==', 'M6');
@@ -304,12 +328,10 @@ async function renderEditor(app, id, selStepId, fbId){
     props.querySelector('#swarn').oninput = e => { s.warn = e.target.value; debounce('sw', touch); };
     props.querySelector('[data-addwarn]').onclick = () => { warnOpen = true; props.querySelector('.warnf').classList.remove('closed'); props.querySelector('#swarn').focus(); };
     stage.querySelector('#del').onclick = () => delStep(s);
-    { const jump = x => { if(!x) return; selectStep(x.id); };
-      stage.querySelector('[data-back]').onclick = () => setPane('list');
-      stage.querySelector('[data-prev]').onclick = () => jump(rs[k-1]); stage.querySelector('[data-next]').onclick = () => jump(rs[k+1]);
-      stage.querySelector('[data-mmore]').onclick = () => modal(`<div class="menu"><div class="menu-h">${t('media_menu')}</div><button data-m="retake">${IC.cam} ${noShot ? t('noshot_rec') : t('retake')}</button><button data-m="after">${IC.plus} ${t('rec_after')}</button><button data-m="file">${IC.upload} ${t('replace_file')}</button><button data-m="del" class="del">${IC.trash} ${t('delete_step')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='retake') go(`rec/${instr.id}/replace/${s.id}`); else if(m==='after') go(`rec/${instr.id}/after/${s.id}`); else if(m==='file'){ const fi = stage.querySelector('#repl-file'); if(fi) fi.click(); } else delStep(s); }); }); }
+    { stage.querySelector('[data-mmore]').onclick = () => modal(`<div class="menu"><div class="menu-h">${t('mact_this')}</div><button data-m="retake">${IC.cam} ${noShot ? t('noshot_rec') : t('retake')}</button><button data-m="file">${IC.upload} ${t('replace_file')}</button><div class="menu-h" style="margin-top:8px">${t('mact_after')}</div><button data-m="after">${IC.cam} ${t('record')}</button><button data-m="afile">${IC.upload} ${t('pick_files_short')}</button><button data-m="aempty">${IC.note} ${t('empty_step')}</button><div class="menu-sep"></div><button data-m="del" class="del">${IC.trash} ${t('delete_step')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='retake') go(`rec/${instr.id}/replace/${s.id}`); else if(m==='after') go(`rec/${instr.id}/after/${s.id}`); else if(m==='file'){ const fi = stage.querySelector('#repl-file'); if(fi) fi.click(); } else if(m==='afile'){ const fi = stage.querySelector('#after-file'); if(fi) fi.click(); } else if(m==='aempty') addEmptyStep(s); else delStep(s); }); }); }
     stage.querySelector('#retake').onclick = () => go(`rec/${instr.id}/replace/${s.id}`);
     stage.querySelector('#after').onclick = () => go(`rec/${instr.id}/after/${s.id}`);
+    { const ae = stage.querySelector('#after-empty'); if(ae) ae.onclick = () => addEmptyStep(s); const af = stage.querySelector('#after-file'); if(af) af.onchange = e => { const fs = [...e.target.files]; e.target.value = ''; doImport(fs); }; }
     stage.querySelector('#repl-file').onchange = async e => { const f = e.target.files[0]; if(!f) return; try{ await replaceStepMedia(instr, s, f); await touch(); posterCache.clear(); renderList(); renderStage(); toast(t('saved')); }catch(err){ toast('Fehler: '+err.message); } e.target.value=''; };
     if(noShot) return; // nothing to play or annotate yet
     { const pr = stage.querySelector('#ph-rec'); if(pr) pr.onclick = () => go(`rec/${instr.id}/replace/${s.id}`); const pk = stage.querySelector('#ph-keep'); if(pk) pk.onclick = async () => { delete s.placeholder; await touch(); toast(t('ph_kept')); renderList(); renderStage(); }; }
@@ -326,12 +348,22 @@ async function renderEditor(app, id, selStepId, fbId){
     const isVis = a => !isV || (a.track ? (curTime >= (a.t||0)-0.3 && curTime <= trackEnd(a)+0.3) : (med.paused ? Math.abs(curTime-(a.t||0)) < 0.3 : !!(showing && showing.has(a.id))));
     const visibleAnns = () => s.ann.filter(isVis);
     const rectNow = () => { const b = cv.getBoundingClientRect(); return Object.assign(fitRect(b.width, b.height, mw(), mh()), {bx:b.left, by:b.top}); };
-    const draw = () => { cv.style.width = box.clientWidth+'px'; cv.style.height = box.clientHeight+'px'; drawAll(cv, s.ann, mw(), mh(), selAnn, isVis, isV ? curTime : null); renderAnnList(); };
+    // v12.43: the canvas is redrawn on every frame / every pointer move, the DOM around it (pills, marks, selection bar) only when the
+    // symbols or the selection changed – rebuilding it 60× per second made taps on the phone go astray
+    let uiSig = '';
+    const syncUI = force => { const sig = s.ann.map(a => a.id+':'+(a.t||0)+':'+a.type+':'+(a.text||'')+':'+(a.n||'')+':'+(a.color||'')+':'+(a.style||'')+':'+(a.anim||'')+':'+(a.tx||0)+':'+(a.ty||0)+':'+(a.track ? a.track.pts.length : 0)).join('|')+'#'+selAnn; if(force || sig !== uiSig){ uiSig = sig; renderAnnList(); } };
+    const draw = () => { cv.style.width = box.clientWidth+'px'; cv.style.height = box.clientHeight+'px'; drawAll(cv, s.ann, mw(), mh(), selAnn, isVis, isV ? curTime : null); syncUI(false); };
     const ro = new ResizeObserver(draw); ro.observe(box); const offImg = onImgReady(draw);
     const poseOf = a => { const tx = a.tx||0, ty = a.ty||0; if(!tx && !ty) return 'flat'; if(Math.abs(tx-58) < 8 && !ty) return 'table'; if(!tx && Math.abs(ty+48) < 8) return 'left'; if(!tx && Math.abs(ty-48) < 8) return 'right'; return 'custom'; };
     const annToolId = a => a.type==='turn' ? (a.dir==='ccw' ? 'turn_ccw' : 'turn') : a.type==='thumb' ? (a.dir==='down' ? 'thumb_down' : 'thumb_up') : a.type==='smile' ? (a.mood==='sad' ? 'smile_sad' : 'smile') : a.type;
     // a short ring where the picture was tapped: "the next symbol lands here"
-    const showTapMark = (nx, ny) => { const r = rectNow(); const m = el(`<div class="tapmark"></div>`); m.style.left = (r.x + nx*r.w)+'px'; m.style.top = (r.y + ny*r.h)+'px'; box.appendChild(m); setTimeout(() => m.remove(), 900); };
+    let tapEls = null, tapTimer = 0;
+    const clearTapMark = () => { clearTimeout(tapTimer); if(tapEls){ tapEls.forEach(x => x.remove()); tapEls = null; } };
+    // the ring says "the next symbol lands here"; the chip next to it opens the library (phone) or points at the panel below (PC)
+    const showTapMark = (nx, ny) => { clearTapMark(); const r = rectNow(); const px = r.x + nx*r.w, py = r.y + ny*r.h; const m = el(`<div class="tapmark"></div>`); m.style.left = px+'px'; m.style.top = py+'px';
+      const chip = el(`<button class="tapchip">${IC.plus}<span>${t('mark_here')}</span></button>`); const right = nx < 0.6; chip.style.top = (py + (ny > 0.8 ? -46 : 18))+'px'; if(right) chip.style.left = (px + 16)+'px'; else { chip.style.right = (box.clientWidth - px + 16)+'px'; }
+      chip.onclick = e => { e.stopPropagation(); if(isPhone()) placeTool('iso'); else { const dock = stage.querySelector('#symdock'); if(dock){ dock.classList.remove('pulse'); void dock.offsetWidth; dock.classList.add('pulse'); dock.scrollIntoView({block:'nearest', behavior:'smooth'}); } } };
+      box.appendChild(m); box.appendChild(chip); tapEls = [m, chip]; tapTimer = setTimeout(clearTapMark, 6000); };
     const scaleAnn = (a, f) => { if(a.x2!=null){ const cx=(a.x+a.x2)/2, cy=(a.y+a.y2)/2; a.x=cx+(a.x-cx)*f; a.y=cy+(a.y-cy)*f; a.x2=cx+(a.x2-cx)*f; a.y2=cy+(a.y2-cy)*f; } else { a.size = Math.min(0.7, Math.max(0.05, (a.size||0.14)*f)); } };
     // rotate: arrows turn their endpoints (pixel space, so the angle is true on any aspect ratio); everything else carries a.rot
     const rotateAnn = (a, dAng, o) => { const r = rectNow(); if(a.type==='arrow'){ const oo = o||a; const cx = (oo.x+oo.x2)/2*r.w, cy = (oo.y+oo.y2)/2*r.h; const p1 = rotP(oo.x*r.w, oo.y*r.h, cx, cy, dAng), p2 = rotP(oo.x2*r.w, oo.y2*r.h, cx, cy, dAng); a.x = p1.x/r.w; a.y = p1.y/r.h; a.x2 = p2.x/r.w; a.y2 = p2.y/r.h; } else { const base = o ? (o.rot||0) : (a.rot||0); let ang = base + dAng; if(o){ const q = Math.round(ang/(Math.PI/2))*(Math.PI/2); if(Math.abs(ang-q) < 0.06) ang = q; } a.rot = ((ang+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI; if(Math.abs(a.rot) < 1e-4) delete a.rot; } };
@@ -340,15 +372,20 @@ async function renderEditor(app, id, selStepId, fbId){
     // Tool tap = place symbol in the middle; drag a tool onto the image = place at that point
     // v12.40: a symbol lands where the picture was last tapped (else in the middle) – k is a tool id from the quick bar or a spec from the library sheet
     const QUICK = {turn:{type:'turn', extra:{dir:'cw'}}, pin:{type:'pin'}, thumb_up:{type:'thumb', extra:{dir:'up'}}, smile:{type:'smile', color:'yellow'}};
+    let dockPanel = null;
+    const uploadOwn = async files => { const added = []; for(const f of files){ try{ added.push(await symbolFromFile(f)); }catch(e){ toast(t('sym_bad', {n:f.name})); } }
+      if(added.length){ try{ await saveWs({symbols:[...(S.wsRow.symbols||[]), ...added]}); added.forEach(sy => preloadImg(sy.url)); }catch(e){ toast(e.message||String(e)); return null; } }
+      if(dockPanel) dockPanel.refresh(); return added; };
+    const libOpts = () => ({symbols: () => S.wsRow.symbols||[], onUpload: async files => { const added = await uploadOwn(files); if(added && added.length===1){ const sy = added[0]; placeTool({id:'img', type:'img', src:sy.url, name:sy.name||'', ar:sy.ar||1, alpha:!!sy.alpha}); } }});
     async function placeTool(k, cx, cy){
-      if(k==='iso' || (k && k.manage===undefined && typeof k==='object' && k.id==='sheet')){ const spec = await symbolSheet({symbols: S.wsRow.symbols||[]}); if(!spec) return; return placeTool(spec, cx, cy); }
+      if(k==='iso' || (k && k.manage===undefined && typeof k==='object' && k.id==='sheet')){ const spec = await symbolSheet(libOpts()); if(!spec) return; return placeTool(spec, cx, cy); }
       const spec = typeof k==='string' ? (QUICK[k] ? Object.assign({id:k}, QUICK[k]) : {id:k, type:k}) : k;
       if(spec.type==='img' && spec.manage){ const sym = await symbolPicker(); if(!sym) return; return placeTool({id:'img', type:'img', src:sym.url, name:sym.name||'', ar:sym.ar||1, alpha:!!sym.alpha}, cx, cy); }
       if(spec.type==='emoji' && (spec.picker || !spec.emoji)){ const em = await emojiPicker(); if(!em) return; return placeTool({id:'emoji', type:'emoji', emoji:em}, cx, cy); }
       if(spec.type==='img' && !spec.src){ const sym = await symbolPicker(); if(!sym) return; return placeTool({id:'img', type:'img', src:sym.url, name:sym.name||'', ar:sym.ar||1, alpha:!!sym.alpha}, cx, cy); }
       if(isV) med.pause();
       const ty = spec.type; const base = Object.assign({id:uid(), type:ty, color: spec.color || color, size:0.12, t: isV ? Math.round(curTime*20)/20 : 0}, spec.extra||{});
-      if(cx==null && lastTap){ cx = lastTap.x; cy = lastTap.y; lastTap = null; }
+      if(cx==null && lastTap){ cx = lastTap.x; cy = lastTap.y; lastTap = null; } clearTapMark();
       const jitter = cx==null ? (s.ann.length % 5) * 0.03 : 0; const px = cx==null ? 0.5+jitter : cx, py = cy==null ? 0.5+jitter : cy;
       if(ty==='arrow') Object.assign(base, {x:px-0.13, y:py+0.11, x2:px+0.13, y2:py-0.11});
       else if(ty==='circle'||ty==='rect') Object.assign(base, {x:px-0.15, y:py-0.2, x2:px+0.15, y2:py+0.2});
@@ -368,11 +405,19 @@ async function renderEditor(app, id, selStepId, fbId){
             ghost.style.left = ev.clientX+'px'; ghost.style.top = ev.clientY+'px'; const r = rectNow(); const inside = ev.clientX>=r.bx+r.x && ev.clientX<=r.bx+r.x+r.w && ev.clientY>=r.by+r.y && ev.clientY<=r.by+r.y+r.h; box.classList.toggle('drop-ok', inside); };
           const up = ev => { b.removeEventListener('pointermove', mv); b.removeEventListener('pointerup', up); b.removeEventListener('pointercancel', up); box.classList.remove('drop-ok'); if(!ghost) return; ghost.remove(); const r = rectNow(); const nx = (ev.clientX-r.bx-r.x)/r.w, ny = (ev.clientY-r.by-r.y)/r.h; if(nx>=0&&nx<=1&&ny>=0&&ny<=1) placeTool(spec, nx, ny); };
           b.addEventListener('pointermove', mv); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); });
-        symbolPanel(dock, {docked:true, symbols: S.wsRow.symbols||[], onPick: spec => placeTool(spec), onAction: spec => placeTool(spec), tileInit});
+        dockPanel = symbolPanel(dock, Object.assign(libOpts(), {docked:true, onPick: spec => placeTool(spec), onAction: spec => placeTool(spec), tileInit}));
     } }
     const FIXED_COL = ['check','cross','warn','elec','hot','emoji','iso'];
     // green flags on the timeline: one per symbol, follows add/remove/move, the selected one is white
-    function renderMarks(force){ const mk = stage.querySelector('#marks'); if(!mk) return; const d = s.duration||1; const sig = s.ann.map(a => a.id+':'+(a.t||0)).join('|')+'@'+d; if(force || mk.dataset.sig !== sig){ mk.dataset.sig = sig; mk.innerHTML = s.ann.map(x=>`<div class="mark" data-id="${x.id}" style="left:${100*(x.t||0)/d}%"></div>`).join(''); } $$('.mark', mk).forEach(m => m.classList.toggle('on', m.dataset.id===selAnn)); }
+    let markDrag = false;
+    function renderMarks(force){ const mk = stage.querySelector('#marks'); if(!mk || markDrag) return; const d = s.duration||1; const sig = s.ann.map(a => a.id+':'+(a.t||0)).join('|')+'@'+d;
+      if(force || mk.dataset.sig !== sig){ mk.dataset.sig = sig; mk.innerHTML = s.ann.map(x=>`<div class="mark" data-id="${x.id}" style="left:${100*(x.t||0)/d}%" title="${t('mark_drag')}"></div>`).join('');
+        $$('.mark', mk).forEach(m => m.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); const a = s.ann.find(x => x.id===m.dataset.id); if(!a) return; clearTimeout(resumeTimer); autoPaused = false; med.pause(); selAnn = a.id; seekTo(a.t||0); draw(); syncUI(true);
+          const bar = stage.querySelector('#trimbar'); const rect = bar.getBoundingClientRect(); const t0 = a.t||0; let moved = false; markDrag = true; try{ m.setPointerCapture(e.pointerId); }catch(x){}
+          const mv = ev => { const tm = Math.min(s.trimEnd||d, Math.max(s.trimStart||0, (ev.clientX - rect.left)/rect.width*d)); const nt = Math.round(tm*20)/20; if(Math.abs(nt - t0) > 0.04) moved = true; if(moved){ a.t = nt; m.style.left = (100*nt/d)+'%'; seekTo(nt); } };
+          const up = () => { m.removeEventListener('pointermove', mv); m.removeEventListener('pointerup', up); m.removeEventListener('pointercancel', up); markDrag = false; if(moved){ touch(); } syncUI(true); draw(); };
+          m.addEventListener('pointermove', mv); m.addEventListener('pointerup', up); m.addEventListener('pointercancel', up); })); }
+      $$('.mark', mk).forEach(m => m.classList.toggle('on', m.dataset.id===selAnn)); }
     function renderAnnList(){ const l = stage.querySelector('#annlist'); if(!l) return; renderMarks(false);
       const sorted = [...s.ann].sort((a,b) => (a.t||0)-(b.t||0));
       l.innerHTML = sorted.length ? sorted.map(a => { const on = a.id===selAnn; return `<span class="ann-pill ${on?'on':''}" data-id="${a.id}">${a.type==='emoji'?a.emoji:a.type==='img'?`<img class="pimg" src="${esc(a.src)}" alt="">${esc(a.name||t('tool_img'))}`:a.type==='iso'?`<img class="pimg" src="${isoUrl(a.code)}" alt="">${esc(a.name||a.code)}`:t('tool_'+annToolId(a))}${a.type==='text'?': '+esc(a.text):''}${a.type==='number'?' '+a.n:''}${isV?` <span class="muted tnum">@${fmtSec(a.t||0)}s</span>`:''}<button data-del="${a.id}" title="${t('delete_ann')}">×</button></span>`; }).join('') : `<span class="muted">${t('no_ann')}</span>`;
@@ -456,14 +501,17 @@ async function renderEditor(app, id, selStepId, fbId){
       if(e) pts.delete(e.pointerId);
       if(pinch){ if(pts.size<2){ pinch = null; await touch(); } return; }
       if(!drag) return; const d = drag; drag = null; if(d.kind==='orbit'){ cv._orbit = false; renderAnnList(); }
-      if(d.kind==='none'){ if(!d.moved){ lastTap = {x:d.sx, y:d.sy}; showTapMark(d.sx, d.sy); if(isV) togglePlay(); } return; }
+      if(d.kind==='none'){ if(!d.moved){ lastTap = {x:d.sx, y:d.sy}; if(isV && !med.paused){ clearTimeout(resumeTimer); autoPaused = false; showing = null; med.pause(); } showTapMark(d.sx, d.sy); } else clearTapMark(); return; }
+      clearTapMark();
       if(d.moved) await touch();
     };
     cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
     // video timeline + trim + 1s pause at annotation
-    let raf = 0, autoPaused = false;
-    const togglePlay = () => { if(!isV) return; if(med.paused){ autoPaused = false; if(curTime >= (s.trimEnd||s.duration)-0.05) seekTo(s.trimStart||0); med.play().catch(()=>{}); } else { autoPaused = false; med.pause(); } };
-    if(isV){ const pb = stage.querySelector('#playbtn'); const updPlay = () => { pb.innerHTML = med.paused ? IC.play : IC.pause; pb.classList.toggle('on', !med.paused); if(!med.paused && !autoPaused) showing = null; draw(); }; med.addEventListener('play', updPlay); med.addEventListener('pause', updPlay); pb.onclick = togglePlay; setTimeout(updPlay, 100); }
+    let raf = 0, autoPaused = false, resumeTimer = 0, updPlay = () => {};
+    const togglePlay = () => { if(!isV) return; clearTimeout(resumeTimer);
+      if(med.paused && !autoPaused){ if(curTime >= (s.trimEnd||s.duration)-0.05) seekTo(s.trimStart||0); med.play().catch(()=>{}); }
+      else { autoPaused = false; showing = null; med.pause(); updPlay(); } };
+    if(isV){ const pb = stage.querySelector('#playbtn'); updPlay = () => { const running = !med.paused || autoPaused; pb.innerHTML = running ? IC.pause : IC.play; pb.classList.toggle('on', running); if(!med.paused && !autoPaused) showing = null; draw(); }; med.addEventListener('play', updPlay); med.addEventListener('pause', updPlay); pb.onclick = togglePlay; setTimeout(updPlay, 100); }
     function seekTo(tm){ curTime = tm; const sa = s.ann.find(x=>x.id===selAnn); if(sa && Math.abs(tm-(sa.t||0)) >= 0.3) selAnn = null; try{ med.currentTime = tm; }catch(e){} const tc = stage.querySelector('#tcur'); if(tc) tc.textContent = fmtSec(tm); const pl = stage.querySelector('#tb-play'); if(pl) pl.style.left = (100*tm/(s.duration||1))+'%'; draw(); }
     if(isV){
       const bar = stage.querySelector('#trimbar'), keep = stage.querySelector('#tb-keep'), dl = stage.querySelector('#tb-dl'), dr = stage.querySelector('#tb-dr'), play = stage.querySelector('#tb-play'), marks = stage.querySelector('#marks'), hl = stage.querySelector('#tb-hl'), hr = stage.querySelector('#tb-hr');
@@ -485,7 +533,7 @@ async function renderEditor(app, id, selStepId, fbId){
         if(!med.paused){ const ct = med.currentTime; const end = s.trimEnd||s.duration;
           if(ct >= end || ct < (s.trimStart||0)-0.2){ med.currentTime = s.trimStart||0; lastT = (s.trimStart||0)-0.05; }
           const hitA = s.ann.find(a => !a.track && lastT < (a.t||0) && ct >= (a.t||0) && ct < (a.t||0)+0.6);
-          if(hitA && performance.now() > pausedUntil){ const group = s.ann.filter(a => !a.track && Math.abs((a.t||0)-(hitA.t||0)) < 0.3); showing = new Set(group.map(a=>a.id)); autoPaused = true; med.pause(); curTime = ct; lastT = Math.max(...group.map(a=>a.t||0)) + 0.01; pausedUntil = performance.now()+1300; ptag.hidden=false; ptag.textContent = t('ann_at',{t:fmtSec(hitA.t||0)}); setTimeout(()=>{ ptag.hidden=true; if(!stageCleanupDone && autoPaused && med.paused){ autoPaused = false; showing = null; med.play().catch(()=>{}); } }, 1000); setPlay(curTime); draw(); raf = requestAnimationFrame(loop); return; }
+          if(hitA && performance.now() > pausedUntil){ const group = s.ann.filter(a => !a.track && Math.abs((a.t||0)-(hitA.t||0)) < 0.3); showing = new Set(group.map(a=>a.id)); autoPaused = true; med.pause(); curTime = ct; lastT = Math.max(...group.map(a=>a.t||0)) + 0.01; pausedUntil = performance.now()+1300; ptag.hidden=false; ptag.textContent = t('ann_at',{t:fmtSec(hitA.t||0)}); updPlay(); clearTimeout(resumeTimer); resumeTimer = setTimeout(()=>{ ptag.hidden=true; if(!stageCleanupDone && autoPaused && med.paused){ autoPaused = false; showing = null; med.play().catch(()=>{}); } }, 1000); setPlay(curTime); draw(); raf = requestAnimationFrame(loop); return; }
           else { curTime = ct; }
           lastT = ct; setPlay(curTime); draw(); }
         raf = requestAnimationFrame(loop); };
@@ -530,7 +578,7 @@ async function renderEditor(app, id, selStepId, fbId){
   const detachDrop = attachDropImport(doImport, afterHint);
   renderList(); renderStage(); renderApprovals(); renderTx(); updateCTA();
   // open worker feedback → banner; arriving via "adopt" → the feedback's photo/video becomes a new step after the step it refers to
-  (async () => { try{ const {data} = await G.sb.from('feedback').select('id,status').eq('instr_id', instr.id).eq('status', 'open'); const n = (data||[]).length; const rn = v.querySelector('#res-n'); if(rn && n){ rn.hidden = false; rn.textContent = n; } const bn = v.querySelector('#fb-banner'); if(bn && n){ bn.hidden = false; bn.querySelector('#fb-n').textContent = t('fb_open_n', {n}); bn.querySelector('#fb-open').onclick = () => { try{ sessionStorage.setItem('gg_rtab_'+instr.id, 'feedback'); }catch(e){} }; } }catch(e){} })();
+  (async () => { try{ const {data} = await G.sb.from('feedback').select('id,status').eq('instr_id', instr.id).eq('status', 'open'); const n = (data||[]).length; fbOpenN = n; const rn = v.querySelector('#res-n'); if(rn && n){ rn.hidden = false; } const bn = v.querySelector('#fb-banner'); if(bn && n){ bn.hidden = false; bn.querySelector('#fb-n').textContent = t('fb_open_n', {n}); bn.querySelector('#fb-open').onclick = () => { try{ sessionStorage.setItem('gg_rtab_'+instr.id, 'feedback'); }catch(e){} }; } }catch(e){} })();
   if(fbId && myRole!=='viewer'){ (async () => {
     try{ const {data:fb} = await G.sb.from('feedback').select('*').eq('id', fbId).maybeSingle(); if(!fb) return;
       if(fb.media_url){ toast(t('fb_adopting')); const res = await fetch(fb.media_url); if(!res.ok) throw new Error('HTTP '+res.status); const blob = await res.blob(); const ext = fb.media_url.split('.').pop().split('?')[0]; const file = new File([blob], `feedback-${fb.id}.${ext}`, {type: blob.type || (fb.media_type==='video' ? 'video/mp4' : 'image/jpeg')});

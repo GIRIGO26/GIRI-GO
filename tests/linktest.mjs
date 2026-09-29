@@ -12,7 +12,7 @@ const info = await d.evaluate(() => { const r = window.__tables.instructions[0];
 console.log('key from birth:', info.key.length, 'chars', /^[A-Za-z0-9_-]{24}$/.test(info.key) ? '(url-safe)' : '(BAD: '+info.key+')');
 // share dialog from the editor
 await d.goto(BASE+'/index3.html#/edit/'+info.id); await d.waitForTimeout(1500);
-await d.click('#share'); await d.waitForTimeout(600);
+await d.click('#more'); await d.waitForTimeout(300); await d.click('.modal-bg [data-m="share"]'); await d.waitForTimeout(600);
 const dlg = await d.evaluate(() => { const a = document.querySelector('#lnk'); const q = document.querySelector('#qr'); return {tag:a && a.tagName, href:a && a.getAttribute('href'), target:a && a.getAttribute('target'), text:a && a.textContent.trim(), qrTag:q && q.tagName, qrHref:q && q.getAttribute('href'), qrImg:!!(q && q.querySelector('img, canvas')), copy:!!document.querySelector('#cp'), openBtns:[...document.querySelectorAll('.modal a.btn[target=_blank], .dlg a.btn[target=_blank], a.btn[target=_blank]')].length}; });
 console.log('link element:', dlg.tag, dlg.target, '| href has id/key:', dlg.href && dlg.href.includes('#/v/'+info.id+'/'+info.key), '| text:', dlg.text.slice(0, 70)+'…');
 console.log('qr is a link:', dlg.qrTag, dlg.qrHref === dlg.href, '| qr drawn:', dlg.qrImg, '| copy button:', dlg.copy, '| open buttons:', dlg.openBtns);

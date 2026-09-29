@@ -17,12 +17,17 @@ const DB = (() => {
       rq.onerror = () => fin(null, true);
     }catch(e){ fin(null, true); }
   }); return opening; };
+  // v12.43: a request that never answers (iOS after the app was in the background) or a connection that closed underneath us
+  // must not hang the caller – 6 s watchdog, the connection is dropped so the next call opens a fresh one
   const tx = (store, mode, fn) => open().then(d => new Promise((res, rej) => {
     if(!d){ try{ res(fn(null, store)); }catch(e){ rej(e); } return; }
     if(!d.objectStoreNames.contains(store)){ rej(new Error('store missing: '+store)); return; }
-    const tr = d.transaction(store, mode); const st = tr.objectStore(store);
-    const r = fn(st, store); if(!r){ tr.oncomplete = () => res(); tr.onerror = () => rej(tr.error); return; }
-    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    let done = false; const tm = setTimeout(() => { if(done) return; done = true; if(db === d){ try{ d.close(); }catch(e){} db = null; } rej(new Error('idb timeout')); }, 6000);
+    const ok = v => { if(done) return; done = true; clearTimeout(tm); res(v); }; const bad = e => { if(done) return; done = true; clearTimeout(tm); rej(e); };
+    let tr, st; try{ tr = d.transaction(store, mode); st = tr.objectStore(store); }catch(e){ if(db === d){ try{ d.close(); }catch(x){} db = null; } bad(e); return; }
+    let r; try{ r = fn(st, store); }catch(e){ bad(e); return; }
+    if(!r){ tr.oncomplete = () => ok(); tr.onerror = () => bad(tr.error); tr.onabort = () => bad(tr.error || new Error('aborted')); return; }
+    r.onsuccess = () => ok(r.result); r.onerror = () => bad(r.error);
   }));
   return {
     put:(s,o) => tx(s,'readwrite',(st,name)=> st ? st.put(o) : (mem[name].set(o.id,o), null)),

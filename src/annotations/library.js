@@ -6,7 +6,7 @@
 import { $$, el, esc, modal } from '../core/helpers.js';
 import { G } from '../core/state.js';
 import { t } from '../core/i18n.js';
-import { drawAnn, isoUrl } from './draw.js';
+import { EMOJI_GROUPS, drawAnn, isoUrl } from './draw.js';
 
 // vector tools – id, annotation type and the extra fields the placed symbol starts with
 const VECTOR = [
@@ -51,6 +51,7 @@ function symbolPanel(host, opts={}){
   let tab = 'mark'; try{ tab = localStorage.getItem('gg_symtab') || (recent().length ? 'recent' : 'mark'); }catch(e){}
   if(tab==='recent' && !recent().length) tab = 'mark';
   let isoGrp = 'W'; try{ isoGrp = localStorage.getItem('gg_isogrp') || 'W'; }catch(e){}
+  let emoGrp = 0; try{ emoGrp = Math.min(EMOJI_GROUPS.length-1, +(localStorage.getItem('gg_emogrp')||0)); }catch(e){}
   const TABS = [['recent', t('sy_recent')], ['mark', t('sy_mark')], ['status', t('sy_status')], ['safety', t('sy_safety')], ['own', t('sy_own')], ['emoji', t('sy_emoji')]];
   host.classList.add('symlib'); if(opts.docked) host.classList.add('docked');
   host.innerHTML = `<div class="ss-top"><div class="ss-tabs" id="ss-tabs">${TABS.map(([k, l]) => `<button class="ss-tab ${k===tab?'on':''}" data-tab="${k}" ${k==='recent' && !recent().length ? 'hidden' : ''}>${l}</button>`).join('')}</div>
@@ -65,19 +66,23 @@ function symbolPanel(host, opts={}){
   const isoTile = e => { const img = el(`<img class="ss-iso" src="${isoUrl(e.c)}" alt="" loading="lazy" decoding="async">`); const b = tile({id:'iso', type:'iso', code:e.c, r:e.r||1, name:isoName(e)}, isoName(e), img, `data-code="${e.c}"`); b.classList.add('iso'); return b; };
   const grid = (nodes, cls='') => { const g = el(`<div class="ss-grid ${cls}"></div>`); nodes.forEach(n => g.appendChild(n)); return g; };
   const section = (title, nodes, cls) => { const s = el(`<section class="ss-sec"></section>`); if(title) s.appendChild(el(`<div class="ss-lbl">${esc(title)}</div>`)); s.appendChild(grid(nodes, cls)); return s; };
-  const ownTiles = () => { const syms = (opts.symbols || []); const nodes = syms.map(sy => { const img = el(`<img src="${esc(sy.url)}" alt="" loading="lazy">`); return tile({id:'img', type:'img', src:sy.url, name:sy.name||'', ar:sy.ar||1, alpha:!!sy.alpha}, sy.name||t('tool_img'), img); });
-    const add = el(`<button class="ss-tile add"><span class="ss-plus">+</span><span>${t('sym_add')}</span></button>`); add.onclick = () => act({id:'img', type:'img', manage:true}); nodes.push(add); return nodes; };
+  const ownTiles = () => { const syms = (opts.symbols ? opts.symbols() : []); const nodes = syms.map(sy => { const img = el(`<img src="${esc(sy.url)}" alt="" loading="lazy">`); return tile({id:'img', type:'img', src:sy.url, name:sy.name||'', ar:sy.ar||1, alpha:!!sy.alpha}, sy.name||t('tool_img'), img); });
+    const add = el(`<label class="ss-tile add"><span class="ss-plus">+</span><span>${t('sym_add')}</span><input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" multiple hidden></label>`);
+    add.querySelector('input').onchange = async e => { const files = [...e.target.files]; e.target.value = ''; if(!files.length) return; add.classList.add('busy'); try{ if(opts.onUpload) await opts.onUpload(files); } finally { add.classList.remove('busy'); } };
+    nodes.push(add); return nodes; };
   const recentTile = spec => { if(spec.type==='iso'){ const img = el(`<img class="ss-iso" src="${isoUrl(spec.code)}" alt="">`); const b = tile(spec, spec.name||spec.code, img, `data-code="${spec.code}"`); b.classList.add('iso'); return b; } if(spec.type==='img'){ const img = el(`<img src="${esc(spec.src)}" alt="">`); return tile(spec, spec.name||t('tool_img'), img); } if(spec.type==='emoji' && spec.emoji){ const b = el(`<button class="ss-tile emo" title="${spec.emoji}"><span class="ss-emo">${spec.emoji}</span></button>`); b.onclick = () => pick(spec); if(opts.tileInit) opts.tileInit(b, spec); return b; } const v = VECTOR.find(x => x.id===spec.id) || {id:spec.id, type:spec.type, extra:spec.extra, color:spec.color}; return tile(spec, labelOf(v), previewCanvas(v, 52), `data-tool="${v.id}"`); };
   const show = async () => {
     const term = q.value.trim().toLowerCase(); body.innerHTML = '';
     if(term){
       const hitsV = VECTOR.filter(v => v.id!=='img' && v.id!=='emoji' && labelOf(v).toLowerCase().includes(term));
       const iso = await loadIso(); const hitsI = iso.filter(e => isoName(e).toLowerCase().includes(term) || e.en.toLowerCase().includes(term) || e.c.toLowerCase()===term).slice(0, 60);
-      const hitsO = (opts.symbols||[]).filter(sy => (sy.name||'').toLowerCase().includes(term));
+      const hitsO = (opts.symbols ? opts.symbols() : []).filter(sy => (sy.name||'').toLowerCase().includes(term));
       if(hitsV.length) body.appendChild(section(t('sy_mark'), hitsV.map(vectorTile)));
       if(hitsO.length) body.appendChild(section(t('sy_own'), hitsO.map(sy => { const img = el(`<img src="${esc(sy.url)}" alt="" loading="lazy">`); return tile({id:'img', type:'img', src:sy.url, name:sy.name||'', ar:sy.ar||1, alpha:!!sy.alpha}, sy.name||t('tool_img'), img); })));
       if(hitsI.length) body.appendChild(section(t('sy_safety')+' · ISO 7010', hitsI.map(isoTile), 'iso'));
-      if(!hitsV.length && !hitsI.length && !hitsO.length) body.innerHTML = `<div class="muted" style="padding:16px">${t('no_result')}</div>`;
+      const hitsE = []; for(const g of EMOJI_GROUPS){ const es = g.e.split(' '), ns = g.s.split('|'); for(let i=0;i<ns.length && hitsE.length<80;i++) if(ns[i].includes(term)) hitsE.push(es[i]); }
+      if(hitsE.length) body.appendChild(section(t('sy_emoji'), hitsE.map(e => { const b = el(`<button class="ss-tile emo" data-e="${e}" title="${e}"><span class="ss-emo">${e}</span></button>`); const spec = {id:'emoji', type:'emoji', emoji:e}; b.onclick = () => { if(b._dragged){ b._dragged = false; return; } pick(spec); }; if(opts.tileInit) opts.tileInit(b, spec); return b; }), 'emo'));
+      if(!hitsV.length && !hitsI.length && !hitsO.length && !hitsE.length) body.innerHTML = `<div class="muted" style="padding:16px">${t('no_result')}</div>`;
       return; }
     if(tab==='recent'){ body.appendChild(section('', recent().map(recentTile))); }
     else if(tab==='safety'){
@@ -86,9 +91,15 @@ function symbolPanel(host, opts={}){
       const fill = async () => { const iso = await loadIso(); holder.innerHTML = ''; holder.appendChild(section('ISO 7010 · '+t('iso_'+isoGrp), iso.filter(e => e.k===isoGrp.toLowerCase()[0] || e.k===isoGrp).map(isoTile), 'iso')); };
       $$('[data-g]', chips).forEach(b => b.onclick = () => { isoGrp = b.dataset.g; try{ localStorage.setItem('gg_isogrp', isoGrp); }catch(e){} $$('[data-g]', chips).forEach(x => x.classList.toggle('on', x===b)); fill(); });
       fill(); }
-    else if(tab==='own'){ body.appendChild(section('', ownTiles())); }
-    else if(tab==='emoji'){ const r = (G.recentEmojis||[]); const emo = el(`<div class="ss-sec"><div class="ss-grid emo">${EMOJI_QUICK.concat(r).filter((e,i,a) => a.indexOf(e)===i).map(e => `<button class="ss-tile emo" data-e="${e}" title="${e}"><span class="ss-emo">${e}</span></button>`).join('')}<button class="ss-tile add" data-more><span class="ss-plus">…</span><span>${t('sy_all_emoji')}</span></button></div></div>`); body.appendChild(emo);
-      $$('[data-e]', emo).forEach(b => { const spec = {id:'emoji', type:'emoji', emoji:b.dataset.e}; b.onclick = () => { if(b._dragged){ b._dragged = false; return; } pick(spec); }; if(opts.tileInit) opts.tileInit(b, spec); }); emo.querySelector('[data-more]').onclick = () => act({id:'emoji', type:'emoji', picker:true}); }
+    else if(tab==='own'){ body.appendChild(section('', ownTiles())); if((opts.symbols ? opts.symbols() : []).length) { const mg = el(`<button class="flink" style="margin:2px 0 0 4px">${t('sym_manage')}</button>`); mg.onclick = () => act({id:'img', type:'img', manage:true}); body.appendChild(mg); } }
+    else if(tab==='emoji'){ // v12.43: everything in place – recent, one chip per group, the grid; the search box above finds emojis too
+      const r = (G.recentEmojis||[]); const emoTile = e => { const b = el(`<button class="ss-tile emo" data-e="${e}" title="${e}"><span class="ss-emo">${e}</span></button>`); const spec = {id:'emoji', type:'emoji', emoji:e}; b.onclick = () => { if(b._dragged){ b._dragged = false; return; } G.recentEmojis = [e, ...(G.recentEmojis||[]).filter(x=>x!==e)].slice(0,16); try{ localStorage.setItem('gg_emo', JSON.stringify(G.recentEmojis)); }catch(x){} pick(spec); }; if(opts.tileInit) opts.tileInit(b, spec); return b; };
+      if(r.length) body.appendChild(section(t('recent'), r.map(emoTile), 'emo'));
+      const chips = el(`<div class="ss-chips emo">${EMOJI_GROUPS.map((g, i) => `<button class="ss-chip ${i===emoGrp?'on':''}" data-eg="${i}" title="${esc(G.LANG==='de' ? g.de : g.n)}">${g.ic}</button>`).join('')}</div>`); body.appendChild(chips);
+      const holder = el(`<div></div>`); body.appendChild(holder);
+      const fill = () => { const g = EMOJI_GROUPS[emoGrp]; holder.innerHTML = ''; holder.appendChild(section(G.LANG==='de' ? g.de : g.n, g.e.split(' ').map(emoTile), 'emo')); };
+      $$('[data-eg]', chips).forEach(b => b.onclick = () => { emoGrp = +b.dataset.eg; try{ localStorage.setItem('gg_emogrp', emoGrp); }catch(e){} $$('[data-eg]', chips).forEach(x => x.classList.toggle('on', x===b)); fill(); });
+      fill(); }
     else { body.appendChild(section('', VECTOR.filter(v => v.tab===tab).map(vectorTile))); }
   };
   $$('[data-tab]', host).forEach(b => b.onclick = () => { tab = b.dataset.tab; try{ localStorage.setItem('gg_symtab', tab); }catch(e){} $$('[data-tab]', host).forEach(x => x.classList.toggle('on', x===b)); q.value = ''; show(); });
@@ -100,7 +111,7 @@ function symbolPanel(host, opts={}){
 // the phone: opens the library as a sheet; resolves with a tool spec {id, type, extra?, code?, r?, name?} or null
 function symbolSheet(opts={}){
   return modal(`<div class="symsheet"><div class="ss-head"><h2>${t('mark_img')}</h2><button class="ss-x" data-x aria-label="${t('close')}">×</button></div><div class="ss-lib" id="ss-lib"></div></div>`, (bg, close) => {
-    const p = symbolPanel(bg.querySelector('#ss-lib'), Object.assign({}, opts, {onPick: spec => close(spec), onAction: spec => close(spec)}));
+    const p = symbolPanel(bg.querySelector('#ss-lib'), Object.assign({}, opts, {onPick: spec => close(spec), onAction: spec => close(spec), onUpload: opts.onUpload ? async files => { close(null); await opts.onUpload(files); } : null}));
     bg.querySelector('[data-x]').onclick = () => close(null);
   });
 }

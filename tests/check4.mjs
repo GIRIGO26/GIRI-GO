@@ -26,11 +26,11 @@ await page.click(`[data-sid="${id0}"] .title`); await page.waitForTimeout(1200);
 { const tb = await page.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await page.waitForTimeout(200);
 await page.fill('#sdesc', 'Drehmoment **10 Nm**\n- Schraube ==M6== einsetzen'); await page.waitForTimeout(500);
 await page.click('#symdock [data-tab="mark"]'); await page.waitForTimeout(200); await page.click('[data-tool="rect"]'); await page.waitForTimeout(200); await page.keyboard.press(']'); await page.keyboard.press('+'); await page.waitForTimeout(200);
-await page.click('#symdock [data-tab="emoji"]'); await page.waitForTimeout(300); await page.click('#symdock [data-more]'); await page.waitForTimeout(400); await page.screenshot({path:OUT+'/e5-emoji.png'});
-await page.click('[data-g="6"]'); await page.waitForTimeout(300); await page.screenshot({path:OUT+'/e6-emoji-objects.png'});
-await page.fill('#emo-q', 'wrench'); await page.waitForTimeout(400); await page.screenshot({path:OUT+'/e7-emoji-search.png'});
-const hits = await page.evaluate(()=>[...document.querySelectorAll('#emo-wrap [data-e]')].map(b=>b.dataset.e)); console.log('wrench hits:', hits.join(' '));
-await page.click('#emo-wrap [data-e]'); await page.waitForTimeout(400);
+await page.click('#symdock [data-tab="emoji"]'); await page.waitForTimeout(300); await page.screenshot({path:OUT+'/e5-emoji.png'});
+await page.click('#symdock [data-eg="6"]'); await page.waitForTimeout(300); await page.screenshot({path:OUT+'/e6-emoji-objects.png'});
+await page.fill('#symdock #ss-q', 'wrench'); await page.waitForTimeout(400); await page.screenshot({path:OUT+'/e7-emoji-search.png'});
+const hits = await page.evaluate(()=>[...document.querySelectorAll('#symdock [data-e]')].map(b=>b.dataset.e)); console.log('wrench hits:', hits.join(' '));
+await page.click('#symdock [data-e]'); await page.waitForTimeout(400);
 await page.screenshot({path:OUT+'/e8-editor.png', fullPage:true});
 // stats with filter
 await page.evaluate(()=>{ const id = window.__tables.instructions[0].id; for(let k=0;k<25;k++){ window.__tables.views.push({id:'v'+k, instr_id:id, ws:'ar-giri.com', started_at:new Date(Date.now()-k*7e7).toISOString(), duration_s:30+k, completed:k%3===0, reload:k%5===0, steps_seen:3, steps_total:5, device:'iOS'}); } window.__tables.instr_stats.push({instr_id:id, ws:'ar-giri.com', views:25, reloads:5, avg_duration_s:42, completed:8, avg_steps_seen:3.2}); window.__tables.runs.push({id:'r1', instr_id:id, ws:'ar-giri.com', worker:'Anna', version:1, started_at:new Date(Date.now()-3e5).toISOString(), finished_at:null, items:{x:{ok:true, at:Date.now()-1e5}}}); });

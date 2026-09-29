@@ -49,7 +49,7 @@ async function pendingIds(ws){ let l = pendingList(); if(!l){ try{ l = (await DB
 const mediaUrl = async id => {
   if(!id) return null;
   if(S.mediaURL.has(id)) return S.mediaURL.get(id);
-  const m = await DB.get('media', id);
+  let m = null; try{ m = await DB.get('media', id); }catch(e){ console.warn('media store', e && e.message); } // v12.43: a failing device store falls back to the server copy
   const b = mediaBlob(m);
   if(b && b.size){ const u = URL.createObjectURL(b); S.mediaURL.set(id,u); return u; }
   if(m && m.remote) return m.remote;

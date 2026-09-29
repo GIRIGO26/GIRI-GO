@@ -10,18 +10,19 @@ await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1500);
 { const tb = await d.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await d.waitForTimeout(400);
 console.log('tools:', await d.$$eval('[data-tool]', b => b.map(x => x.dataset.tool)));
 // open the picker via the tool → empty state → upload two files → first becomes... (two files → stays open)
-await d.click('#symdock [data-tab="own"]'); await d.waitForTimeout(300); await d.click('#symdock .ss-tile.add'); await d.waitForTimeout(400);
-console.log('picker empty text:', (await d.textContent('#sym-grid')).trim().slice(0,60));
-await d.setInputFiles('#sym-file', [TESTS+'/sym_wrench.png', TESTS+'/sym_part.jpg']); await d.waitForTimeout(1500);
+await d.click('#symdock [data-tab="own"]'); await d.waitForTimeout(300);
+console.log('own tab before upload:', await d.$$eval('#symdock .ss-tile', x => x.map(e => e.className.includes('add') ? '[+]' : e.title).join(',')));
+await d.setInputFiles('#symdock .ss-tile.add input[type=file]', [TESTS+'/sym_wrench.png', TESTS+'/sym_part.jpg']); await d.waitForTimeout(1500);
+console.log('own tab after upload:', await d.$$eval('#symdock .ss-tile', x => x.map(e => e.className.includes('add') ? '[+]' : e.title).join(',')), '| manage link:', !!(await d.$('#symdock .flink')));
 console.log('symbols in ws:', JSON.stringify(await d.evaluate(()=>window.__tables.workspaces[0].symbols.map(s=>({n:s.name, ar:+s.ar.toFixed(2), alpha:s.alpha, url:s.url.slice(0,40)})))));
 await d.screenshot({path:OUT+'/s1-picker.png'});
 // the mock storage has no real files: point the urls at data URLs so the canvas can draw them
 const wrench = 'data:image/png;base64,'+fs.readFileSync(TESTS+'/sym_wrench.png').toString('base64');
 const part = 'data:image/jpeg;base64,'+fs.readFileSync(TESTS+'/sym_part.jpg').toString('base64');
 await d.evaluate(([w,p]) => { const syms = window.__tables.workspaces[0].symbols; syms[0].url = w; syms[1].url = p; }, [wrench, part]);
-await d.click('.sym[data-id]'); await d.waitForTimeout(600);   // pick wrench → placed (glow)
+await d.click('#symdock [data-tab="own"]'); await d.waitForTimeout(300); await d.click('#symdock .ss-tile[title="sym_wrench"]'); await d.waitForTimeout(600);   // pick wrench → placed (glow)
 console.log('ann after pick:', JSON.stringify(await d.evaluate(()=>window.__tables.instructions[0].data.steps.filter(s=>!s.kind)[0].ann.filter(a=>a.type==='img').map(a=>({style:a.style, ar:+a.ar.toFixed(2), size:a.size, name:a.name})))));
-await d.click('#symdock .ss-tile.add'); await d.waitForTimeout(400); await d.click('.sym[data-id]:nth-of-type(3)'); await d.waitForTimeout(600); // part.jpg → sticker
+await d.click('#symdock .ss-tile[title="sym_part"]'); await d.waitForTimeout(600); // part.jpg → sticker
 // move the second one to the right and make it bigger (keyboard)
 await d.evaluate(()=>{ const st = window.__tables.instructions[0].data.steps.filter(s=>!s.kind)[0]; const im = st.ann.filter(a=>a.type==='img'); im[0].x = 0.3; im[0].y = 0.35; im[0].size = 0.26; im[1].x = 0.72; im[1].y = 0.62; im[1].size = 0.22; im[1].color = 'mint'; });
 await d.keyboard.press(']'); await d.waitForTimeout(300);

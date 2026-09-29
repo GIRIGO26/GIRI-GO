@@ -31,6 +31,6 @@ const orderedSteps = i => i.steps;
  // steps array carries order; chapters are entries with kind:'chapter'
 const realSteps = i => i.steps.filter(s => s.kind !== 'chapter');
 // text prepared but no recording yet, or a picture from the document that is only a placeholder until filmed (v0.28.3)
-const needsShot = s => !s.mediaId || !!s.placeholder;
+const needsShot = s => (!s.mediaId && !s.textOnly) || !!s.placeholder; // v12.43: a deliberate text step needs no picture
 
 export { loadProfile, orderedSteps, realSteps, needsShot, SESSION_DAYS_DEFAULT, noteLogin, loginAt, sessionDays, sessionExpired, signOutAll };
