@@ -39,17 +39,22 @@ function tintMask(src, col){ const e = IMG_CACHE.get(src); if(!e || !e.img) retu
 
 const OFFS8 = [[1,0],[-1,0],[0,1],[0,-1],[.7,.7],[-.7,.7],[.7,-.7],[-.7,-.7]];
 
-// box of a custom symbol: longest side = S*1.4, aspect ratio from the file
-function imgBox(a, r){ const {X, Y, S} = annMetrics(a, r); const L = S*1.4, ar = a.ar||1; const w = ar>=1 ? L : L*ar, h = ar>=1 ? L/ar : L; return {x:X(a.x)-w/2, y:Y(a.y)-h/2, w, h}; }
+// v12.40 – ISO 7010 safety signs as extruded plates: face colour per sign class (W warning, P prohibition, M mandatory, E emergency, F fire)
+const ISO_CLASS = { W:{face:'#f9a800', side:'#8a5c00', rim:'#fff'}, P:{face:'#d7191c', side:'#6e0c0e', rim:'#fff'}, M:{face:'#005387', side:'#00243c', rim:'#fff'}, E:{face:'#237f52', side:'#0e3f28', rim:'#fff'}, F:{face:'#9b2423', side:'#4d1010', rim:'#fff'} };
+const isoUrl = code => `symbols/iso/${code}.svg`;
+const silhouette = (src, col) => tintMask(src, col);
 
-async function preloadAnnImages(instr){ const srcs = new Set(); (instr.steps||[]).forEach(st => (st.ann||[]).forEach(a => { if(a.type==='img' && a.src) srcs.add(a.src); })); await Promise.all([...srcs].map(preloadImg)); }
+// box of a custom symbol: longest side = S*1.4, aspect ratio from the file
+function imgBox(a, r){ const {X, Y, S} = annMetrics(a, r); const L = S*(a.type==='iso' ? 1.25 : 1.4), ar = a.ar||1; const w = ar>=1 ? L : L*ar, h = ar>=1 ? L/ar : L; return {x:X(a.x)-w/2, y:Y(a.y)-h/2, w, h}; }
+
+async function preloadAnnImages(instr){ const srcs = new Set(); (instr.steps||[]).forEach(st => (st.ann||[]).forEach(a => { if(a.type==='img' && a.src) srcs.add(a.src); if(a.type==='iso') srcs.add(a.src || isoUrl(a.code)); })); await Promise.all([...srcs].map(preloadImg)); }
 
 const rotP = (x, y, cx, cy, ang) => { const c = Math.cos(ang), s = Math.sin(ang), dx = x-cx, dy = y-cy; return {x: cx + dx*c - dy*s, y: cy + dx*s + dy*c}; };
 
 const hasRot = a => a.type!=='arrow' && !!a.rot;
 
 // spheres and emoji keep their silhouette when turned – tilt/turn only applies to flat symbols
-const NO3D = new Set(['number','check','cross','emoji']);
+const NO3D = new Set(['number','check','cross','emoji','smile']);
 
 const has3D = a => !NO3D.has(a.type) && !!(a.tx || a.ty);
 
@@ -165,6 +170,67 @@ function drawAnn(ctx, a, r, selected, tNow){
       if(mw){ ctx.save(); ctx.shadowColor = 'rgba(255,255,255,.9)'; ctx.shadowBlur = L*0.07; OFFS8.forEach(([dx,dy]) => ctx.drawImage(mw, x+dx*o, y+dy*o, w, h)); ctx.restore(); }
       ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = L*0.05; ctx.shadowOffsetY = L*0.015; ctx.drawImage(img, x, y, w, h);
     }
+  } else if(a.type==='iso'){
+    // ISO 7010 sign as a plate: dark side wall along the extrusion vector, white rim, the sign itself, a soft gloss – tilt/turn like every flat symbol
+    const src = a.src || isoUrl(a.code); const img = getImg(src); const b = imgBox(a, r); const {x, y, w, h} = b; const L = Math.max(w, h);
+    const cls = ISO_CLASS[(a.code||'W')[0]] || ISO_CLASS.W;
+    if(!img){ ctx.fillStyle='rgba(255,255,255,.25)'; ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.setLineDash([4,4]); ctx.lineWidth=1.5; rr(ctx, x, y, w, h, L*0.06); ctx.fill(); ctx.stroke(); ctx.setLineDash([]); }
+    else {
+      const side = silhouette(src, cls.side), rim = silhouette(src, cls.rim); const D = Math.max(2, L*0.065); const o = Math.max(1.2, L*0.022);
+      if(side){ extrude(() => { OFFS8.forEach(([dx,dy]) => ctx.drawImage(side, x+dx*o, y+dy*o, w, h)); ctx.drawImage(side, x, y, w, h); }, 0, D, {dark:cls.side, mid:cls.side}); }
+      if(rim){ ctx.save(); ctx.shadowColor='rgba(0,0,0,.25)'; ctx.shadowBlur=L*0.04; OFFS8.forEach(([dx,dy]) => ctx.drawImage(rim, x+dx*o, y+dy*o, w, h)); ctx.restore(); }
+      ctx.drawImage(img, x, y, w, h);
+      // gloss: a light sweep across the upper left, clipped to the sign
+      const m = tintMask(src, '#ffffff'); if(m){ const oc = document.createElement('canvas'); oc.width = Math.max(1, Math.round(w)); oc.height = Math.max(1, Math.round(h)); const c2 = oc.getContext('2d'); const g = c2.createLinearGradient(0, 0, oc.width*0.9, oc.height); g.addColorStop(0, 'rgba(255,255,255,.34)'); g.addColorStop(0.42, 'rgba(255,255,255,.10)'); g.addColorStop(0.55, 'rgba(255,255,255,0)'); c2.fillStyle = g; c2.fillRect(0, 0, oc.width, oc.height); c2.globalCompositeOperation='destination-in'; c2.drawImage(m, 0, 0, oc.width, oc.height); ctx.drawImage(oc, x, y, w, h); }
+    }
+  } else if(a.type==='turn'){
+    // curved arrow (↻ / ↺): three quarters of a ring with a square chevron head – solid block with white core, like the straight arrow
+    const x=X(a.x), y=Y(a.y); const R = S*0.42; const ccw = a.dir==='ccw'; const Wc = Math.max(4, S*0.16); const B = Math.max(1.8, Wc*0.42); const T = Wc + 2*B; const D = Math.max(2, T*0.24);
+    const a0 = -Math.PI*0.55, a1 = Math.PI*0.95; // open at the top right
+    const ring = () => { ctx.beginPath(); if(ccw) ctx.arc(x, y, R, Math.PI - a0, Math.PI - a1, true); else ctx.arc(x, y, R, a0, a1, false); };
+    const tipAng = ccw ? Math.PI - a0 : a0; const px = x + R*Math.cos(tipAng), py = y + R*Math.sin(tipAng); const tan = tipAng + (ccw ? Math.PI/2 : -Math.PI/2);
+    const headL = R*0.62; const d1 = tan - Math.PI*0.75, d2 = tan + Math.PI*0.75;
+    const chev = L => { ctx.beginPath(); ctx.moveTo(px + L*Math.cos(d1), py + L*Math.sin(d1)); ctx.lineTo(px, py); ctx.lineTo(px + L*Math.cos(d2), py + L*Math.sin(d2)); };
+    ctx.lineCap='butt'; ctx.lineJoin='miter'; ctx.miterLimit=10;
+    extrude(() => { ring(); ctx.stroke(); chev(headL); ctx.stroke(); }, T, D);
+    const g = ctx.createLinearGradient(x-R, y-R, x+R, y+R); g.addColorStop(0, lighten(col, a.color==='black' ? 0.28 : 0.38)); g.addColorStop(0.5, col); g.addColorStop(1, darken(col, 0.18));
+    ctx.strokeStyle=g; ctx.lineWidth=T; ring(); ctx.stroke(); chev(headL); ctx.stroke();
+    ctx.save(); ctx.translate(-B*0.22, -B*0.22); ctx.strokeStyle='rgba(255,255,255,.28)'; ctx.lineWidth=T-B*0.9; ring(); ctx.stroke(); chev(headL); ctx.stroke(); ctx.restore();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=Wc; ring(); ctx.stroke(); chev(headL - B); ctx.stroke();
+  } else if(a.type==='pin'){
+    // location pin: teardrop with a white eye – gradient face, extruded, the tip sits on the spot
+    const x=X(a.x), y=Y(a.y); const R = S*0.3; const cy = y - R*1.9; const D = Math.max(2, R*0.18);
+    const drop = k => { const rr2 = R*k; const ang = Math.asin(Math.min(1, rr2/(y - cy))); ctx.beginPath(); ctx.arc(x, cy, rr2, Math.PI/2 + ang, Math.PI/2 - ang + Math.PI*2, false); ctx.lineTo(x, y); ctx.closePath(); };
+    ctx.lineJoin='round';
+    extrude(() => { drop(1); ctx.fill(); }, 0, D);
+    const g = ctx.createLinearGradient(x-R, cy-R, x+R, y); g.addColorStop(0, lighten(col, a.color==='black' ? 0.3 : 0.42)); g.addColorStop(0.5, col); g.addColorStop(1, darken(col, 0.2));
+    ctx.fillStyle = g; drop(1); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=Math.max(1.5, R*0.09); drop(0.96); ctx.stroke();
+    ctx.fillStyle='rgba(0,0,0,.14)'; ctx.beginPath(); ctx.arc(x+R*0.05, cy+R*0.07, R*0.42, 0, Math.PI*2); ctx.fill(); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(x, cy, R*0.38, 0, Math.PI*2); ctx.fill();
+  } else if(a.type==='thumb'){
+    // thumbs up / down: one glyph path (24-unit grid), flipped for down – colour fill, white edge, extruded
+    const x=X(a.x), y=Y(a.y); const s2 = S*0.95; const D = Math.max(2, s2*0.06);
+    const P = [[2,10],[7,10],[11,2],[13,2],[14.5,3.5],[13.5,9],[20,9],[22,11],[20,20],[18.5,22],[7,22],[7,10],[2,10],[2,22],[7,22]];
+    const fy = a.dir==='down' ? -1 : 1; // thumbs down = the same hand mirrored vertically (extrusion stays in screen space)
+    const glyph = () => { const u = s2/24; ctx.beginPath(); ctx.moveTo(x + (P[0][0]-12)*u, y + (P[0][1]-12)*u*fy); for(let i=1;i<P.length;i++) ctx.lineTo(x + (P[i][0]-12)*u, y + (P[i][1]-12)*u*fy); ctx.closePath(); };
+    ctx.save();
+    ctx.lineJoin='round';
+    extrude(() => { glyph(); ctx.fill(); ctx.lineWidth = s2*0.06; ctx.stroke(); }, s2*0.06, D);
+    const g = ctx.createLinearGradient(x-s2/2, y-s2/2, x+s2/2, y+s2/2); g.addColorStop(0, lighten(col, a.color==='black' ? 0.3 : 0.4)); g.addColorStop(0.5, col); g.addColorStop(1, darken(col, 0.2));
+    ctx.fillStyle = g; ctx.strokeStyle = g; ctx.lineWidth = s2*0.06; glyph(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=Math.max(1.5, s2*0.045); glyph(); ctx.stroke();
+    ctx.restore();
+  } else if(a.type==='smile'){
+    // smiley: the glossy sphere of the badges with a face (happy / sad)
+    const rad = S*0.38; const x=X(a.x), y=Y(a.y); const fill = col;
+    ctx.shadowColor='rgba(0,0,0,.42)'; ctx.shadowBlur = rad*0.6; ctx.shadowOffsetY = rad*0.22;
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(x,y,rad+lw*0.75,0,Math.PI*2); ctx.fill(); ctx.shadowColor='transparent';
+    const sg = ctx.createRadialGradient(x-rad*0.35, y-rad*0.4, rad*0.1, x, y, rad*1.05); sg.addColorStop(0, lighten(fill, 0.5)); sg.addColorStop(0.45, fill); sg.addColorStop(1, darken(fill, 0.4));
+    ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(x,y,rad,0,Math.PI*2); ctx.fill();
+    ctx.save(); ctx.beginPath(); ctx.ellipse(x-rad*0.3, y-rad*0.42, rad*0.42, rad*0.24, -0.6, 0, Math.PI*2); const hg = ctx.createLinearGradient(x-rad*0.6, y-rad*0.7, x, y-rad*0.1); hg.addColorStop(0, 'rgba(255,255,255,.55)'); hg.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle=hg; ctx.fill(); ctx.restore();
+    const ink = (a.color==='white'||a.color==='yellow'||a.color==='mint') ? DARK_INK : '#fff'; ctx.fillStyle = ink; ctx.strokeStyle = ink; ctx.lineCap='round'; ctx.lineWidth = rad*0.14;
+    ctx.beginPath(); ctx.arc(x-rad*0.32, y-rad*0.18, rad*0.09, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(x+rad*0.32, y-rad*0.18, rad*0.09, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); if(a.mood==='sad') ctx.arc(x, y+rad*0.72, rad*0.42, Math.PI*1.18, Math.PI*1.82); else ctx.arc(x, y+rad*0.06, rad*0.44, Math.PI*0.15, Math.PI*0.85); ctx.stroke();
   } else if(a.type==='emoji'){
     const x=X(a.x), y=Y(a.y); const fs = S*0.9;
     ctx.font = `${fs}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -188,7 +254,10 @@ function drawAnn(ctx, a, r, selected, tNow){
   ctx.restore();
   if(selected){ ctx.save(); const b = annBounds(a, r); ctx.setLineDash([5,4]); ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=1.5; rr(ctx, b.x-8, b.y-8, b.w+16, b.h+16, 8); ctx.stroke(); ctx.setLineDash([]);
     annHandles(a, r).forEach(h => {
-      if(h.kind==='rot'){ ctx.beginPath(); ctx.moveTo(h.x, h.y+9); ctx.lineTo(h.x, b.y-8); ctx.lineWidth=1.5; ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.stroke(); }
+      if(h.kind==='rot' && h.y+9 < b.y-8){ ctx.beginPath(); ctx.moveTo(h.x, h.y+9); ctx.lineTo(h.x, b.y-8); ctx.lineWidth=1.5; ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.stroke(); }
+      if(h.kind==='orbit'){ if(h.y-11 > b.y+b.h+8){ ctx.beginPath(); ctx.moveTo(h.x, h.y-11); ctx.lineTo(h.x, b.y+b.h+8); ctx.lineWidth=1.5; ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.stroke(); }
+        const on = !!(a.tx || a.ty); ctx.beginPath(); ctx.arc(h.x, h.y, 11, 0, Math.PI*2); ctx.fillStyle = on ? '#004EAD' : '#fff'; ctx.fill(); ctx.lineWidth=2.5; ctx.strokeStyle = on ? '#fff' : DARK_INK; ctx.stroke();
+        ctx.save(); ctx.translate(h.x, h.y); ctx.strokeStyle = on ? '#fff' : DARK_INK; ctx.lineWidth=1.6; ctx.beginPath(); ctx.ellipse(0, 0, 6.5, 2.6, -0.5, 0, Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI*2); ctx.fillStyle = on ? '#fff' : DARK_INK; ctx.fill(); ctx.restore(); return; }
       ctx.beginPath(); ctx.arc(h.x, h.y, 9, 0, Math.PI*2); ctx.fillStyle='#fff'; ctx.fill(); ctx.lineWidth=2.5; ctx.strokeStyle=DARK_INK; ctx.stroke();
       if(h.kind==='size'){ ctx.fillStyle=DARK_INK; ctx.beginPath(); ctx.arc(h.x,h.y,3,0,Math.PI*2); ctx.fill(); }
       if(h.kind==='rot'){ ctx.beginPath(); ctx.arc(h.x, h.y, 4.5, -Math.PI*0.9, Math.PI*0.6); ctx.lineWidth=1.8; ctx.strokeStyle=DARK_INK; ctx.stroke(); ctx.fillStyle=DARK_INK; ctx.beginPath(); ctx.moveTo(h.x-5.5, h.y-1.5); ctx.lineTo(h.x-0.5, h.y-3.5); ctx.lineTo(h.x-2.5, h.y+1.5); ctx.closePath(); ctx.fill(); } });
@@ -199,7 +268,9 @@ function annBoundsRaw(a, r){
   const {X, Y, base, S} = annMetrics(a, r);
   if(a.type==='arrow'||a.type==='circle'||a.type==='rect'){ const x=Math.min(X(a.x),X(a.x2)), y=Math.min(Y(a.y),Y(a.y2)); return {x, y, w:Math.abs(X(a.x2)-X(a.x)), h:Math.abs(Y(a.y2)-Y(a.y))}; }
   if(a.type==='text'){ const fs=Math.max(13, base*0.05*((a.size||0.14)/0.14)); const w = (a.text||'…').length*fs*0.62 + fs*1.3; return {x:X(a.x)-fs*0.65, y:Y(a.y)-fs*0.9, w, h:fs*1.8}; }
-  if(a.type==='img'){ const b = imgBox(a, r); const p = Math.max(b.w, b.h)*0.1; return {x:b.x-p, y:b.y-p, w:b.w+2*p, h:b.h+2*p}; }
+  if(a.type==='img' || a.type==='iso'){ const b = imgBox(a, r); const p = Math.max(b.w, b.h)*0.1; return {x:b.x-p, y:b.y-p, w:b.w+2*p, h:b.h+2*p}; }
+  if(a.type==='pin'){ const R = S*0.3; return {x:X(a.x)-R*1.1, y:Y(a.y)-R*2.95, w:R*2.2, h:R*3.1}; }
+  if(a.type==='turn'){ const R = S*0.42 + S*0.16; return {x:X(a.x)-R, y:Y(a.y)-R, w:R*2, h:R*2}; }
   return {x:X(a.x)-S*0.48, y:Y(a.y)-S*0.55, w:S*0.96, h:S*1.05};
 }
 
@@ -215,11 +286,15 @@ function annBounds(a, r){
 // Handles: arrow → 2 endpoints; circle/rect → 2 corners + rotate; point symbols/text → size + rotate
 function annHandles(a, r){
   const {X, Y} = annMetrics(a, r);
-  if(a.type==='arrow') return [{kind:'p1', x:X(a.x), y:Y(a.y)}, {kind:'p2', x:X(a.x2), y:Y(a.y2)}];
+  // the rotate / orbit handles sit above and below the frame – near the picture's edge they stay inside the canvas (phone: a
+  // symbol at the bottom would otherwise have its orbit knob off-screen and out of reach)
+  const W = r.w + 2*r.x, H = r.h + 2*r.y; const keep = h => { h.x = Math.max(14, Math.min(W-14, h.x)); h.y = Math.max(14, Math.min(H-14, h.y)); return h; };
+  if(a.type==='arrow'){ const bb = annBounds(a, r); return [{kind:'p1', x:X(a.x), y:Y(a.y)}, {kind:'p2', x:X(a.x2), y:Y(a.y2)}, keep({kind:'orbit', x:bb.x+bb.w/2, y:bb.y+bb.h+30})]; }
   const c = annCenter(a, r), rot = a.rot||0; const R = (x, y) => rotP(x, y, c.x, c.y, rot); const hs = [];
   if(a.type==='circle'||a.type==='rect'){ const p1 = R(X(a.x), Y(a.y)), p2 = R(X(a.x2), Y(a.y2)); hs.push({kind:'p1', x:p1.x, y:p1.y}, {kind:'p2', x:p2.x, y:p2.y}); }
   else { const b = annBoundsRaw(a, r); const p = R(b.x+b.w+6, b.y+b.h+6); hs.push({kind:'size', x:p.x, y:p.y}); }
-  const bb = annBounds(a, r); hs.push({kind:'rot', x:bb.x+bb.w/2, y:bb.y-30});
+  const bb = annBounds(a, r); hs.push(keep({kind:'rot', x:bb.x+bb.w/2, y:bb.y-30}));
+  if(!NO3D.has(a.type)) hs.push(keep({kind:'orbit', x:bb.x+bb.w/2, y:bb.y+bb.h+30})); // v12.40: 3D orbit – drag sideways to turn, up/down to tilt
   return hs;
 }
 
@@ -238,8 +313,12 @@ function drawAll(canvas, anns, mw, mh, selId, timeFilter, vt){
   ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,bw,bh);
   const r = fitRect(bw, bh, mw, mh); const now = performance.now()/1000; let animated = false;
   anns.forEach(a => { if(timeFilter && !timeFilter(a)) return; if(a.anim) animated = true; drawAnn(ctx, vt!=null && a.track ? trackedAt(a, vt) : a, r, a.id===selId, now); });
+  // v12.40: while the orbit handle is dragged, a dotted plane shows how the symbol lies (tilt/turn in degrees next to it)
+  if(canvas._orbit && selId){ const a = anns.find(x => x.id===selId); if(a){ const c = annCenter(a, r); const b = annBoundsRaw(a, r); const L = Math.max(b.w, b.h)*0.9; const tx = (a.tx||0)*Math.PI/180, ty = (a.ty||0)*Math.PI/180;
+    ctx.save(); ctx.translate(c.x, c.y); ctx.transform(Math.cos(ty), Math.sin(ty)*Math.sin(tx), 0, Math.cos(tx), 0, 0); ctx.setLineDash([4,5]); ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=1.5; ctx.strokeRect(-L/2, -L/2, L, L); ctx.setLineDash([]); ctx.restore();
+    ctx.save(); ctx.font='700 12px Montserrat, sans-serif'; ctx.textAlign='center'; const lbl = `${a.tx||0}° · ${a.ty||0}°`; const tw = ctx.measureText(lbl).width; ctx.fillStyle='rgba(0,0,0,.65)'; rr(ctx, c.x - tw/2 - 8, b.y + b.h + 44, tw + 16, 20, 6); ctx.fill(); ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(lbl, c.x, b.y + b.h + 54); ctx.restore(); } }
   if(animated){ canvas._redraw = () => drawAll(canvas, anns, mw, mh, selId, timeFilter, vt); ANIM.add(canvas); if(!G.animRaf) G.animRaf = requestAnimationFrame(animTick); } else ANIM.delete(canvas);
   return r;
 }
 
-export { COLORS, DARK_INK, lighten, darken, SWATCHES, EMOJI_GROUPS, rr, annMetrics, IMG_CACHE, imgListeners, onImgReady, preloadImg, getImg, tintMask, OFFS8, imgBox, preloadAnnImages, rotP, hasRot, NO3D, has3D, applyView, extrudeVec, animFrame, drawAnn, annBoundsRaw, annCenter, annBounds, annHandles, ANIM, animTick, drawAll };
+export { ISO_CLASS, isoUrl, COLORS, DARK_INK, lighten, darken, SWATCHES, EMOJI_GROUPS, rr, annMetrics, IMG_CACHE, imgListeners, onImgReady, preloadImg, getImg, tintMask, OFFS8, imgBox, preloadAnnImages, rotP, hasRot, NO3D, has3D, applyView, extrudeVec, animFrame, drawAnn, annBoundsRaw, annCenter, annBounds, annHandles, ANIM, animTick, drawAll };

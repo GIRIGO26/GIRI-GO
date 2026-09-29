@@ -42,7 +42,7 @@ self.addEventListener('fetch', e => {
         const r = await update; return r || caches.match('./index.html'); })); return; }
     // built app files (assets/index-<hash>.js|css, fonts, vendor): the hash changes with every release, so cache first is safe –
     // no round trip to GitHub Pages on every start. Old builds are dropped from the cache when a new one arrives.
-    if(/\/(assets|fonts|vendor)\//.test(url.pathname)){
+    if(/\/(assets|fonts|vendor|symbols)\//.test(url.pathname)){ // v12.40: ISO 7010 SVGs are cached like the app files
       e.respondWith(caches.match(req).then(r => r || fetch(req).then(res => { if(res.ok){ const c = res.clone(); caches.open(CACHE).then(async x => { await x.put(req, c); if(url.pathname.includes('/assets/')){ const ext = url.pathname.split('.').pop(); const keys = await x.keys(); keys.forEach(k => { const u = new URL(k.url); if(u.pathname.includes('/assets/') && u.pathname.endsWith('.'+ext) && u.pathname !== url.pathname) x.delete(k); }); } }); } return res; }))); return; }
     // icons, manifest, login image: network first (so a new login.jpg shows up), cache fallback
     e.respondWith(fetch(req).then(res => { if(res.ok){ const c = res.clone(); caches.open(CACHE).then(x => x.put(req, c)); } return res; }).catch(() => caches.match(req))); return;

@@ -1,6 +1,6 @@
 {
   "name": "giri-go",
-  "version": "12.39.0",
+  "version": "12.40.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node tests/run.mjs",
-    "build:cf": "rm -rf dist && mkdir dist && cp -r index.html assets fonts icons vendor sw.js manifest.webmanifest login.jpg icon.svg dist/"
+    "build:cf": "rm -rf dist && mkdir dist && cp -r index.html assets fonts icons vendor symbols sw.js manifest.webmanifest login.jpg icon.svg dist/"
   },
   "devDependencies": {
     "vite": "^6.0.0",

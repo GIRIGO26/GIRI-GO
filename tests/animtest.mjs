@@ -7,18 +7,25 @@ const vid = await d.evaluate(()=>window.__tables.instructions[0].id);
 await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1500); { const tb = await d.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await d.waitForTimeout(600);
 console.log('panel hidden before select:', await d.$eval('#ann3d', e => e.hidden));
 await d.click('.ann-pill'); await d.waitForTimeout(400);
-console.log('panel hidden after select:', await d.$eval('#ann3d', e => e.hidden), 'sliders:', await d.$$eval('#ann3d input[data-k]', x => x.map(i=>i.dataset.k)), 'chips:', await d.$$eval('#ann3d [data-anim]', x => x.map(b=>b.textContent)));
-// tilt via slider
-await d.$eval('#ann3d input[data-k="tx"]', i => { i.value = 40; i.dispatchEvent(new Event('input', {bubbles:true})); i.dispatchEvent(new Event('change', {bubbles:true})); });
-await d.waitForTimeout(300);
-console.log('tx stored:', await d.evaluate(()=>window.__tables.instructions[0].data.steps.filter(s=>!s.kind)[0].ann[0].tx));
+console.log('panel hidden after select:', await d.$eval('#ann3d', e => e.hidden), 'poses:', await d.$$eval('#ann3d [data-pose]', x => x.map(i=>i.dataset.pose)), 'chips:', await d.$$eval('#ann3d [data-anim]', x => x.map(b=>b.textContent)));
+// v12.40: tilt via the pose chip ("lying flat") …
+await d.click('#ann3d [data-pose="table"]'); await d.waitForTimeout(300);
+console.log('tx stored (pose table):', await d.evaluate(()=>window.__tables.instructions[0].data.steps.filter(s=>!s.kind)[0].ann[0].tx));
+// … and via the orbit handle on the picture: drag it sideways → turn (ty), up → more tilt
+{ const cvb = await d.$('#acv'); const bb = await cvb.boundingBox(); const h = await d.evaluate(() => { const cv = document.querySelector('#acv'); return cv._orbitHandle || null; });
+  const rr = await d.evaluate(() => { const cv = document.querySelector('#acv'); const b = cv.getBoundingClientRect(); return {l:b.left, t:b.top}; });
+  // handle position from the same helper the app uses
+  const pos = await d.evaluate(() => { const cv = document.querySelector('#acv'); return window.__orbitPos ? window.__orbitPos() : null; });
+  if(pos){ await d.mouse.move(rr.l+pos.x, rr.t+pos.y); await d.mouse.down(); await d.mouse.move(rr.l+pos.x+40, rr.t+pos.y-20, {steps:8}); await d.mouse.up(); await d.waitForTimeout(300);
+    console.log('after orbit drag: tx/ty =', await d.evaluate(()=>{ const a = window.__tables.instructions[0].data.steps.filter(s=>!s.kind)[0].ann[0]; return (a.tx||0)+'/'+(a.ty||0); })); }
+  else console.log('orbit handle position not exposed'); }
 await d.click('#ann3d [data-anim="bounce"]'); await d.waitForTimeout(400);
 console.log('anim stored:', await d.evaluate(()=>window.__tables.instructions[0].data.steps.filter(s=>!s.kind)[0].ann[0].anim), 'chip on:', await d.$eval('#ann3d [data-anim="bounce"]', b => b.className));
 const ed = await d.$('.ed-main'); await ed.screenshot({path:OUT+'/shots/anim-panel.png'});
 // redraw loop running? count frames by monkeypatching
 const frames = await d.evaluate(async () => { const cv = document.querySelector('#acv'); let n=0; const P = CanvasRenderingContext2D.prototype, orig = P.clearRect; P.clearRect = function(...a){ if(this.canvas===cv) n++; return orig.apply(this, a); }; await new Promise(r=>setTimeout(r, 1000)); P.clearRect = orig; return n; });
 console.log('anim redraws in 1s (editor):', frames);
-await d.click('#ann3d [data-flat]'); await d.waitForTimeout(200);
+await d.click('#ann3d [data-pose="flat"]'); await d.waitForTimeout(200);
 console.log('after flat tx:', await d.evaluate(()=>window.__tables.instructions[0].data.steps.filter(s=>!s.kind)[0].ann[0].tx));
 // viewer
 await d.evaluate(()=>{ window.__tables.instructions[0].status='published'; const st = window.__tables.instructions[0].data.steps.filter(s=>!s.kind)[0]; st.ann[0].anim='pulse'; });
