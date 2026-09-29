@@ -19,6 +19,7 @@ import { exportPDF } from '../pdf/export.js';
 import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
 import { grabFrame, nOf, posterCache, stepPoster, stepPosterSync } from './dashboard.js';
+import { preloadInstr, touchEditorCache } from '../media/preload.js';
 import { exportPDFAsk, shareModal } from './share.js';
 import { emojiPicker, symbolFromFile, symbolPicker } from './symbols.js';
 
@@ -144,6 +145,7 @@ async function renderEditor(app, id, selStepId, fbId){
     list.querySelectorAll('.srow.sel').forEach(r => r.classList.remove('sel')); row.classList.add('sel'); openedFor = sel;
     renderStage();
   }
+  const localMedia = new Set(); // media ids that are on this device (recorded here or cached by the preloader) – a dot on the row
   function renderList(){
     const list = v.querySelector('#slist'); list.innerHTML=''; let n = 0; let curCh = null;
     { const nb = v.querySelector('#noshot-bar'); const empt = realSteps(instr).filter(needsShot); nb.hidden = !empt.length || myRole==='viewer'; if(empt.length){ nb.innerHTML = `${IC.cam}<span>${empt.length===1 ? t('noshot_one') : t('noshot_many', {n:empt.length})}</span><b>${t('noshot_go')} →</b>`; nb.onclick = () => go(`rec/${instr.id}/replace/${empt[0].id}`); } }
@@ -170,7 +172,7 @@ async function renderEditor(app, id, selStepId, fbId){
       n++;
       if(curCh && collapsed.has(curCh.id)) return;
       const chC = curCh ? ['#004EAD','#03D39B','#F5A524','#8B5CF6','#EC4899','#0EA5E9'][instr.steps.slice(0, instr.steps.indexOf(curCh)).filter(x => x.kind==='chapter').length % 6] : 'transparent';
-      const r = el(`<div class="srow ${s.id===sel?'sel':''} ${curCh?'in-ch':''}" data-id="${s.id}" tabindex="0" style="--chc:${chC}"><span class="grip" title="drag">${IC.grip}</span><span class="n tnum">${n}</span><div class="th-wrap ${s.mediaId?'':'noshot'} ${s.placeholder?'ph':''} ${s.textOnly?'txt':''}">${s.mediaId ? '<img class="th" alt="">' : `<span class="th">${s.textOnly ? IC.text : IC.cam}</span>`}${s.placeholder ? `<u class="phtag">${t('ph_tag')}</u>` : ''}${s.type==='video'?`<span class="vd tnum">${fmtSec(Math.max(0,(s.trimEnd||s.duration)-(s.trimStart||0)))}s</span>`:''}</div><div class="tt">${titleHtml(s.title)||`<span class="muted">${t('step')} ${n}</span>`}${myRole!=='viewer' ? `<button class="mini x rowdel" data-rowdel title="${t('delete')}">${IC.trash}</button>`:''}<small>${instr.checklist && (instr.checkMode||'all')!=='all' && confirmSteps(instr).includes(s) ? '☑ ' : ''}${s.ann.length?s.ann.length+' ⌖':''} ${s.desc?'· '+esc(mdToPlain(s.desc).replace(/\n+/g,' ').slice(0,30)):''}</small></div></div>`);
+      const r = el(`<div class="srow ${s.id===sel?'sel':''} ${curCh?'in-ch':''} ${s.mediaId && localMedia.has(s.mediaId)?'local':''}" data-id="${s.id}" tabindex="0" style="--chc:${chC}"><span class="grip" title="drag">${IC.grip}</span><span class="n tnum">${n}</span><div class="th-wrap ${s.mediaId?'':'noshot'} ${s.placeholder?'ph':''} ${s.textOnly?'txt':''}">${s.mediaId ? '<img class="th" alt="">' : `<span class="th">${s.textOnly ? IC.text : IC.cam}</span>`}${s.placeholder ? `<u class="phtag">${t('ph_tag')}</u>` : ''}${s.type==='video'?`<span class="vd tnum">${fmtSec(Math.max(0,(s.trimEnd||s.duration)-(s.trimStart||0)))}s</span>`:''}</div><div class="tt">${titleHtml(s.title)||`<span class="muted">${t('step')} ${n}</span>`}${myRole!=='viewer' ? `<button class="mini x rowdel" data-rowdel title="${t('delete')}">${IC.trash}</button>`:''}<small>${instr.checklist && (instr.checkMode||'all')!=='all' && confirmSteps(instr).includes(s) ? '☑ ' : ''}${s.ann.length?s.ann.length+' ⌖':''} ${s.desc?'· '+esc(mdToPlain(s.desc).replace(/\n+/g,' ').slice(0,30)):''}</small></div></div>`);
       if(s.mediaId){ const known = stepPosterSync(s); if(known) r.querySelector('.th').src = known; else stepPoster(s).then(u => { if(u) r.querySelector('.th').src = u; }); }
       const rd = r.querySelector('[data-rowdel]'); if(rd) rd.onclick = e => { e.stopPropagation(); delStep(s); };
       r.onclick = e => { if(e.target.closest('.grip')) return; selectStep(s.id); if(isPhone()) setPane('step'); };
@@ -575,6 +577,11 @@ async function renderEditor(app, id, selStepId, fbId){
   const impFile = v.querySelector('#imp-file'); if(impFile) impFile.onchange = e => { const fs = [...e.target.files]; e.target.value = ''; doImport(fs); };
   const detachDrop = attachDropImport(doImport, afterHint);
   renderList(); renderStage(); renderApprovals(); renderTx(); updateCTA();
+  // v12.46: the clips of this instruction come onto the device in the background (PC: all of them, phone: the next two) – switching
+  // steps is then instant; the list shows a small dot per step that is on the device
+  { touchEditorCache(instr.id); const markLocal = mid => { localMedia.add(mid); (instr.steps||[]).filter(x => x && x.mediaId===mid).forEach(st => { const r = v.querySelector(`.srow[data-id="${st.id}"]`); if(r) r.classList.add('local'); }); };
+    (instr.steps||[]).forEach(st => { if(st && st.mediaId) DB.has('media', st.mediaId).then(h => { if(h) markLocal(st.mediaId); }).catch(()=>{}); });
+    setTimeout(() => preloadInstr(instr, {current: sel, limit: isPhone() ? 2 : 0, onDone: markLocal}), 1500); }
   // open worker feedback → banner; arriving via "adopt" → the feedback's photo/video becomes a new step after the step it refers to
   (async () => { try{ const {data} = await G.sb.from('feedback').select('id,status').eq('instr_id', instr.id).eq('status', 'open'); const n = (data||[]).length; fbOpenN = n; const rn = v.querySelector('#res-n'); if(rn && n){ rn.hidden = false; } const bn = v.querySelector('#fb-banner'); if(bn && n){ bn.hidden = false; bn.querySelector('#fb-n').textContent = t('fb_open_n', {n}); bn.querySelector('#fb-open').onclick = () => { try{ sessionStorage.setItem('gg_rtab_'+instr.id, 'feedback'); }catch(e){} }; } }catch(e){} })();
   if(fbId && myRole!=='viewer'){ (async () => {

@@ -440,6 +440,12 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Installations-Hinweis**: nach „Später“/× bleibt eine schmale Zeile „📲 GIRI Go als App installieren · So geht’s“ auf der Startseite, solange die App nicht installiert ist (PC und Telefon).
 - Tests `animtest`, `libtest`, `check4` angepasst. 38 Tests grün.
 
+## v12.46.0 – Video-Cache im Editor: Clips kommen im Hintergrund aufs Gerät
+- **Vorladen**: Beim Öffnen einer Anleitung im Editor holt die App die Clips/Fotos der Schritte im Hintergrund vom Server und legt sie auf dem Gerät ab (IndexedDB, `media` mit `cache:true, editor:true`) – Reihenfolge: die Schritte nach dem gewählten zuerst, dann die davor, der aktuelle zuletzt (den spielt der Player derweil vom Server). **PC: alle Schritte, Handy: nur die nächsten zwei** (Datenvolumen). Stopp, sobald unter 300 MB Speicher frei sind oder der Browser die Quote meldet. Erster Download läuft 1,5 s nach dem Öffnen, einer nach dem anderen, damit das laufende Video nicht ausgebremst wird.
+- **Effekt**: Schrittwechsel ist danach sofort (`blob:`-URL statt Server), auch offline; beim zweiten Öffnen liegt alles schon da. Der grüne Punkt links oben am Vorschaubild zeigt „Clip ist auf diesem Gerät“ (auch für hier aufgenommene Clips).
+- **Aufräumen**: Einträge stehen in `localStorage` `gg_ecache` (id, Anleitung, Zeit) – kein Lesen der Blobs. Einmal täglich (20 s nach dem Start) fliegen Clips raus, deren Anleitung 14 Tage nicht im Editor war; Clips, die eine Offline-Kopie eines Werkers braucht, bleiben. Jedes Öffnen im Editor verlängert um 14 Tage.
+- Neu: `src/media/preload.js` (`preloadInstr`, `pruneEditorCache`, `touchEditorCache`), Test `preloadtest` (Reihenfolge, Punkt, blob-Wiedergabe, Handy-Limit, Aufräumen mit Offline-Kopie).
+
 ## v12.45.1 – Editor am PC: Symbolleiste kommt ins Bild, Video zeigt sofort das Standbild
 - **Symbolleiste unter dem Bild (PC)**: Die Bühne ist am PC eine eigene Scroll-Spalte; die Bibliothek stand unter dem Bild außerhalb des sichtbaren Bereichs – man sah nur die Reiter am unteren Rand, „es klappte nichts aus“. Jetzt scrollt ein Klick auf Reiter, Kategorie oder Gruppe die ganze Leiste ins Bild, ein Klick auf ein Symbol scrollt das Bild zurück (das Symbol liegt dann sichtbar in der Mitte). Die Leiste ist höher (bis 52 % der Fensterhöhe statt 236 px).
 - **Video-Schritt**: Das Standbild (Poster) erscheint sofort, dazu ein Ladekreis, bis das Video vom Server da ist (vorher: schwarze Fläche, „lädt ewig“ – die Ladezeit selbst hängt an der Videogröße, ≤ 1280 px/60 s ≈ 15 MB).

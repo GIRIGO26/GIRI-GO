@@ -1,4 +1,4 @@
-# GIRI Go – Architektur (Stand v12.45)
+# GIRI Go – Architektur (Stand v12.46)
 
 Für alle, die den Code übernehmen oder prüfen (Backend-Hire, Code-Review, ISO-Audit). Die Versionsgeschichte steht in `README.md`,
 die Ordnerkarte in `src/README.md`. Dieses Dokument beschreibt **was wo läuft, wem was gehört und wo die Sicherheit sitzt**.
@@ -64,7 +64,7 @@ Schema-Änderungen = SQL-Migration im Supabase-Projekt (MCP/CLI) **und** derselb
 
 - Kein Framework: ES-Module, `el(html)`-Helfer, Vite nur als Bundler. `S` (Zustand: Nutzer, Anleitungen, Workspace) und `G` (Einzelwerte:
   Sprache, Supabase-Client, Update-Status) in `src/core/state.js`.
-- **Offline-first**: `IndexedDB` (Spiegel der Anleitungen, Medien-Blobs, Offline-Kopien für Werker), Upload-Queue (`core/uploads.js`),
+- **Offline-first**: `IndexedDB` (Spiegel der Anleitungen, Medien-Blobs, Offline-Kopien für Werker, seit v12.46 Editor-Cache der Clips – `media/preload.js`: PC alle Schritte, Handy die nächsten zwei, 14 Tage), Upload-Queue (`core/uploads.js`),
   Delta-Sync nur `id + updated_at` (`core/translate.js → loadInstrs`). Service Worker cached die App-Shell und Symbole, prüft die
   Version und rettet hängende Installationen (`sw.js`).
 - **Gleichzeitiges Bearbeiten**: optimistisches Sperren – jede Kopie kennt das `updated_at`, von dem sie stammt (`_base`);
@@ -79,7 +79,7 @@ Schema-Änderungen = SQL-Migration im Supabase-Projekt (MCP/CLI) **und** derselb
 ## 6. Bauen, Testen, Ausliefern
 
 - `npm run dev` lokal · `npm run build` → `index.html` + `assets/` im Repo-Root (werden mit eingecheckt) · `npm run build:cf` → `dist/` für Cloudflare.
-- `npm test` = `node tests/run.mjs` – 39 Playwright-Ende-zu-Ende-Tests gegen den gebauten Stand; Supabase ist durch einen
+- `npm test` = `node tests/run.mjs` – 41 Playwright-Ende-zu-Ende-Tests gegen den gebauten Stand; Supabase ist durch einen
   In-Memory-Mock ersetzt (`tests/build_mock.mjs` → `index3.html`), keine Geheimnisse, kein Netz. Einzelne Tests: `node tests/run.mjs libtest vidtest`.
 - CI: `.github/workflows/ci.yml` baut und lässt die Suite bei jedem Push/PR laufen; Screenshots und Ausgaben hängen als Artifact am Lauf.
 - Release: Version in `app/index.html` (`APP_VERSION`) und `package.json` hochzählen, README-Abschnitt, `npm run build`, Commit auf `main`

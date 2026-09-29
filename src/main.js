@@ -79,6 +79,8 @@ window.addEventListener('storage', e => { if(e.key && /^sb-/.test(e.key)) pickup
 /* ---------- Boot ---------- */
 
 // from main
+// v12.46: editor media copies older than two weeks are dropped once a day (never on the critical path)
+setTimeout(() => { try{ const k = 'gg_ecache_pruned', d = new Date().toISOString().slice(0,10); if(localStorage.getItem(k) === d) return; localStorage.setItem(k, d); import('./media/preload.js').then(m => m.pruneEditorCache()).catch(()=>{}); }catch(e){} }, 20000);
 (function boot(){
   if(initSb()){ render(); return; }
   render();

@@ -27,6 +27,8 @@
 .srow.over{box-shadow:0 -3px 0 var(--mint)}
 .srow .n{font-size:11px;font-weight:800;color:var(--ink-3);text-align:right}
 .srow .th,.srow .th-wrap{width:56px;height:56px;border-radius:10px;object-fit:cover;background:#111;display:block;position:relative}
+/* v12.46: a small dot = the clip is on this device (editor cache) */
+.srow.local .th-wrap::after,.srow.local>.th::after{content:'';position:absolute;left:4px;top:4px;width:8px;height:8px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 2px rgba(0,0,0,.45);pointer-events:none}
 .srow .th-wrap .vd{position:absolute;right:3px;bottom:3px;background:rgba(0,0,0,.65);color:#fff;font-size:9px;font-weight:800;padding:1px 4px;border-radius:4px}
 .srow .tt{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .srow .tt small{display:block;font-weight:500;color:var(--ink-3);font-size:11px}
