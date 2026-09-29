@@ -1,7 +1,7 @@
 /* ---------- v12.46: editor media cache – clips and photos of the instruction being edited are fetched in the background and kept on
    the device (IndexedDB store "media", cache:true, editor:true), so switching steps is instant the second time and on the PC the
    videos are there before the step is opened. The player streams the current step from the server meanwhile; that step is fetched
-   last (the browser's HTTP cache usually answers that second request). Phones fetch only the next two steps (data volume); every
+   last (the browser's HTTP cache usually answers that second request). Phones fetch only the next three steps (data volume); every
    device stops when free storage runs low. Entries are listed in localStorage (gg_ecache) so pruning never reads the blobs. */
 import { DB } from '../core/storage.js';
 import { S, putMedia } from '../core/state.js';

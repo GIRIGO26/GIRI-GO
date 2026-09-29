@@ -577,11 +577,11 @@ async function renderEditor(app, id, selStepId, fbId){
   const impFile = v.querySelector('#imp-file'); if(impFile) impFile.onchange = e => { const fs = [...e.target.files]; e.target.value = ''; doImport(fs); };
   const detachDrop = attachDropImport(doImport, afterHint);
   renderList(); renderStage(); renderApprovals(); renderTx(); updateCTA();
-  // v12.46: the clips of this instruction come onto the device in the background (PC: all of them, phone: the next two) – switching
+  // v12.46: the clips of this instruction come onto the device in the background (PC: all of them, phone: the next three) – switching
   // steps is then instant; the list shows a small dot per step that is on the device
   { touchEditorCache(instr.id); const markLocal = mid => { localMedia.add(mid); (instr.steps||[]).filter(x => x && x.mediaId===mid).forEach(st => { const r = v.querySelector(`.srow[data-id="${st.id}"]`); if(r) r.classList.add('local'); }); };
     (instr.steps||[]).forEach(st => { if(st && st.mediaId) DB.has('media', st.mediaId).then(h => { if(h) markLocal(st.mediaId); }).catch(()=>{}); });
-    setTimeout(() => preloadInstr(instr, {current: sel, limit: isPhone() ? 2 : 0, onDone: markLocal}), 1500); }
+    setTimeout(() => preloadInstr(instr, {current: sel, limit: isPhone() ? 3 : 0, onDone: markLocal}), 1500); }
   // open worker feedback → banner; arriving via "adopt" → the feedback's photo/video becomes a new step after the step it refers to
   (async () => { try{ const {data} = await G.sb.from('feedback').select('id,status').eq('instr_id', instr.id).eq('status', 'open'); const n = (data||[]).length; fbOpenN = n; const rn = v.querySelector('#res-n'); if(rn && n){ rn.hidden = false; } const bn = v.querySelector('#fb-banner'); if(bn && n){ bn.hidden = false; bn.querySelector('#fb-n').textContent = t('fb_open_n', {n}); bn.querySelector('#fb-open').onclick = () => { try{ sessionStorage.setItem('gg_rtab_'+instr.id, 'feedback'); }catch(e){} }; } }catch(e){} })();
   if(fbId && myRole!=='viewer'){ (async () => {

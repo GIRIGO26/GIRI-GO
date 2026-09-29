@@ -26,7 +26,7 @@ const pruned = await d.evaluate(async () => { const l = JSON.parse(localStorage.
   const n = await window.__pruneEditorCache(); const left = JSON.parse(localStorage.getItem('gg_ecache')||'[]').map(x => x.id); const has = await window.__mediaHas('pre1'), gone = await window.__mediaHas('pre0'); return {n, left, has, gone}; });
 console.log('pruned:', JSON.stringify(pruned), '(pre1 kept for the offline copy, pre0 gone)');
 await d.screenshot({path:OUT+'/shots/preload-pc.png'});
-// ---- phone: only two clips ----
+// ---- phone: only three clips ----
 served.length = 0;
 const ctx2 = await browser.newContext({viewport:{width:390,height:844}, isMobile:true, hasTouch:true}); await route(ctx2);
 await ctx2.addInitScript(() => { localStorage.setItem('gg_lang','de'); });
@@ -34,5 +34,5 @@ const m = await ctx2.newPage(); m.on('pageerror', e => errs.push('M '+e.message)
 await m.goto(BASE+'/index3.html'); await m.waitForTimeout(1800);
 const id2 = await m.evaluate(() => { const r = window.__tables.instructions[0]; r.data.steps.filter(s => !s.kind).forEach((s, i) => { s.type = 'video'; s.duration = 2; s.mediaId = 'pho' + i; s.mediaUrl = 'https://x/m/pho' + i + '.webm'; }); return r.id; });
 await m.goto(BASE+'/index3.html#/edit/'+id2); await m.waitForTimeout(6500);
-console.log('phone served:', served.filter(x => x.startsWith('pho')).join(' '), '(expected: the two steps after the current one)');
+console.log('phone served:', served.filter(x => x.startsWith('pho')).join(' '), '(expected: the three steps after the current one)');
 console.log(errs.join('\n')||'NO ERRORS'); await browser.close();

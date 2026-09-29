@@ -172,7 +172,7 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
     vs.appendChild(sec);
     const med = sec.querySelector('.vmedia video,.vmedia img') || document.createElement('img'), cv = sec.querySelector('canvas'), box = sec.querySelector('.vmedia');
     stepPoster(s).then(u => { if(u) sec.querySelector('.vbg').style.backgroundImage = `url("${u}")`; }).catch(()=>{});
-    // media is loaded lazily – only the steps around the one on screen (long instructions would otherwise pull every clip at once)
+    // media is loaded lazily – the step on screen, three ahead and one behind (v12.46.1; long instructions would otherwise pull every clip at once)
     let loaded = false, loading = null;
     const ensureMedia = () => { if(loaded || loading) return loading; loading = (async () => { const url = await mediaUrl(s.mediaId); if(!url){ loading = null; return; } med.src = url; loaded = true;
         if(s.type==='video'){ if(s.mediaUrl){ const toRemote = () => { if(med.src !== s.mediaUrl){ med.src = s.mediaUrl; med.load(); } }; med.addEventListener('error', toRemote); setTimeout(() => { if(loaded && med.readyState < 2) toRemote(); }, 4000); } try{ med.load(); }catch(e){} } })(); return loading; };
@@ -304,7 +304,7 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
   // visibility → play
   const io = new IntersectionObserver(entries => { entries.forEach(en => { const p = players.get(en.target.dataset.id); if(!p){ if(en.isIntersecting && en.target.classList.contains('vend')){ v.querySelector('#vcnt').textContent = '✓'; v.querySelector('#vch').textContent = brand.name||''; track.completed = true; track.seen = steps.length; } return; } if(en.isIntersecting && en.intersectionRatio > 0.6){ p.play(); const i = +en.target.dataset.i; curStepId = en.target.dataset.id; track.seen = Math.max(track.seen, i+1); if(groups.length > 1){ const gi = groupOf(curStepId); if(gi>=0 && gi!==chosenGroup){ chosenGroup = gi; if(!v.querySelector('.vw-chap')) setUrl(gi+1); } } v.querySelector('#vcnt').textContent = `${i+1} / ${steps.length}`; v.querySelector('#vch').textContent = mdToPlain(chapterOf(en.target.dataset.id)||'')||brand.name||''; } else p.stop(); }); }, {root:vs, threshold:[0.6]});
   $$('.vstep', vs).forEach(s => io.observe(s));
-  const ioLazy = new IntersectionObserver(entries => { entries.forEach(en => { const l = lazy.get(en.target); if(!l) return; if(en.isIntersecting) l.ensureMedia(); else l.dropMedia(); }); }, {root:vs, rootMargin:'150% 0px 150% 0px', threshold:0});
+  const ioLazy = new IntersectionObserver(entries => { entries.forEach(en => { const l = lazy.get(en.target); if(!l) return; if(en.isIntersecting) l.ensureMedia(); else l.dropMedia(); }); }, {root:vs, rootMargin:'100% 0px 300% 0px', threshold:0});
   lazy.forEach((l, sec) => ioLazy.observe(sec));
   // leaving mid-run: ask (in-app links) / browser prompt (tab close); progress is saved on the device either way
   const onUnload = e => { if(inRunOpen()){ saveRun(); e.preventDefault(); e.returnValue = ''; } }; window.addEventListener('beforeunload', onUnload);

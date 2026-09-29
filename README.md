@@ -440,6 +440,10 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Installations-Hinweis**: nach „Später“/× bleibt eine schmale Zeile „📲 GIRI Go als App installieren · So geht’s“ auf der Startseite, solange die App nicht installiert ist (PC und Telefon).
 - Tests `animtest`, `libtest`, `check4` angepasst. 38 Tests grün.
 
+## v12.46.1 – Vorladen auf drei Schritte
+- **Web-Anleitung (Werker-Link)**: Der Viewer lädt jetzt den sichtbaren Schritt plus **drei Schritte voraus** und einen zurück (vorher 1,5 Bildschirmhöhen in beide Richtungen); weiter entfernte Clips werden wieder freigegeben.
+- **Editor am Handy**: Hintergrund-Cache holt die nächsten **drei** Schritte statt zwei (PC unverändert: alle).
+
 ## v12.46.0 – Video-Cache im Editor: Clips kommen im Hintergrund aufs Gerät
 - **Vorladen**: Beim Öffnen einer Anleitung im Editor holt die App die Clips/Fotos der Schritte im Hintergrund vom Server und legt sie auf dem Gerät ab (IndexedDB, `media` mit `cache:true, editor:true`) – Reihenfolge: die Schritte nach dem gewählten zuerst, dann die davor, der aktuelle zuletzt (den spielt der Player derweil vom Server). **PC: alle Schritte, Handy: nur die nächsten zwei** (Datenvolumen). Stopp, sobald unter 300 MB Speicher frei sind oder der Browser die Quote meldet. Erster Download läuft 1,5 s nach dem Öffnen, einer nach dem anderen, damit das laufende Video nicht ausgebremst wird.
 - **Effekt**: Schrittwechsel ist danach sofort (`blob:`-URL statt Server), auch offline; beim zweiten Öffnen liegt alles schon da. Der grüne Punkt links oben am Vorschaubild zeigt „Clip ist auf diesem Gerät“ (auch für hier aufgenommene Clips).
