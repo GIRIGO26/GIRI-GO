@@ -734,3 +734,16 @@ begin
   update public.workspaces set invites = coalesce((select jsonb_agg(i) from jsonb_array_elements(invites) i where lower(i->>'email') <> v_email), '[]'::jsonb) where ws = v_ws;
   return new;
 end $function$;
+
+-- ---------- v12.44.1: migration helpers removed (Irland → Frankfurt), advisor clean-up ----------
+-- (applied as migration v004_cleanup_migration_helpers) – the temporary functions/tables carried a shared secret and one was callable
+-- without login; the old project's giri_export* functions and the mig-env / mig-copy edge functions are retired as well
+drop function if exists public._mig_fetch(text, integer, integer);
+drop function if exists public._mig_fetch_delta(text, timestamp with time zone);
+drop function if exists public._mig_apply(bigint, text);
+drop table if exists public._mig;
+drop table if exists public._mig_obj;
+alter function public.instr_rewrite_old_urls() set search_path = public;
+alter function public.ws_rewrite_old_urls() set search_path = public;
+revoke execute on function public.my_can_write() from anon;
+revoke execute on function public.purge_trash() from authenticated;   -- nothing in the app calls it; service role / cron only

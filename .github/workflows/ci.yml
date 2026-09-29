@@ -1,0 +1,36 @@
+# GIRI Go – build + the full Playwright suite on every push and pull request.
+# The suite runs against the built app with the in-memory Supabase mock (tests/build_mock.mjs): no secrets, no network.
+# Cloudflare deploys main independently; a red run here shows up on the commit/PR page and in the Actions tab.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Build (Vite → index.html + assets)
+        run: npm run build
+      - name: Build for Cloudflare (dist/) – the same files the worker serves
+        run: npm run build:cf
+      - name: Playwright suite (38 end-to-end tests against the mock backend)
+        run: node tests/run.mjs
+      - name: Keep screenshots and failure output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output
+          path: tests/out
+          retention-days: 7

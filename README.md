@@ -437,3 +437,10 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Emoji-Reiter**: „Zuletzt verwendet“ ist beschriftet, die Gruppe ist ein Aufklappmenü („Gruppe: Smileys ▾“) statt einer Reihe Icons, die wie Emojis zum Antippen aussahen. Platzierte Emojis sind größer (0,24 statt 0,16).
 - **Installations-Hinweis**: nach „Später“/× bleibt eine schmale Zeile „📲 GIRI Go als App installieren · So geht’s“ auf der Startseite, solange die App nicht installiert ist (PC und Telefon).
 - Tests `animtest`, `libtest`, `check4` angepasst. 38 Tests grün.
+
+## v12.44.1 – Sicherheits-Aufräumen, CI, Architektur-Dokument, größere Emoji-Kacheln
+- **Migrations-Helfer entfernt**: im alten Irland-Projekt `giri_export`, `giri_export_delta`, `giri_export_vault` gelöscht; im Frankfurt-Projekt `_mig_fetch`/`_mig_fetch_delta`/`_mig_apply` und die Tabellen `_mig`/`_mig_obj` (Migration `v004_cleanup_migration_helpers`); die Edge Functions `mig-env` (alt) und `mig-copy` (neu) antworten nur noch 410 und tragen keine Logik/Geheimnisse mehr (im Dashboard löschen). Supabase-Advisor: keine ERROR-Meldungen mehr; die verbleibenden WARNs sind gewollte öffentliche Funktionen (`open_instr`, `instr_public`, `instr_locked`, `feedback_poke` – Werker-Links ohne Login) und der Hinweis „Leaked-Password-Protection“ (es gibt keine Passwörter: Login per Code/Link oder Google).
+- `purge_trash()` nur noch für die Service-Rolle, `my_can_write()` nicht mehr anonym aufrufbar, `search_path` der URL-Rewrite-Trigger fixiert.
+- **CI**: `.github/workflows/ci.yml` – Build + komplette Playwright-Suite bei jedem Push/PR, Screenshots als Artifact.
+- **`ARCHITECTURE.md`**: Laufzeit (Browser · Cloudflare · Supabase Frankfurt · DeepL/Vertex europe-west3/Resend/HubSpot), wo Sicherheit verbindlich geprüft wird (RLS, Edge Functions, Storage-Policies) und was nur Oberfläche ist, Datenmodell, Offline/Sperren, Bauen/Testen/Release, bekannte Schulden.
+- Emoji-Kacheln in der Bibliothek: Glyphe 46 px (vorher 30 px), Kacheln entsprechend größer.

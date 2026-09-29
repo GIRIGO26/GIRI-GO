@@ -1,6 +1,6 @@
 {
   "name": "giri-go",
-  "version": "12.44.0",
+  "version": "12.44.1",
   "private": true,
   "type": "module",
   "scripts": {
