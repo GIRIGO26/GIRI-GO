@@ -184,19 +184,21 @@ function drawAnn(ctx, a, r, selected, tNow){
       const m = tintMask(src, '#ffffff'); if(m){ const oc = document.createElement('canvas'); oc.width = Math.max(1, Math.round(w)); oc.height = Math.max(1, Math.round(h)); const c2 = oc.getContext('2d'); const g = c2.createLinearGradient(0, 0, oc.width*0.9, oc.height); g.addColorStop(0, 'rgba(255,255,255,.34)'); g.addColorStop(0.42, 'rgba(255,255,255,.10)'); g.addColorStop(0.55, 'rgba(255,255,255,0)'); c2.fillStyle = g; c2.fillRect(0, 0, oc.width, oc.height); c2.globalCompositeOperation='destination-in'; c2.drawImage(m, 0, 0, oc.width, oc.height); ctx.drawImage(oc, x, y, w, h); }
     }
   } else if(a.type==='turn'){
-    // curved arrow (↻ / ↺): three quarters of a ring with a square chevron head – solid block with white core, like the straight arrow
-    const x=X(a.x), y=Y(a.y); const R = S*0.42; const ccw = a.dir==='ccw'; const Wc = Math.max(4, S*0.16); const B = Math.max(1.8, Wc*0.42); const T = Wc + 2*B; const D = Math.max(2, T*0.24);
-    const a0 = -Math.PI*0.55, a1 = Math.PI*0.95; // open at the top right
-    const ring = () => { ctx.beginPath(); if(ccw) ctx.arc(x, y, R, Math.PI - a0, Math.PI - a1, true); else ctx.arc(x, y, R, a0, a1, false); };
-    const tipAng = ccw ? Math.PI - a0 : a0; const px = x + R*Math.cos(tipAng), py = y + R*Math.sin(tipAng); const tan = tipAng + (ccw ? Math.PI/2 : -Math.PI/2);
-    const headL = R*0.62; const d1 = tan - Math.PI*0.75, d2 = tan + Math.PI*0.75;
-    const chev = L => { ctx.beginPath(); ctx.moveTo(px + L*Math.cos(d1), py + L*Math.sin(d1)); ctx.lineTo(px, py); ctx.lineTo(px + L*Math.cos(d2), py + L*Math.sin(d2)); };
+    // v12.41 curved arrow (↻ / ↺) after the GIRI Classic object: a nearly closed ring (the tail is cut off at the lower right, the head
+    // sits at the upper right) with a big 90° chevron whose legs run straight up and straight left – white face, colour rim, side wall
+    const x=X(a.x), y=Y(a.y); const R = S*0.5; const ccw = a.dir==='ccw'; const sx = ccw ? -1 : 1;
+    const T = Math.max(5, R*0.385), B = Math.max(1.6, T*0.155), Wc = T - 2*B; const D = Math.max(2, T*0.24); const Rc = R - T/2;
+    const a0 = 20*Math.PI/180, a1 = 345*Math.PI/180; // tail … head (clockwise, through the bottom, the left and the top)
+    const ring = (ins=0) => { ctx.beginPath(); const d = ins/Rc; if(ccw) ctx.arc(x, y, Rc, Math.PI - a0 - d, Math.PI - a1, true); else ctx.arc(x, y, Rc, a0 + d, a1, false); };
+    const cx = x + sx*R*0.85, cy = y - R*0.14; // corner of the chevron (its outer tip lands at 3 o'clock, just outside the ring)
+    const head = (ins=0) => { ctx.beginPath(); ctx.moveTo(cx, y - R*0.82 + ins); ctx.lineTo(cx, cy); ctx.lineTo(x + sx*(R*0.08 + ins), cy); };
     ctx.lineCap='butt'; ctx.lineJoin='miter'; ctx.miterLimit=10;
-    extrude(() => { ring(); ctx.stroke(); chev(headL); ctx.stroke(); }, T, D);
+    extrude(() => { ring(); ctx.stroke(); head(); ctx.stroke(); }, T, D);
     const g = ctx.createLinearGradient(x-R, y-R, x+R, y+R); g.addColorStop(0, lighten(col, a.color==='black' ? 0.28 : 0.38)); g.addColorStop(0.5, col); g.addColorStop(1, darken(col, 0.18));
-    ctx.strokeStyle=g; ctx.lineWidth=T; ring(); ctx.stroke(); chev(headL); ctx.stroke();
-    ctx.save(); ctx.translate(-B*0.22, -B*0.22); ctx.strokeStyle='rgba(255,255,255,.28)'; ctx.lineWidth=T-B*0.9; ring(); ctx.stroke(); chev(headL); ctx.stroke(); ctx.restore();
-    ctx.strokeStyle='#fff'; ctx.lineWidth=Wc; ring(); ctx.stroke(); chev(headL - B); ctx.stroke();
+    ctx.strokeStyle=g; ctx.lineWidth=T; ring(); ctx.stroke(); head(); ctx.stroke();
+    ctx.save(); ctx.translate(-B*0.22, -B*0.22); ctx.strokeStyle='rgba(255,255,255,.28)'; ctx.lineWidth=T-B*0.9; ring(); ctx.stroke(); head(); ctx.stroke(); ctx.restore();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=Wc; ring(B); ctx.stroke(); head(B); ctx.stroke();
+    ctx.save(); ctx.translate(B*0.18, B*0.18); ctx.strokeStyle='rgba(0,0,0,.10)'; ctx.lineWidth=Wc*0.5; ring(B); ctx.stroke(); head(B); ctx.stroke(); ctx.restore();
   } else if(a.type==='pin'){
     // location pin: teardrop with a white eye – gradient face, extruded, the tip sits on the spot
     const x=X(a.x), y=Y(a.y); const R = S*0.3; const cy = y - R*1.9; const D = Math.max(2, R*0.18);
@@ -205,32 +207,38 @@ function drawAnn(ctx, a, r, selected, tNow){
     extrude(() => { drop(1); ctx.fill(); }, 0, D);
     const g = ctx.createLinearGradient(x-R, cy-R, x+R, y); g.addColorStop(0, lighten(col, a.color==='black' ? 0.3 : 0.42)); g.addColorStop(0.5, col); g.addColorStop(1, darken(col, 0.2));
     ctx.fillStyle = g; drop(1); ctx.fill();
-    ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=Math.max(1.5, R*0.09); drop(0.96); ctx.stroke();
-    ctx.fillStyle='rgba(0,0,0,.14)'; ctx.beginPath(); ctx.arc(x+R*0.05, cy+R*0.07, R*0.42, 0, Math.PI*2); ctx.fill(); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(x, cy, R*0.38, 0, Math.PI*2); ctx.fill();
+    // v12.41 like Classic: a soft light edge instead of a hard white outline, the eye is a white ring with the colour showing through
+    ctx.strokeStyle='rgba(255,255,255,.45)'; ctx.lineWidth=Math.max(1.2, R*0.06); drop(0.97); ctx.stroke();
+    ctx.fillStyle='rgba(0,0,0,.16)'; ctx.beginPath(); ctx.arc(x+R*0.04, cy+R*0.06, R*0.46, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=Math.max(2, R*0.15); ctx.beginPath(); ctx.arc(x, cy, R*0.34, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle=lighten(col, 0.22); ctx.beginPath(); ctx.arc(x, cy, R*0.26, 0, Math.PI*2); ctx.fill();
   } else if(a.type==='thumb'){
-    // thumbs up / down: one glyph path (24-unit grid), flipped for down – colour fill, white edge, extruded
-    const x=X(a.x), y=Y(a.y); const s2 = S*0.95; const D = Math.max(2, s2*0.06);
-    const P = [[2,10],[7,10],[11,2],[13,2],[14.5,3.5],[13.5,9],[20,9],[22,11],[20,20],[18.5,22],[7,22],[7,10],[2,10],[2,22],[7,22]];
-    const fy = a.dir==='down' ? -1 : 1; // thumbs down = the same hand mirrored vertically (extrusion stays in screen space)
-    const glyph = () => { const u = s2/24; ctx.beginPath(); ctx.moveTo(x + (P[0][0]-12)*u, y + (P[0][1]-12)*u*fy); for(let i=1;i<P.length;i++) ctx.lineTo(x + (P[i][0]-12)*u, y + (P[i][1]-12)*u*fy); ctx.closePath(); };
-    ctx.save();
-    ctx.lineJoin='round';
-    extrude(() => { glyph(); ctx.fill(); ctx.lineWidth = s2*0.06; ctx.stroke(); }, s2*0.06, D);
-    const g = ctx.createLinearGradient(x-s2/2, y-s2/2, x+s2/2, y+s2/2); g.addColorStop(0, lighten(col, a.color==='black' ? 0.3 : 0.4)); g.addColorStop(0.5, col); g.addColorStop(1, darken(col, 0.2));
-    ctx.fillStyle = g; ctx.strokeStyle = g; ctx.lineWidth = s2*0.06; glyph(); ctx.fill(); ctx.stroke();
-    ctx.strokeStyle='#fff'; ctx.lineWidth=Math.max(1.5, s2*0.045); glyph(); ctx.stroke();
+    // v12.41 thumbs up / down after the Classic object: a solid, blocky hand – cuff, palm with rounded knuckles, thumb leaning
+    // slightly outward – one colour with a light facet on the thumb, no outline, extruded (24-unit grid, flipped for down)
+    const x=X(a.x), y=Y(a.y); const s2 = S*0.95; const u = s2/24; const D = Math.max(2, s2*0.07);
+    const fy = a.dir==='down' ? -1 : 1; const P = (px, py) => [x + (px-12)*u, y + (py-12)*u*fy];
+    const cuff = () => { const [x0,y0] = P(1.5, 11), [x1,y1] = P(6, 22.5); ctx.beginPath(); ctx.rect(Math.min(x0,x1), Math.min(y0,y1), Math.abs(x1-x0), Math.abs(y1-y0)); };
+    const hand = () => { ctx.beginPath(); const pts = [[7.5,22.5],[7.5,11],[11,1.8],[12.4,1.2],[15.2,2.3],[16,3.7],[14.2,10.5],[20.6,10.5],[22.5,12.4],[22.5,20.6],[20.6,22.5]]; pts.forEach(([px,py], i) => { const [X2,Y2] = P(px, py); if(i) ctx.lineTo(X2, Y2); else ctx.moveTo(X2, Y2); }); ctx.closePath(); };
+    const thumbFacet = () => { ctx.beginPath(); [[7.5,11],[11,1.8],[12.4,1.2],[15.2,2.3],[16,3.7],[14.2,10.5]].forEach(([px,py], i) => { const [X2,Y2] = P(px, py); if(i) ctx.lineTo(X2, Y2); else ctx.moveTo(X2, Y2); }); ctx.closePath(); };
+    ctx.save(); ctx.lineJoin='round'; ctx.lineWidth = u*0.9;
+    extrude(() => { cuff(); ctx.fill(); ctx.stroke(); hand(); ctx.fill(); ctx.stroke(); }, u*0.9, D);
+    const g = ctx.createLinearGradient(x-s2/2, y-s2/2, x+s2/2, y+s2/2); g.addColorStop(0, lighten(col, a.color==='black' ? 0.3 : 0.34)); g.addColorStop(0.55, col); g.addColorStop(1, darken(col, 0.22));
+    ctx.fillStyle = g; ctx.strokeStyle = g; cuff(); ctx.fill(); ctx.stroke(); hand(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = a.color==='black' ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.22)'; thumbFacet(); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.10)'; const [kx, ky] = P(14.2, 10.5), [kx2, ky2] = P(22.5, 12.4); ctx.beginPath(); ctx.rect(Math.min(kx,kx2), Math.min(ky,ky2), Math.abs(kx2-kx), Math.abs(ky2-ky)); ctx.fill();
     ctx.restore();
   } else if(a.type==='smile'){
-    // smiley: the glossy sphere of the badges with a face (happy / sad)
+    // v12.41 smiley after the Classic object: glossy disc with a thin dark ring inside the edge, oval eyes and a bold smile
     const rad = S*0.38; const x=X(a.x), y=Y(a.y); const fill = col;
     ctx.shadowColor='rgba(0,0,0,.42)'; ctx.shadowBlur = rad*0.6; ctx.shadowOffsetY = rad*0.22;
-    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(x,y,rad+lw*0.75,0,Math.PI*2); ctx.fill(); ctx.shadowColor='transparent';
-    const sg = ctx.createRadialGradient(x-rad*0.35, y-rad*0.4, rad*0.1, x, y, rad*1.05); sg.addColorStop(0, lighten(fill, 0.5)); sg.addColorStop(0.45, fill); sg.addColorStop(1, darken(fill, 0.4));
+    ctx.fillStyle=darken(fill, 0.25); ctx.beginPath(); ctx.arc(x,y,rad+lw*0.5,0,Math.PI*2); ctx.fill(); ctx.shadowColor='transparent';
+    const sg = ctx.createRadialGradient(x-rad*0.35, y-rad*0.4, rad*0.1, x, y, rad*1.05); sg.addColorStop(0, lighten(fill, 0.5)); sg.addColorStop(0.45, fill); sg.addColorStop(1, darken(fill, 0.35));
     ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(x,y,rad,0,Math.PI*2); ctx.fill();
     ctx.save(); ctx.beginPath(); ctx.ellipse(x-rad*0.3, y-rad*0.42, rad*0.42, rad*0.24, -0.6, 0, Math.PI*2); const hg = ctx.createLinearGradient(x-rad*0.6, y-rad*0.7, x, y-rad*0.1); hg.addColorStop(0, 'rgba(255,255,255,.55)'); hg.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle=hg; ctx.fill(); ctx.restore();
-    const ink = (a.color==='white'||a.color==='yellow'||a.color==='mint') ? DARK_INK : '#fff'; ctx.fillStyle = ink; ctx.strokeStyle = ink; ctx.lineCap='round'; ctx.lineWidth = rad*0.14;
-    ctx.beginPath(); ctx.arc(x-rad*0.32, y-rad*0.18, rad*0.09, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(x+rad*0.32, y-rad*0.18, rad*0.09, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); if(a.mood==='sad') ctx.arc(x, y+rad*0.72, rad*0.42, Math.PI*1.18, Math.PI*1.82); else ctx.arc(x, y+rad*0.06, rad*0.44, Math.PI*0.15, Math.PI*0.85); ctx.stroke();
+    const ink = (a.color==='white'||a.color==='yellow'||a.color==='mint') ? DARK_INK : '#fff'; ctx.fillStyle = ink; ctx.strokeStyle = ink; ctx.lineCap='round';
+    ctx.lineWidth = rad*0.06; ctx.beginPath(); ctx.arc(x, y, rad*0.86, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(x-rad*0.3, y-rad*0.2, rad*0.085, rad*0.2, 0, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(x+rad*0.3, y-rad*0.2, rad*0.085, rad*0.2, 0, 0, Math.PI*2); ctx.fill();
+    ctx.lineWidth = rad*0.11; ctx.beginPath(); if(a.mood==='sad') ctx.arc(x, y+rad*0.78, rad*0.46, Math.PI*1.17, Math.PI*1.83); else ctx.arc(x, y+rad*0.04, rad*0.48, Math.PI*0.16, Math.PI*0.84); ctx.stroke();
   } else if(a.type==='emoji'){
     const x=X(a.x), y=Y(a.y); const fs = S*0.9;
     ctx.font = `${fs}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -270,7 +278,7 @@ function annBoundsRaw(a, r){
   if(a.type==='text'){ const fs=Math.max(13, base*0.05*((a.size||0.14)/0.14)); const w = (a.text||'…').length*fs*0.62 + fs*1.3; return {x:X(a.x)-fs*0.65, y:Y(a.y)-fs*0.9, w, h:fs*1.8}; }
   if(a.type==='img' || a.type==='iso'){ const b = imgBox(a, r); const p = Math.max(b.w, b.h)*0.1; return {x:b.x-p, y:b.y-p, w:b.w+2*p, h:b.h+2*p}; }
   if(a.type==='pin'){ const R = S*0.3; return {x:X(a.x)-R*1.1, y:Y(a.y)-R*2.95, w:R*2.2, h:R*3.1}; }
-  if(a.type==='turn'){ const R = S*0.42 + S*0.16; return {x:X(a.x)-R, y:Y(a.y)-R, w:R*2, h:R*2}; }
+  if(a.type==='turn'){ const R = S*0.5*1.06; return {x:X(a.x)-R, y:Y(a.y)-R, w:R*2, h:R*2}; }
   return {x:X(a.x)-S*0.48, y:Y(a.y)-S*0.55, w:S*0.96, h:S*1.05};
 }
 

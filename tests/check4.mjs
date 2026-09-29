@@ -25,8 +25,8 @@ console.log('folder view:', await page.$eval('.dash h1', e => e.textContent.trim
 await page.click(`[data-sid="${id0}"] .title`); await page.waitForTimeout(1200);
 { const tb = await page.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await page.waitForTimeout(200);
 await page.fill('#sdesc', 'Drehmoment **10 Nm**\n- Schraube ==M6== einsetzen'); await page.waitForTimeout(500);
-await page.click('[data-tool="rect"]'); await page.waitForTimeout(200); await page.keyboard.press(']'); await page.keyboard.press('+'); await page.waitForTimeout(200);
-await page.click('[data-tool="emoji"]'); await page.waitForTimeout(400); await page.screenshot({path:OUT+'/e5-emoji.png'});
+await page.click('#symdock [data-tab="mark"]'); await page.waitForTimeout(200); await page.click('[data-tool="rect"]'); await page.waitForTimeout(200); await page.keyboard.press(']'); await page.keyboard.press('+'); await page.waitForTimeout(200);
+await page.click('#symdock [data-tab="emoji"]'); await page.waitForTimeout(300); await page.click('#symdock [data-more]'); await page.waitForTimeout(400); await page.screenshot({path:OUT+'/e5-emoji.png'});
 await page.click('[data-g="6"]'); await page.waitForTimeout(300); await page.screenshot({path:OUT+'/e6-emoji-objects.png'});
 await page.fill('#emo-q', 'wrench'); await page.waitForTimeout(400); await page.screenshot({path:OUT+'/e7-emoji-search.png'});
 const hits = await page.evaluate(()=>[...document.querySelectorAll('#emo-wrap [data-e]')].map(b=>b.dataset.e)); console.log('wrench hits:', hits.join(' '));

@@ -32,11 +32,11 @@ console.log('title after keep:', await d.inputValue('#stitle'), '| list row html
 await d.setInputFiles('.addstep input[type=file]', TESTS+'/test.webm'); await d.waitForTimeout(6000);
 const vsel = await d.$('#trimbar'); console.log('video stage present:', !!vsel);
 if(vsel){
-  await d.click('[data-tool="check"]'); await d.waitForTimeout(300);
+  await d.click('#symdock [data-tab="status"]'); await d.waitForTimeout(200); await d.click('[data-tool="check"]'); await d.waitForTimeout(300);
   await d.evaluate(()=>{ const bar = document.querySelector('#trimbar'); const r = bar.getBoundingClientRect(); const ev = t => new PointerEvent(t, {clientX:r.left + r.width*0.7, clientY:r.top+20, bubbles:true, pointerId:1}); bar.dispatchEvent(ev('pointerdown')); bar.dispatchEvent(ev('pointerup')); });
   await d.waitForTimeout(300);
   console.log('after seek: selected pill?', !!(await d.$('.ann-pill.on')), 'visible anns at new time:', await d.evaluate(()=>{ return document.querySelectorAll('.mark').length; }));
-  await d.click('[data-tool="warn"]'); await d.waitForTimeout(400);
+  await d.click('[data-tool="cross"]'); await d.waitForTimeout(400);
   console.log('marks:', await d.$$eval('.mark', m => m.map(x => x.style.left+(x.classList.contains('on')?'*':''))));
   const ts = await d.evaluate(()=>{ const st = window.__tables.instructions[0].data.steps.filter(s=>!s.kind).find(s=>s.type==='video'); return st.ann.map(a=>a.type+'@'+a.t); }); console.log('ann times:', ts);
   await d.screenshot({path:OUT+'/t2-marks.png', clip:{x:400,y:150,width:880,height:750}});
