@@ -519,7 +519,7 @@ async function renderEditor(app, id, selStepId, fbId){
     const sb2 = a.querySelector('#submit'); if(sb2) sb2.onclick = submitForReview;
     const td = a.querySelector('#todraft'); if(td) td.onclick = async () => { instr.status='draft'; instr.approvals={tech:null,dsgvo:null}; await saveInstr(instr); setChip(); renderApprovals(); };
     $$('[data-ok]', a).forEach(b => b.onclick = async () => { instr.approvals[b.dataset.ok] = {by:S.user.name, at:Date.now()};
-      if(instr.approvals.tech && instr.approvals.dsgvo){ instr.status='published'; instr.version++; if(!instr.shareKey) instr.shareKey = newShareKey(); instr.history.push({version:instr.version, at:Date.now(), by:instr.createdBy, note:instr.pendingNote||'', tech:instr.approvals.tech, dsgvo:instr.approvals.dsgvo}); instr.pendingNote=''; setChip(); toast(t('published')+' · v'+instr.version); }
+      if(instr.approvals.tech && instr.approvals.dsgvo){ instr.status='published'; instr.publishedAt = Date.now(); instr.version++; if(!instr.shareKey) instr.shareKey = newShareKey(); instr.history.push({version:instr.version, at:Date.now(), by:instr.createdBy, note:instr.pendingNote||'', tech:instr.approvals.tech, dsgvo:instr.approvals.dsgvo}); instr.pendingNote=''; setChip(); toast(t('published')+' · v'+instr.version); }
       await saveInstr(instr); renderApprovals(); });
     $$('[data-rej]', a).forEach(b => b.onclick = async () => { const r = await promptM(t('reject_reason'), t('reason_ph')); if(r===null) return; instr.status='draft'; instr.approvals={tech:null,dsgvo:null}; instr.history.push({version:instr.version, at:Date.now(), by:S.user.name, note:`${t('reject')} (${t(b.dataset.rej)}): ${r}`}); await saveInstr(instr); setChip(); renderApprovals(); });
   }

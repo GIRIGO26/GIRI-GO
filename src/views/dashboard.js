@@ -82,8 +82,17 @@ function instrCard(i, statMap, opts={}){
   return card;
 }
 
-/* ---------- Dashboard (v0.30): instructions are the content, folders are a filter row, one ⋯ menu for the tools ----------
-   #/ = all instructions · #/p/<id> = one folder (same layout, filtered) · #/p/none = instructions without a folder */
+/* ---------- Dashboard ----------
+   v12.42: the navigator on the left is the one block for "where am I": all instructions → teams → the folders of that team
+   (scrollable, searchable, empty ones foldable). Above the list: status filter + sort. On the phone the navigator sits behind
+   the "scope" button as a sheet. #/ = all instructions · #/p/<id> = one folder · #/p/none = instructions without a folder */
+const pubAt = i => i.publishedAt || ((i.history||[]).length ? (i.history[i.history.length-1].at||0) : 0) || ((i.approvals && i.approvals.dsgvo && i.approvals.dsgvo.at) || 0);
+const SORTS = {
+  upd: (a,b) => (b.updatedAt||0)-(a.updatedAt||0),
+  created: (a,b) => (b.createdAt||b.updatedAt||0)-(a.createdAt||a.updatedAt||0),
+  pub: (a,b) => pubAt(b)-pubAt(a) || (b.updatedAt||0)-(a.updatedAt||0),
+  name: (a,b) => (a.title||'').localeCompare(b.title||'', undefined, {numeric:true, sensitivity:'base'}),
+};
 async function renderDashboard(app, pid){
   topbar(app, {back: pid ? '/' : null, sub: pid ? (pid==='none' ? t('no_folder') : (folderName(pid) || t('folder'))) : t('instructions')});
   const visible = S.instrs.filter(canSee); const hiddenN = S.instrs.length - visible.length;
@@ -102,62 +111,76 @@ async function renderDashboard(app, pid){
   if(teamF && teamF!=='none' && !tl.some(x => x.id===teamF)) teamF = '';
   const inTeam = (i, tid) => !tid ? true : tid==='none' ? !instrTeams(i).length : instrTeams(i).includes(tid);
   const showTeams = tl.length >= 2; if(!showTeams) teamF = '';
-  // status filter (the "waiting for approval" to-do) and search
+  // status filter (chips above the list; the "for you" boxes set it too), sort, search
   let stF = ''; try{ stF = sessionStorage.getItem('gg_stf') || ''; }catch(e){} let q = '';
+  let sortK = 'upd'; try{ sortK = sessionStorage.getItem('gg_sort') || 'upd'; }catch(e){} if(!SORTS[sortK]) sortK = 'upd';
   const canApprove = canApproveAny();
-  const revN = visible.filter(i => i.status==='review' && inTeam(i, teamF) && (can(i, 'approve_tech') || can(i, 'approve_dsgvo'))).length; if(!revN && stF==='review') stF = '';
+  const revN = visible.filter(i => i.status==='review' && inTeam(i, teamF) && (can(i, 'approve_tech') || can(i, 'approve_dsgvo'))).length;
   const inFolder = (i, fid) => fid==='all' ? true : fid==='none' ? isLoose(i) : i.folder===fid;
   const cnt = fid => visible.filter(i => inFolder(i, fid) && inTeam(i, teamF)).length;
   const looseN = cnt('none');
-  // v0.36: the team is the top-level filter – it scopes the folders (folder.teams) and the instructions; folders without a team show under "all" and "no team"
+  // the team is the top-level filter – it scopes the folders (folder.teams) and the instructions; folders without a team show under "all" and "no team"
   const folderInTeam = (x, tid) => !tid ? true : tid==='none' ? !(x.teams||[]).length : (x.teams||[]).includes(tid);
-  const fol = folders.filter(x => folderInTeam(x, teamF)); const manyF = fol.length > 12;
+  const fol = folders.filter(x => folderInTeam(x, teamF)).sort((a,b) => (a.name||'').localeCompare(b.name||'', undefined, {numeric:true, sensitivity:'base'})); const manyF = fol.length > 12;
   // v12.37.1: full-text search – title, chapter names, step titles/descriptions/warnings, creator; several words must all match
   const ftCache = new Map(); const ftOf = i => { const k = i.id+':'+(i.updatedAt||0); let x = ftCache.get(k); if(!x){ x = [i.title, i.createdBy, ...(i.steps||[]).flatMap(st => [st.title, st.desc, st.warn])].filter(Boolean).join(' ').toLowerCase(); ftCache.set(k, x); } return x; };
   const words = () => q.split(/\s+/).filter(Boolean);
   const matchQ = i => { if(!q) return true; const ft = ftOf(i); return words().every(w => ft.includes(w)); };
+  // ---- navigator: all → teams → folders of the team ----
   let fq = ''; let hideEmpty = null; try{ hideEmpty = sessionStorage.getItem('gg_fhide'); }catch(e){} hideEmpty = hideEmpty==null ? fol.length > 20 : hideEmpty==='1';
-  const folderChips = () => { const emptyN = fol.filter(x => !cnt(x.id) && x.id!==pid).length; const shown = fol.filter(x => x.id===pid || (!fq || x.name.toLowerCase().includes(fq) || visible.some(i => i.folder===x.id && matchQ(i))) && (!hideEmpty || cnt(x.id) > 0));
-    const more = Math.max(0, shown.length - 60); const show = shown.slice(0, 60);
-    return `<a class="fch ${!pid?'on':''}" href="#/" data-f="all">${t('all_f')} <span>${cnt('all')}</span></a>${show.map(x => `<a class="fch ${pid===x.id?'on':''}" href="#/p/${x.id}" data-f="${x.id}">${IC.folder} ${esc(x.name)}${x.pw?' 🔒':''} <span>${cnt(x.id)}</span></a>`).join('')}${looseN ? `<a class="fch ${pid==='none'?'on':''}" href="#/p/none" data-f="none">${t('no_folder')} <span>${looseN}</span></a>`:''}${canProjects?`<button class="fch add" id="fadd" title="${t('new_folder')}">${IC.plus}</button>`:''}${more ? `<span class="muted" style="font-size:12.5px">${t('folders_more', {n:more})}</span>` : ''}${manyF && !shown.length && fq ? `<span class="muted">${t('no_result')}</span>` : ''}`; };
   const emptyCount = () => fol.filter(x => !cnt(x.id) && x.id!==pid).length;
-  const hideBtn = () => { const n = emptyCount(); return manyF && n ? `<button class="flink" id="fhide">${hideEmpty ? t('folders_show_empty', {n}) : t('folders_hide_empty', {n})}</button>` : ''; };
-  // v12.38.2: many folders → two rows visible, the rest folds out (no scrollbar inside a card); a search shows everything that matches
-  let fExp = false; try{ fExp = sessionStorage.getItem('gg_fexp')==='1'; }catch(e){}
-  const expBtn = () => manyF ? `<button class="flink" id="fexp">${fExp || fq ? t('folders_less') : t('folders_all', {n:fol.length})}</button>` : '';
-  const chips = folders.length ? `<div class="fchips ${manyF && !fExp && !fq ? 'collapsed' : ''}" id="fchips">${folderChips()}</div>` : '';
-  const teamChips = showTeams ? (tl.length <= 10
-    ? `<div class="tfilter" id="tfilter"><span class="tlbl">${t('team_lbl')}</span><button class="fch sm ${!teamF?'on':''}" data-t="">${t('team_filter_all')}</button>${tl.map(tm => `<button class="fch sm ${teamF===tm.id?'on':''}" data-t="${tm.id}">${esc(tm.name)}</button>`).join('')}<button class="fch sm ${teamF==='none'?'on':''}" data-t="none">${t('team_none')}</button></div>`
-    : `<div class="tfilter" id="tfilter"><span class="tlbl">${t('team_lbl')}</span><select id="tsel" class="tsel"><option value="">${t('team_filter_all')}</option>${tl.map(tm => `<option value="${tm.id}" ${teamF===tm.id?'selected':''}>${esc(tm.name)}</option>`).join('')}<option value="none" ${teamF==='none'?'selected':''}>${t('team_none')}</option></select></div>`) : '';
+  const NAV_MAX = 400;
+  const folderRows = () => { const shown = fol.filter(x => x.id===pid || (fq ? x.name.toLowerCase().includes(fq) : (!hideEmpty || cnt(x.id) > 0))); const more = Math.max(0, shown.length - NAV_MAX); // a search also finds empty folders
+    return `${shown.slice(0, NAV_MAX).map(x => `<a class="dn-row ${pid===x.id?'on':''}" href="#/p/${x.id}" data-f="${x.id}">${IC.folder}<span>${esc(x.name)}${x.pw?' 🔒':''}</span><b>${cnt(x.id)}</b></a>`).join('')}${looseN && !fq ? `<a class="dn-row ${pid==='none'?'on':''}" href="#/p/none" data-f="none">${IC.folder}<span>${t('no_folder')}</span><b>${looseN}</b></a>`:''}${more ? `<div class="dn-note">${t('folders_more', {n:more})}</div>` : ''}${fq && !shown.length ? `<div class="dn-note">${t('no_result')}</div>` : ''}`; };
+  const hideBtn = () => { const n = emptyCount(); return manyF && n ? `<button class="flink dn-foot" id="fhide">${hideEmpty ? t('folders_show_empty', {n}) : t('folders_hide_empty', {n})}</button>` : ''; };
+  const teamCnt = tid => visible.filter(i => inTeam(i, tid)).length;
+  // "all instructions" also clears the team; a team row scopes folders and instructions to that team
+  const navHtml = () => `<button class="dn-row top ${!pid && !teamF ? 'on':''}" data-t="" data-nav="all">${IC.grid}<span>${t('nav_all')}</span><b>${visible.length}</b></button>
+    ${showTeams ? `<div class="dn-h">${t('team_lbl')}</div>${tl.map(tm => `<button class="dn-row ${teamF===tm.id?'on':''}" data-t="${tm.id}">${IC.users||''}<span>${esc(tm.name)}</span><b>${teamCnt(tm.id)}</b></button>`).join('')}<button class="dn-row ${teamF==='none'?'on':''}" data-t="none">${IC.users||''}<span>${t('team_none')}</span><b>${teamCnt('none')}</b></button>` : ''}
+    ${folders.length || canProjects ? `<div class="dn-h">${t('folders_h')} <b>${fol.length}</b>${canProjects?`<button class="dn-add" data-fadd title="${t('new_folder')}">${IC.plus}</button>`:''}</div>
+      ${manyF ? `<label class="dn-search">${IC.search||''}<input data-fq type="search" placeholder="${t('folder_search_ph')}" value="${esc(fq)}" autocomplete="off"></label>` : ''}
+      <div class="dn-list" data-flist>${folderRows()}</div>${hideBtn()}` : ''}`;
+  const teamName = tid => tid==='none' ? t('team_none') : ((tl.find(x => x.id===tid)||{}).name || '');
+  const scopeLabel = () => f ? f.name : teamF ? teamName(teamF) : t('nav_all');
   const teamNames = f ? teamNamesOf(f.teams) : [];
-  // v12.38: page order = title → (new instruction + search) → "for you" (approvals, feedback) → install → team → folders → list
+  // ---- "for you": approvals waiting, open feedback ----
   const fbCount = () => visible.filter(i => inTeam(i, teamF) && statMap[i.id] && statMap[i.id].fb).length;
   const inboxHtml = () => { const fbN = fbCount(); const items = [];
     if(revN && canApprove) items.push(`<button class="ibx ${stF==='review'?'on':''}" id="todo">${IC.check}<span>${revN===1?t('todo_review_one'):t('todo_review_many',{n:revN})}</span><b>${stF==='review' ? '×' : '→'}</b></button>`);
     if(fbN) items.push(`<button class="ibx ${stF==='fb'?'on':''}" id="todo-fb">${IC.msg}<span>${fbN===1?t('inbox_fb_one'):t('inbox_fb_many',{n:fbN})}</span><b>${stF==='fb' ? '×' : '→'}</b></button>`);
     return items.length ? `<span class="tlbl">${t('inbox_h')}</span>${items.join('')}` : ''; };
+  // ---- list toolbar: status chips + sort ----
+  const scopeRows = () => visible.filter(i => (q ? true : inFolder(i, f ? f.id : 'all')) && inTeam(i, teamF) && matchQ(i));
+  const stCnt = st => scopeRows().filter(i => st==='fb' ? !!(statMap[i.id] && statMap[i.id].fb) : i.status===st).length;
+  const chipsHtml = () => { const base = scopeRows(); const c = st => base.filter(i => i.status===st).length; const fbN = base.filter(i => statMap[i.id] && statMap[i.id].fb).length;
+    const chip = (k, lbl, n) => `<button class="lch ${stF===k?'on':''}" data-st="${k}">${lbl}${n!=null?`<b>${n}</b>`:''}</button>`;
+    return chip('', t('st_all'), base.length) + chip('published', t('published'), c('published')) + chip('draft', t('draft'), c('draft')) + chip('review', t('in_review'), c('review')) + (fbN || stF==='fb' ? chip('fb', t('st_fb'), fbN) : ''); };
   const v = el(`<main class="page dash">
     <div class="dash-head"><div class="dash-title">${f ? `<div class="eyebrow">${IC.folder} ${t('folder')}</div>` : ''}<h1>${f ? esc(f.name) : t('dash_h1')}${f && f.id!=='none' && canIn(f.teams, 'projects') ? `<button class="pen-btn" id="fren" title="${t('rename_folder')}">${IC.edit}</button>`:''}</h1>${!f ? `<p class="dash-sub">${[nOf(visible.length,'instruction','instructions'), showTeams ? nOf(tl.length,'team','teams') : '', folders.length ? nOf(folders.length,'folder','folders') : ''].filter(Boolean).join(' · ')}</p>` : ''}</div></div>
     <div class="dash-bar">${isEditor ? `<button class="btn primary" id="new">${IC.plus} ${t('new_instr')}</button>`:''}<label class="searchwrap">${IC.search || ''}<input class="search" id="q" type="search" placeholder="${t('search_ph')}" autocomplete="off"></label></div>
     <div class="inbox" id="inbox">${inboxHtml()}</div>
     <div id="inst-slot"></div>
-    ${(teamChips || chips) ? `<section class="filters fpanel ${manyF?'many':''} ${manyF && (fExp || fq) ? 'exp' : ''}" id="filters"><div class="frow">${teamChips || '<span></span>'}<div class="fmeta">${folders.length ? `<span class="tlbl">${t('folders_h')} <b>${fol.length}</b></span>` : ''}${hideBtn()}${expBtn()}</div></div>${chips}</section>` : ''}
-    ${f ? `<div class="fhead" id="fhead"><span class="muted">${nOf(cnt(f.id),'instruction','instructions')}${teamNames.length?` · 👥 ${esc(teamNames.join(', '))}`:''}${f.pw?' · 🔒':''}</span>${f.id!=='none' ? `<button class="btn ghost sm" id="fmore">${IC.more} ${t('folder')}</button>`:''}</div>` : ''}
-    <div class="list" id="list"></div>
-    ${hiddenN?`<p class="muted" style="margin-top:10px;font-size:12px">${t('folder_hidden',{n:hiddenN})}</p>`:''}
+    <div class="dash-body ${showTeams || folders.length || canProjects ? 'with-nav' : ''}">
+      ${showTeams || folders.length || canProjects ? `<aside class="dnav" id="dnav">${navHtml()}</aside>` : ''}
+      <section class="dmain">
+        <div class="ltools" id="ltools"><button class="scope" id="scope">${IC.folder}<span>${esc(scopeLabel())}</span>${IC.down||'▾'}</button><div class="lchips" id="lchips">${chipsHtml()}</div><label class="lsort">${t('sort_lbl')}<select id="sort">${[['upd', t('sort_upd')], ['created', t('sort_created')], ['pub', t('sort_pub')], ['name', t('sort_name')]].map(([k, l]) => `<option value="${k}" ${sortK===k?'selected':''}>${l}</option>`).join('')}</select></label></div>
+        ${f ? `<div class="fhead" id="fhead"><span class="muted">${nOf(cnt(f.id),'instruction','instructions')}${teamNames.length?` · 👥 ${esc(teamNames.join(', '))}`:''}${f.pw?' · 🔒':''}</span>${f.id!=='none' ? `<button class="btn ghost sm" id="fmore">${IC.more} ${t('folder')}</button>`:''}</div>` : ''}
+        <div class="list" id="list"></div>
+        ${hiddenN?`<p class="muted" style="margin-top:10px;font-size:12px">${t('folder_hidden',{n:hiddenN})}</p>`:''}
+      </section>
+    </div>
   </main>`);
   app.appendChild(v);
   const ln = linkNote(); if(ln) v.querySelector('#inst-slot').appendChild(ln); const ban = ln ? null : installBanner(); if(ban) v.querySelector('#inst-slot').appendChild(ban); const inst = (ln || ban) ? null : installNote(); if(inst) v.querySelector('#inst-slot').appendChild(inst);
-  // (no separate "recently edited" row any more – the list itself is sorted by last change)
   const list = v.querySelector('#list');
   const inScope = i => (q ? true : inFolder(i, f ? f.id : 'all')) && inTeam(i, teamF) && (!stF || (stF==='fb' ? !!(statMap[i.id] && statMap[i.id].fb) : i.status===stF)) && matchQ(i);
   function renderList(){
-    const rows = visible.filter(inScope).sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0)); list.innerHTML = '';
+    const rows = visible.filter(inScope).sort(SORTS[sortK]); list.innerHTML = '';
     if(!rows.length){
-      if(q) list.innerHTML = `<div class="card empty"><h2>${t('no_result')}</h2></div>`;
+      if(q || stF) list.innerHTML = `<div class="card empty"><h2>${t('no_result')}</h2>${stF ? `<button class="btn ghost sm" style="margin-top:12px" data-clearst>${t('st_clear')}</button>` : ''}</div>`;
       else if(f) list.innerHTML = `<div class="card empty"><h2>${t('empty_title')}</h2><div>${t('empty_project')}</div>${isEditor?`<button class="btn mint" style="margin-top:14px" data-new>${IC.plus} ${t('new_instr')}</button>`:''}</div>`;
       else list.innerHTML = `<div class="card empty"><h2>${t('empty_title')}</h2><div>${t('empty_sub')}</div>${isEditor?`<button class="btn mint" style="margin-top:14px" data-new>${IC.plus} ${t('new_instr')}</button>`:''}</div>`;
-      const nb = list.querySelector('[data-new]'); if(nb) nb.onclick = () => newInstrDlg(pid); return; }
+      const nb = list.querySelector('[data-new]'); if(nb) nb.onclick = () => newInstrDlg(pid); const cs = list.querySelector('[data-clearst]'); if(cs) cs.onclick = () => setSt(''); return; }
     // v12.38: 40 cards at a time – 1000+ cards with a thumbnail each froze the page; more follow when the end scrolls into view (or on tap)
     const PAGE = 40; let shown = 0; const opts = {showFolder: (!f || !!q) && folders.length > 0, onChange: render};
     const more = el(`<div class="lmore" id="lmore"><button class="btn ghost" id="lmore-btn"></button></div>`);
@@ -166,19 +189,27 @@ async function renderDashboard(app, pid){
     list.appendChild(more); more.querySelector('#lmore-btn').onclick = addPage; addPage();
     if('IntersectionObserver' in window){ const io = new IntersectionObserver(es => { if(es.some(x => x.isIntersecting)){ if(!more.isConnected){ io.disconnect(); return; } addPage(); } }, {rootMargin:'600px'}); io.observe(more); }
   }
-  renderList();
+  const redrawChips = () => { const lc = v.querySelector('#lchips'); if(lc){ lc.innerHTML = chipsHtml(); wireChips(); } };
+  const setSt = k => { stF = k; try{ sessionStorage.setItem('gg_stf', stF); }catch(e){} redrawChips(); const ib = v.querySelector('#inbox'); if(ib){ ib.innerHTML = inboxHtml(); wireInbox(); } renderList(); };
+  const wireChips = () => $$('#lchips [data-st]', v).forEach(b => b.onclick = () => setSt(stF===b.dataset.st ? '' : b.dataset.st));
+  renderList(); wireChips();
   const nb = v.querySelector('#new'); if(nb) nb.onclick = () => newInstrDlg(pid);
-  const qi = v.querySelector('#q'); if(qi) qi.oninput = () => { q = qi.value.trim().toLowerCase(); fq = q; redrawChips(); renderList(); };
-  const wireInbox = () => { const td = v.querySelector('#todo'); if(td) td.onclick = () => { stF = stF==='review' ? '' : 'review'; try{ sessionStorage.setItem('gg_stf', stF); }catch(e){} render(); };
-    const tf = v.querySelector('#todo-fb'); if(tf) tf.onclick = () => { stF = stF==='fb' ? '' : 'fb'; try{ sessionStorage.setItem('gg_stf', stF); }catch(e){} render(); }; };
-  wireInbox(); G.onStats = () => { const ib = v.querySelector('#inbox'); if(ib){ ib.innerHTML = inboxHtml(); wireInbox(); } if(stF==='fb') renderList(); };
-  $$('#tfilter button', v).forEach(b => b.onclick = () => { try{ sessionStorage.setItem('gg_team', b.dataset.t); }catch(e){} render(); });
-  const ts = v.querySelector('#tsel'); if(ts) ts.onchange = () => { try{ sessionStorage.setItem('gg_team', ts.value); }catch(e){} render(); };
-  const redrawChips = () => { const fc = v.querySelector('#fchips'); if(!fc) return; fc.innerHTML = folderChips(); fc.classList.toggle('collapsed', manyF && !fExp && !fq); const sec = v.querySelector('#filters'); if(sec) sec.classList.toggle('exp', manyF && !!(fExp || fq)); const fh = v.querySelector('#fhide'); if(fh) fh.outerHTML = hideBtn() || '<span hidden id="fhide"></span>'; const fe = v.querySelector('#fexp'); if(fe) fe.outerHTML = expBtn() || '<span hidden id="fexp"></span>'; wireChips(); };
-  const wireChips = () => { const fa = v.querySelector('#fadd'); if(fa) fa.onclick = async () => { const nf = await newFolderDlg(); if(nf) go('p/'+nf.id); };
-    const fh = v.querySelector('#fhide'); if(fh) fh.onclick = () => { hideEmpty = !hideEmpty; try{ sessionStorage.setItem('gg_fhide', hideEmpty ? '1' : '0'); }catch(e){} redrawChips(); };
-    const fe = v.querySelector('#fexp'); if(fe) fe.onclick = () => { fExp = !fExp; try{ sessionStorage.setItem('gg_fexp', fExp ? '1' : '0'); }catch(e){} redrawChips(); }; };
-  wireChips();
+  const qi = v.querySelector('#q'); if(qi) qi.oninput = () => { q = qi.value.trim().toLowerCase(); redrawChips(); renderList(); };
+  const so = v.querySelector('#sort'); if(so) so.onchange = () => { sortK = so.value; try{ sessionStorage.setItem('gg_sort', sortK); }catch(e){} renderList(); };
+  const wireInbox = () => { const td = v.querySelector('#todo'); if(td) td.onclick = () => setSt(stF==='review' ? '' : 'review');
+    const tf = v.querySelector('#todo-fb'); if(tf) tf.onclick = () => setSt(stF==='fb' ? '' : 'fb'); };
+  wireInbox(); G.onStats = () => { const ib = v.querySelector('#inbox'); if(ib){ ib.innerHTML = inboxHtml(); wireInbox(); } redrawChips(); if(stF==='fb') renderList(); };
+  // navigator – on the page (PC) and, on the phone, in a sheet behind the scope button; both share the markup and the wiring
+  const wireNav = (root, close) => {
+    $$('[data-t]', root).forEach(b => b.onclick = () => { try{ sessionStorage.setItem('gg_team', b.dataset.t); }catch(e){} if(close) close(); if(pid) go(''); else render(); });
+    $$('a[data-f]', root).forEach(a => a.addEventListener('click', () => { if(close) close(); }));
+    const fa = root.querySelector('[data-fadd]'); if(fa) fa.onclick = async () => { const nf = await newFolderDlg(); if(nf){ if(close) close(); go('p/'+nf.id); } };
+    const fh = root.querySelector('#fhide'); if(fh) fh.onclick = () => { hideEmpty = !hideEmpty; try{ sessionStorage.setItem('gg_fhide', hideEmpty ? '1' : '0'); }catch(e){} redrawNav(root); };
+    const fi = root.querySelector('[data-fq]'); if(fi){ let tm = 0; fi.oninput = () => { fq = fi.value.trim().toLowerCase(); clearTimeout(tm); tm = setTimeout(() => { const fl = root.querySelector('[data-flist]'); if(fl){ fl.innerHTML = folderRows(); $$('a[data-f]', fl).forEach(a => a.addEventListener('click', () => { if(close) close(); })); } const hb = root.querySelector('#fhide'); if(hb) hb.outerHTML = hideBtn(); const hb2 = root.querySelector('#fhide'); if(hb2) hb2.onclick = fh ? fh.onclick : null; }, 80); }; }
+  };
+  const redrawNav = (root, close) => { const st = root.scrollTop; root.innerHTML = navHtml(); wireNav(root, close); root.scrollTop = st; const fi = root.querySelector('[data-fq]'); if(fi && fq){ fi.focus(); fi.setSelectionRange(fq.length, fq.length); } };
+  const nav = v.querySelector('#dnav'); if(nav) wireNav(nav);
+  const sc = v.querySelector('#scope'); if(sc) sc.onclick = () => modal(`<div class="dnav sheet" id="dnav-sheet"></div>`, (bg, close) => { const root = bg.querySelector('#dnav-sheet'); root.innerHTML = navHtml(); wireNav(root, close); });
   if(f && f.id!=='none'){
     const rows = () => visible.filter(i => i.folder===f.id);
     const doRename = async () => { const n = await promptM(t('rename_folder'), t('folder_ph'), f.name); if(!n || !n.trim()) return; f.name = n.trim(); await saveWs({folders:S.wsRow.folders}); render(); };

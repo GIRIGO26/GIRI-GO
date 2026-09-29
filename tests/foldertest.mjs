@@ -12,26 +12,32 @@ await d.goto(BASE+'/index3.html'); await d.waitForTimeout(2500);
 { const id0 = await d.evaluate(()=>window.__tables.instructions[0].id); await d.click(`[data-sid="${id0}"] [data-a="more"]`); await d.waitForTimeout(300); await d.click('[data-m="folder"]'); await d.waitForTimeout(300); await d.click('[data-fid="f1"]'); await d.waitForTimeout(800); }
 await d.goto(BASE+'/index3.html#/x'); await d.waitForTimeout(200); await d.goto(BASE+'/index3.html#/'); await d.waitForTimeout(1200);
 console.log('instruction in f1:', await d.evaluate(()=>window.__tables.instructions[0].data.folder));
-console.log('team control:', await d.evaluate(() => document.querySelector('#tsel') ? 'select with '+document.querySelectorAll('#tsel option').length+' options' : 'chips'));
-console.log('folder panel many:', await d.evaluate(() => !!document.querySelector('.fpanel.many')), '| chips shown:', await d.$$eval('#fchips .fch:not(.add):not(.ghost)', x => x.length), '| hide toggle:', await d.$eval('#fhide', e => e.textContent.trim()).catch(() => 'none'));
-console.log('v12.38.2 filter card:', !!(await d.$('#filters .frow #tsel')), '| chips collapsed:', await d.$eval('#fchips', e => e.classList.contains('collapsed')), '| expand link:', await d.$eval('#fexp', e => e.textContent.trim()));
-await d.click('#fexp'); await d.waitForTimeout(200); console.log('after expand: collapsed =', await d.$eval('#fchips', e => e.classList.contains('collapsed')), '| link:', await d.$eval('#fexp', e => e.textContent.trim()));
-await d.click('#fhide'); await d.waitForTimeout(200); console.log('after show empties:', await d.$$eval('#fchips .fch:not(.add):not(.ghost)', x => x.length), '| toggle:', await d.$eval('#fhide', e => e.textContent.trim()));
-// v12.37.1: one search box for folders AND instructions (full text)
-console.log('folder search box gone:', !(await d.$('#fq')), '| one box:', !!(await d.$('#q')), '| placeholder:', await d.$eval('#q', e => e.placeholder));
-await d.fill('#q', 'platz 12'); await d.waitForTimeout(200); console.log('search "platz 12":', await d.$$eval('#fchips .fch:not(.add):not(.ghost)', x => x.map(e => e.textContent.trim().replace(/\s+/g,' ')).join(', ')));
+// v12.42: the navigator – all → teams → folders of the team; empty folders fold away, a folder search finds them anyway
+const F = '#dnav [data-flist] a[data-f]:not([data-f="none"])';
+console.log('navigator:', !!(await d.$('#dnav')), '| team rows:', await d.$$eval('#dnav [data-t]', x => x.map(b => b.dataset.t).join(',')), '| old filter card gone:', !(await d.$('#filters')));
+console.log('folders shown:', await d.$$eval(F, x => x.length), '| hide toggle:', await d.$eval('#dnav #fhide', e => e.textContent.trim()).catch(() => 'none'), '| folder search box:', !!(await d.$('#dnav [data-fq]')));
+await d.click('#dnav #fhide'); await d.waitForTimeout(250); console.log('after show empties:', await d.$$eval(F, x => x.length), '| toggle:', await d.$eval('#dnav #fhide', e => e.textContent.trim()));
+await d.fill('#dnav [data-fq]', 'platz 12'); await d.waitForTimeout(250); console.log('folder search "platz 12":', await d.$$eval(F, x => x.map(e => e.textContent.trim().replace(/\s+/g,' ')).join(', ')));
+await d.fill('#dnav [data-fq]', ''); await d.waitForTimeout(250);
+// status chips + sort above the list
+console.log('status chips:', await d.$$eval('#lchips [data-st]', x => x.map(b => b.dataset.st||'all').join(',')), '| sort options:', await d.$$eval('#sort option', x => x.map(o => o.value).join(',')));
+await d.click('#lchips [data-st="published"]'); await d.waitForTimeout(300); console.log('published only → cards:', await d.$$eval('#list article.instr', x => x.length), '| stf:', await d.evaluate(() => sessionStorage.getItem('gg_stf')));
+await d.click('#lchips [data-st="published"]'); await d.waitForTimeout(300); console.log('chip off → cards:', await d.$$eval('#list article.instr', x => x.length));
+await d.selectOption('#sort', 'name'); await d.waitForTimeout(300); console.log('sort stored:', await d.evaluate(() => sessionStorage.getItem('gg_sort')));
+// one search box for instructions (full text)
+console.log('one box:', !!(await d.$('#q')), '| placeholder:', await d.$eval('#q', e => e.placeholder));
 // full text: a word that only occurs in a step description of the seeded instruction
 const word = await d.evaluate(() => { const i = window.__tables.instructions[0]; const st = (i.data.steps||[]).find(s => s.desc && s.desc.trim().split(/\s+/).length > 2); const w = st && st.desc.trim().split(/\s+/).find(x => x.length > 5 && /^[a-zäöüß]+$/i.test(x)); return w ? w.toLowerCase() : ''; });
-if(word){ await d.fill('#q', word); await d.waitForTimeout(250); console.log('full-text "'+word+'":', await d.$$eval('#list article.instr', x => x.length), 'result(s) | folder chip of hit shown:', await d.$$eval('#fchips .fch:not(.add):not(.ghost)', x => x.map(e => e.textContent.trim().replace(/\s+/g,' ')).join(', '))); }
+if(word){ await d.fill('#q', word); await d.waitForTimeout(250); console.log('full-text "'+word+'":', await d.$$eval('#list article.instr', x => x.length), 'result(s)'); }
 else console.log('full-text: no step description in seed to test with');
 await d.fill('#q', ''); await d.waitForTimeout(200);
 await d.screenshot({path:OUT+'/fo1-many.png', fullPage:true});
-// team select scopes the folders: tm2 owns the odd Arbeitsplatz folders (20) + folders without team are NOT shown under a team
-await d.selectOption('#tsel', 'tm2'); await d.waitForTimeout(800);
-console.log('team tm2 folders:', await d.$$eval('#fchips .fch:not(.add):not(.ghost)', x => x.length), '| first:', await d.$$eval('#fchips .fch:not(.add):not(.ghost)', x => x.slice(0,3).map(e => e.textContent.trim().replace(/\s+/g,' ')).join(', ')), '| session team:', await d.evaluate(() => sessionStorage.getItem('gg_team')));
-await d.selectOption('#tsel', 'none'); await d.waitForTimeout(800);
-console.log('no-team folders:', await d.$$eval('#fchips .fch:not(.add):not(.ghost)', x => x.length));
-await d.selectOption('#tsel', ''); await d.waitForTimeout(800);
+// a team row scopes the folders: tm2 owns the odd Arbeitsplatz folders (20) + folders without team are NOT shown under a team
+await d.click('#dnav [data-t="tm2"]'); await d.waitForTimeout(800);
+console.log('team tm2 folders:', await d.$$eval(F, x => x.length), '| first:', await d.$$eval(F, x => x.slice(0,3).map(e => e.textContent.trim().replace(/\s+/g,' ')).join(', ')), '| session team:', await d.evaluate(() => sessionStorage.getItem('gg_team')));
+await d.click('#dnav [data-t="none"]'); await d.waitForTimeout(800);
+console.log('no-team folders:', await d.$$eval(F, x => x.length));
+await d.click('#dnav [data-nav="all"]'); await d.waitForTimeout(800); console.log('back to all: team =', await d.evaluate(() => sessionStorage.getItem('gg_team')||'(none)'));
 // admin: delete empty folders
 await d.goto(BASE+'/index3.html#/admin'); await d.waitForTimeout(1200);
 d.once('dialog', dlg => dlg.accept());

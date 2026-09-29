@@ -10,7 +10,7 @@ page.on('console', m => { if(m.type()==='error' && !m.text().includes('ERR_TUNNE
 await page.goto(BASE+'/index3.html'); await page.waitForTimeout(2500);
 await page.screenshot({path:OUT+'/e1-projects.png'});
 // new project via card, then project page
-await page.click('#fadd'); await page.waitForTimeout(300); await page.fill('#pm-in', 'Testprojekt'); await page.click('[data-ok]'); await page.waitForTimeout(900);
+await page.click('#dnav [data-fadd]'); await page.waitForTimeout(300); await page.fill('#pm-in', 'Testprojekt'); await page.click('[data-ok]'); await page.waitForTimeout(900);
 console.log('hash after new project:', await page.evaluate(()=>location.hash));
 await page.screenshot({path:OUT+'/e2-project-empty.png'});
 await page.click('#new'); await page.waitForTimeout(300); await page.fill('#ni-t', 'Anleitung im Projekt'); await page.click('.modal [data-ok]'); await page.waitForTimeout(800);
@@ -19,7 +19,7 @@ await page.goto(BASE+'/index3.html#/'); await page.waitForTimeout(1000); await p
 const id0 = await page.evaluate(()=>window.__tables.instructions[0].id);
 await page.click(`[data-sid="${id0}"] [data-a="more"]`); await page.waitForTimeout(300); await page.click('[data-m="folder"]'); await page.waitForTimeout(300); await page.click('[data-fid="f2"]'); await page.waitForTimeout(600);
 console.log('folder set:', await page.evaluate(()=>window.__tables.instructions[0].data.folder));
-await page.click('.fch[data-f="f2"]'); await page.waitForTimeout(1000); await page.screenshot({path:OUT+'/e4-project.png'});
+await page.click('#dnav a[data-f="f2"]'); await page.waitForTimeout(1000); await page.screenshot({path:OUT+'/e4-project.png'});
 console.log('folder view:', await page.$eval('.dash h1', e => e.textContent.trim()), '| cards:', await page.$$eval('.card.instr', x => x.length));
 // editor: rich text + rotation + emoji picker
 await page.click(`[data-sid="${id0}"] .title`); await page.waitForTimeout(1200);
