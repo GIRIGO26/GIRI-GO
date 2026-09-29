@@ -27,7 +27,7 @@ await page.click(`[data-sid="${id0}"] .title`); await page.waitForTimeout(1200);
 await page.fill('#sdesc', 'Drehmoment **10 Nm**\n- Schraube ==M6== einsetzen'); await page.waitForTimeout(500);
 await page.click('#symdock [data-tab="mark"]'); await page.waitForTimeout(200); await page.click('[data-tool="rect"]'); await page.waitForTimeout(200); await page.keyboard.press(']'); await page.keyboard.press('+'); await page.waitForTimeout(200);
 await page.click('#symdock [data-tab="emoji"]'); await page.waitForTimeout(300); await page.screenshot({path:OUT+'/e5-emoji.png'});
-await page.click('#symdock [data-eg="6"]'); await page.waitForTimeout(300); await page.screenshot({path:OUT+'/e6-emoji-objects.png'});
+await page.selectOption('#symdock .ss-grp select', '6'); await page.waitForTimeout(300); await page.screenshot({path:OUT+'/e6-emoji-objects.png'});
 await page.fill('#symdock #ss-q', 'wrench'); await page.waitForTimeout(400); await page.screenshot({path:OUT+'/e7-emoji-search.png'});
 const hits = await page.evaluate(()=>[...document.querySelectorAll('#symdock [data-e]')].map(b=>b.dataset.e)); console.log('wrench hits:', hits.join(' '));
 await page.click('#symdock [data-e]'); await page.waitForTimeout(400);

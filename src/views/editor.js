@@ -354,7 +354,6 @@ async function renderEditor(app, id, selStepId, fbId){
     const syncUI = force => { const sig = s.ann.map(a => a.id+':'+(a.t||0)+':'+a.type+':'+(a.text||'')+':'+(a.n||'')+':'+(a.color||'')+':'+(a.style||'')+':'+(a.anim||'')+':'+(a.tx||0)+':'+(a.ty||0)+':'+(a.track ? a.track.pts.length : 0)).join('|')+'#'+selAnn; if(force || sig !== uiSig){ uiSig = sig; renderAnnList(); } };
     const draw = () => { cv.style.width = box.clientWidth+'px'; cv.style.height = box.clientHeight+'px'; drawAll(cv, s.ann, mw(), mh(), selAnn, isVis, isV ? curTime : null); syncUI(false); };
     const ro = new ResizeObserver(draw); ro.observe(box); const offImg = onImgReady(draw);
-    const poseOf = a => { const tx = a.tx||0, ty = a.ty||0; if(!tx && !ty) return 'flat'; if(Math.abs(tx-58) < 8 && !ty) return 'table'; if(!tx && Math.abs(ty+48) < 8) return 'left'; if(!tx && Math.abs(ty-48) < 8) return 'right'; return 'custom'; };
     const annToolId = a => a.type==='turn' ? (a.dir==='ccw' ? 'turn_ccw' : 'turn') : a.type==='thumb' ? (a.dir==='down' ? 'thumb_down' : 'thumb_up') : a.type==='smile' ? (a.mood==='sad' ? 'smile_sad' : 'smile') : a.type;
     // a short ring where the picture was tapped: "the next symbol lands here"
     let tapEls = null, tapTimer = 0;
@@ -390,7 +389,7 @@ async function renderEditor(app, id, selStepId, fbId){
       if(ty==='arrow') Object.assign(base, {x:px-0.13, y:py+0.11, x2:px+0.13, y2:py-0.11});
       else if(ty==='circle'||ty==='rect') Object.assign(base, {x:px-0.15, y:py-0.2, x2:px+0.15, y2:py+0.2});
       else if(ty==='text'){ const txt = await promptM(t('text_prompt'), 'z. B. 10 Nm'); if(!txt) return; Object.assign(base, {x:px-0.1, y:py, text:txt}); }
-      else if(ty==='emoji'){ Object.assign(base, {x:px, y:py, emoji:spec.emoji, size:0.16}); }
+      else if(ty==='emoji'){ Object.assign(base, {x:px, y:py, emoji:spec.emoji, size:0.24}); }
       else if(ty==='img'){ Object.assign(base, {x:px, y:py, src:spec.src, name:spec.name||'', ar:spec.ar||1, style: spec.alpha ? 'glow' : 'sticker', size:0.2}); preloadImg(spec.src); }
       else if(ty==='iso'){ Object.assign(base, {x:px, y:py, code:spec.code, ar:spec.r||1, name:spec.name||spec.code, size:0.2}); preloadImg(isoUrl(spec.code)); }
       else if(ty==='number'){ const nums = s.ann.filter(a=>a.type==='number').map(a=>a.n); Object.assign(base, {x:px, y:py, n:(Math.max(0,...nums)||0)+1}); }
@@ -420,9 +419,9 @@ async function renderEditor(app, id, selStepId, fbId){
       $$('.mark', mk).forEach(m => m.classList.toggle('on', m.dataset.id===selAnn)); }
     function renderAnnList(){ const l = stage.querySelector('#annlist'); if(!l) return; renderMarks(false);
       const sorted = [...s.ann].sort((a,b) => (a.t||0)-(b.t||0));
-      l.innerHTML = sorted.length ? sorted.map(a => { const on = a.id===selAnn; return `<span class="ann-pill ${on?'on':''}" data-id="${a.id}">${a.type==='emoji'?a.emoji:a.type==='img'?`<img class="pimg" src="${esc(a.src)}" alt="">${esc(a.name||t('tool_img'))}`:a.type==='iso'?`<img class="pimg" src="${isoUrl(a.code)}" alt="">${esc(a.name||a.code)}`:t('tool_'+annToolId(a))}${a.type==='text'?': '+esc(a.text):''}${a.type==='number'?' '+a.n:''}${isV?` <span class="muted tnum">@${fmtSec(a.t||0)}s</span>`:''}<button data-del="${a.id}" title="${t('delete_ann')}">×</button></span>`; }).join('') : `<span class="muted">${t('no_ann')}</span>`;
+      l.innerHTML = sorted.length ? sorted.map(a => { const on = a.id===selAnn; return `<span class="ann-pill ${on?'on':''}" data-id="${a.id}">${a.type==='emoji'?a.emoji:a.type==='img'?`<img class="pimg" src="${esc(a.src)}" alt="">${esc(a.name||t('tool_img'))}`:a.type==='iso'?`<img class="pimg" src="${isoUrl(a.code)}" alt="">${esc(a.name||a.code)}`:t('tool_'+annToolId(a))}${a.type==='text'?': '+esc(a.text):''}${a.type==='number'?' '+a.n:''}${isV?` <span class="muted tnum">@${fmtSec(a.t||0)}s</span>`:''}<button data-del="${a.id}" title="${t('delete_ann')}">${IC.trash}</button></span>`; }).join('') : `<span class="muted">${t('no_ann')}</span>`;
       $$('.ann-pill', l).forEach(p => { p.onclick = async e => {
-        if(e.target.dataset.del){ s.ann = s.ann.filter(a=>a.id!==e.target.dataset.del); if(selAnn===e.target.dataset.del) selAnn=null; touch(); draw(); renderList(); return; }
+        const delB = e.target.closest('[data-del]'); if(delB){ e.stopPropagation(); s.ann = s.ann.filter(a=>a.id!==delB.dataset.del); if(selAnn===delB.dataset.del) selAnn=null; touch(); draw(); syncUI(true); renderList(); return; }
         const a = s.ann.find(x=>x.id===p.dataset.id); if(!a) return;
         if(selAnn===a.id && a.type==='text'){ const txt = await promptM(t('text_prompt'), 'z. B. 10 Nm', a.text||''); if(txt!==null && txt.trim()){ a.text = txt.trim(); draw(); touch(); } return; }
         selAnn = a.id; if(isV){ med.pause(); seekTo(a.t||0); } draw(); }; });
@@ -431,19 +430,13 @@ async function renderEditor(app, id, selStepId, fbId){
       // v12.40: one bar for the selected symbol – colour, size, pose (3D presets; fine-tuning is the orbit handle on the picture), animation, duplicate, delete
       const p3 = stage.querySelector('#ann3d'); if(p3){ const a = s.ann.find(x=>x.id===selAnn);
         if(!a){ p3.hidden = true; p3.dataset.sig = ''; }
-        else { const sig = a.id+':'+(a.anim||'')+':'+(a.track ? a.track.pts.length : 0)+':'+(a.color||'')+':'+(a.style||'')+':'+poseOf(a); const can3 = !NO3D.has(a.type);
+        else { const sig = a.id+':'+(a.anim||'')+':'+(a.track ? a.track.pts.length : 0)+':'+(a.color||'')+':'+(a.style||'');
+          // v12.44: one slim row – colour (where the symbol has one), animation, own picture: glow/sticker, video: static/follow.
+          // Size and rotation are the handles / two fingers, tilt is the grip under the symbol, delete is the trash on the pill.
           if(p3.dataset.sig !== sig){ p3.dataset.sig = sig; p3.hidden = false;
-            const POSES = [['flat', t('pose_front')], ['table', t('pose_table')], ['left', t('pose_left')], ['right', t('pose_right')]];
-            p3.innerHTML = `<div class="a3-row ab-main">${!FIXED_COL.includes(a.type) ? `<span class="pill-sw">${SWATCHES.map(c=>`<button class="sw ${c===(a.color||'blue')?'on':''}" data-col="${c}" style="background:${COLORS[c]}" title="${c}"></button>`).join('')}</span>` : ''}<span class="ab-size"><button class="a3-chip" data-size="0.85" title="${t('smaller')}">−</button><button class="a3-chip" data-size="1.18" title="${t('larger')}">+</button></span>${a.type==='img' ? `<button class="a3-chip" data-style="${(a.style||'glow')==='glow'?'sticker':'glow'}" title="${t('img_style')}">${(a.style||'glow')==='glow'?'✨ '+t('style_glow'):'🏷 '+t('style_sticker')}</button>` : ''}<span class="ab-spacer"></span><button class="a3-chip" data-dup title="${t('duplicate')}">${IC.copy||'⧉'} ${t('duplicate')}</button><button class="a3-chip del" data-del2 title="${t('delete_ann')}">${IC.trash} ${t('delete')}</button></div>
-              ${can3 ? `<div class="a3-row"><span class="a3-lbl">${t('pose')}</span>${POSES.map(([k, l]) => `<button class="a3-chip ${poseOf(a)===k?'on':''}" data-pose="${k}">${l}</button>`).join('')}<button class="a3-chip" data-flat hidden></button><span class="muted a3-hint">${t('pose_hint')}</span></div>` : ''}
-              <div class="a3-row"><span class="a3-lbl">${t('a3_anim')}</span>${['','pulse','bounce','blink'].map(k => `<button class="a3-chip ${(a.anim||'')===k?'on':''}" data-anim="${k}">${t('anim_'+(k||'none'))}</button>`).join('')}</div>${isV ? `<div class="a3-row"><span class="a3-lbl">${t('a3_video')}</span><button class="a3-chip ${a.track?'':'on'}" data-trk="off">${t('trk_static')}</button><button class="a3-chip ${a.track?'on':''}" data-trk="on">${a.track ? t('trk_on', {t:fmtSec(trackEnd(a))}) : t('trk_follow')}</button><span class="muted a3-hint">${t('trk_hint')}</span></div>` : ''}`;
+            p3.innerHTML = `<div class="a3-row ab-main">${!FIXED_COL.includes(a.type) ? `<span class="pill-sw">${SWATCHES.map(c=>`<button class="sw ${c===(a.color||'blue')?'on':''}" data-col="${c}" style="background:${COLORS[c]}" title="${c}"></button>`).join('')}</span>` : ''}${a.type==='img' ? `<button class="a3-chip" data-style="${(a.style||'glow')==='glow'?'sticker':'glow'}" title="${t('img_style')}">${(a.style||'glow')==='glow'?'✨ '+t('style_glow'):'🏷 '+t('style_sticker')}</button>` : ''}<span class="a3-lbl">${t('a3_anim')}</span><span class="a3-anim">${['','pulse','bounce','blink'].map(k => `<button class="a3-chip ${(a.anim||'')===k?'on':''}" data-anim="${k}">${t('anim_'+(k||'none'))}</button>`).join('')}</span>${isV ? `<span class="a3-vid"><button class="a3-chip ${a.track?'':'on'}" data-trk="off">${t('trk_static')}</button><button class="a3-chip ${a.track?'on':''}" data-trk="on">${a.track ? t('trk_on', {t:fmtSec(trackEnd(a))}) : t('trk_follow')}</button></span>` : ''}</div>`;
             $$('[data-col]', p3).forEach(b => b.onclick = () => { a.color = b.dataset.col; color = a.color; p3.dataset.sig = ''; draw(); touch(); });
-            $$('[data-size]', p3).forEach(b => b.onclick = () => { scaleAnn(a, +b.dataset.size); draw(); touch(); });
             const stB = p3.querySelector('[data-style]'); if(stB) stB.onclick = () => { a.style = stB.dataset.style; p3.dataset.sig = ''; draw(); touch(); };
-            p3.querySelector('[data-dup]').onclick = () => { const c = JSON.parse(JSON.stringify(a)); c.id = uid(); const d = 0.06; c.x += d; c.y += d; if(c.x2!=null){ c.x2 += d; c.y2 += d; } delete c.track; s.ann.push(c); selAnn = c.id; draw(); renderList(); touch(); };
-            p3.querySelector('[data-del2]').onclick = () => { s.ann = s.ann.filter(x=>x.id!==a.id); selAnn = null; draw(); renderList(); touch(); };
-            $$('[data-pose]', p3).forEach(b => b.onclick = () => { const k = b.dataset.pose; delete a.tx; delete a.ty; if(k==='table') a.tx = 58; else if(k==='left') a.ty = -48; else if(k==='right') a.ty = 48; p3.dataset.sig = ''; draw(); touch(); });
-            const fl = p3.querySelector('[data-flat]'); if(fl) fl.onclick = () => { delete a.tx; delete a.ty; p3.dataset.sig = ''; draw(); touch(); };
             $$('[data-anim]', p3).forEach(b => b.onclick = () => { if(b.dataset.anim) a.anim = b.dataset.anim; else delete a.anim; p3.dataset.sig = ''; draw(); touch(); });
             $$('[data-trk]', p3).forEach(b => b.onclick = async () => {
               if(b.dataset.trk==='off'){ delete a.track; p3.dataset.sig = ''; draw(); touch(); return; }

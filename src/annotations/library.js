@@ -92,13 +92,13 @@ function symbolPanel(host, opts={}){
       $$('[data-g]', chips).forEach(b => b.onclick = () => { isoGrp = b.dataset.g; try{ localStorage.setItem('gg_isogrp', isoGrp); }catch(e){} $$('[data-g]', chips).forEach(x => x.classList.toggle('on', x===b)); fill(); });
       fill(); }
     else if(tab==='own'){ body.appendChild(section('', ownTiles())); if((opts.symbols ? opts.symbols() : []).length) { const mg = el(`<button class="flink" style="margin:2px 0 0 4px">${t('sym_manage')}</button>`); mg.onclick = () => act({id:'img', type:'img', manage:true}); body.appendChild(mg); } }
-    else if(tab==='emoji'){ // v12.43: everything in place – recent, one chip per group, the grid; the search box above finds emojis too
+    else if(tab==='emoji'){ // v12.44: the group is a plain drop-down (icons in a row looked like emojis to pick), recents are labelled
       const r = (G.recentEmojis||[]); const emoTile = e => { const b = el(`<button class="ss-tile emo" data-e="${e}" title="${e}"><span class="ss-emo">${e}</span></button>`); const spec = {id:'emoji', type:'emoji', emoji:e}; b.onclick = () => { if(b._dragged){ b._dragged = false; return; } G.recentEmojis = [e, ...(G.recentEmojis||[]).filter(x=>x!==e)].slice(0,16); try{ localStorage.setItem('gg_emo', JSON.stringify(G.recentEmojis)); }catch(x){} pick(spec); }; if(opts.tileInit) opts.tileInit(b, spec); return b; };
-      if(r.length) body.appendChild(section(t('recent'), r.map(emoTile), 'emo'));
-      const chips = el(`<div class="ss-chips emo">${EMOJI_GROUPS.map((g, i) => `<button class="ss-chip ${i===emoGrp?'on':''}" data-eg="${i}" title="${esc(G.LANG==='de' ? g.de : g.n)}">${g.ic}</button>`).join('')}</div>`); body.appendChild(chips);
+      if(r.length) body.appendChild(section(t('recent_used'), r.map(emoTile), 'emo'));
+      const sel = el(`<label class="ss-grp"><span>${t('emoji_group')}</span><select>${EMOJI_GROUPS.map((g, i) => `<option value="${i}" ${i===emoGrp?'selected':''}>${g.ic} ${esc(G.LANG==='de' ? g.de : g.n)}</option>`).join('')}</select></label>`); body.appendChild(sel);
       const holder = el(`<div></div>`); body.appendChild(holder);
       const fill = () => { const g = EMOJI_GROUPS[emoGrp]; holder.innerHTML = ''; holder.appendChild(section(G.LANG==='de' ? g.de : g.n, g.e.split(' ').map(emoTile), 'emo')); };
-      $$('[data-eg]', chips).forEach(b => b.onclick = () => { emoGrp = +b.dataset.eg; try{ localStorage.setItem('gg_emogrp', emoGrp); }catch(e){} $$('[data-eg]', chips).forEach(x => x.classList.toggle('on', x===b)); fill(); });
+      sel.querySelector('select').onchange = e => { emoGrp = +e.target.value; try{ localStorage.setItem('gg_emogrp', emoGrp); }catch(x){} fill(); };
       fill(); }
     else { body.appendChild(section('', VECTOR.filter(v => v.tab===tab).map(vectorTile))); }
   };

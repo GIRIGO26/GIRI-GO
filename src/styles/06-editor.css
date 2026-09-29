@@ -87,7 +87,8 @@
 .addstep .as-sub{font-size:11.5px;color:var(--ink-3);line-height:1.35}
 .ann-pill{display:inline-flex;align-items:center;gap:4px;padding:5px 6px 5px 10px;border-radius:9px;background:var(--surface-2);font-size:12px;font-weight:600;border:1.5px solid transparent}
 .ann-pill.on{border-color:var(--blue);background:var(--blue-lightest)}
-.ann-pill button{color:var(--ink-3);font-size:14px;line-height:1;width:20px;height:20px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center}
+.ann-pill button{color:var(--ink-3);font-size:14px;line-height:1;width:24px;height:24px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center}
+.ann-pill button svg{width:14px;height:14px}
 .ann-pill button:hover{background:rgba(220,38,38,.1)}
 .pill-sw{display:inline-flex;gap:4px;margin:0 2px 0 6px}
 .pill-sw .sw{width:18px;height:18px;border-width:2px;box-shadow:0 0 0 1px var(--line-2)}
@@ -418,8 +419,8 @@
 .ss-emo{font-size:30px;line-height:1}
 .ss-tile.add{border-style:dashed;border-color:var(--line-2);background:transparent;cursor:pointer}
 .ss-tile.add.busy{opacity:.5;pointer-events:none}
-.ss-chips.emo .ss-chip{font-size:18px;padding:4px 9px;line-height:1.2}
-.ss-chips.emo .ss-chip.on{background:#0B0B0C}
+.ss-grp{display:flex;align-items:center;gap:8px;margin:2px 0 10px;font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.ss-grp select{-webkit-appearance:none;appearance:none;flex:0 1 260px;min-width:0;padding:9px 34px 9px 12px;border:1px solid var(--line-2);border-radius:12px;background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23525252' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;font:inherit;font-size:14px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--ink)}
 .ss-plus{font-size:26px;font-weight:700;color:var(--ink-3);line-height:52px}
 .ss-chips{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 10px}
 .ss-chip{padding:6px 11px;border-radius:999px;font-size:12.5px;font-weight:700;background:var(--surface-2);color:var(--ink-2);border:1.5px solid transparent}
@@ -436,10 +437,9 @@
 .symdock .ss-grid.iso{grid-template-columns:repeat(auto-fill,minmax(84px,1fr))}
 .tool-ghost canvas,.tool-ghost img{width:52px;height:52px;object-fit:contain}
 @media(max-width:560px){.ss-top{flex-wrap:wrap}.ss-search{flex:1 1 100%;margin-left:0}.symsheet .ss-tabs{flex-wrap:wrap;overflow:visible}}
-.ab-main{justify-content:flex-start;width:100%}
-.ab-size{display:inline-flex;gap:4px}
-.ab-size .a3-chip{width:34px;padding:6px 0;text-align:center;font-size:15px;line-height:1}
-.ab-spacer{flex:1}
+.ab-main{justify-content:flex-start;width:100%;gap:10px 14px}
+.a3-anim,.a3-vid{display:inline-flex;gap:4px;flex-wrap:wrap}
+.a3-anim::before{content:attr(data-l)}
 .a3-chip.del{color:var(--red,#DC2626)}
 .tapmark{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 0 0 2px rgba(0,78,173,.6),0 4px 12px rgba(0,0,0,.35);pointer-events:none;animation:tapmark .5s ease-out both;z-index:4}
 .tapchip{position:absolute;z-index:5;display:inline-flex;align-items:center;gap:6px;padding:8px 12px 8px 9px;border-radius:999px;background:#0B0B0C;color:#fff;font-size:13px;font-weight:700;box-shadow:0 8px 22px rgba(0,0,0,.35);white-space:nowrap;animation:chipin .22s var(--ease) both}

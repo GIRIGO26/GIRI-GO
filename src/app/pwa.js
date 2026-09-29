@@ -22,6 +22,13 @@ function installNote(){ // dashboard card, once per device, never inside the ins
   return n;
 }
 
+// v12.44: once the big note was dismissed, a slim one-line strip stays on the dashboard as long as the app is not installed
+function installStrip(){
+  if(isStandalone()) return null;
+  const n = el(`<button class="inst-strip" id="inst-strip">📲 <span>${t('inst_strip')}</span><b>${t('inst_strip_how')} →</b></button>`);
+  n.onclick = () => { if(G.installPrompt) doInstall(); else installGuide(); }; return n;
+}
+
 // iPhone: the mail link always opens Safari, never the home-screen app – say so once after a link login
 function linkNote(){
   let via = false; try{ via = !!sessionStorage.getItem('gg_via_link'); sessionStorage.removeItem('gg_via_link'); }catch(e){}
@@ -119,4 +126,4 @@ async function checkUpdate(force){
 
 async function pickupSession(){ if(!G.sb || S.user || G.pickingUp || !G.authReady) return; G.pickingUp = true; try{ const {data:{session}} = await G.sb.auth.getSession(); if(session){ await loadProfile(); if(S.user) render(); } }catch(e){} G.pickingUp = false; }
 
-export { isStandalone, isIOS, isAndroid, isPhone, doInstall, installNote, installBanner, linkNote, installGuide, reloadForUpdate, updateSafe, applyUpdateIfSafe, checkUpdate, pickupSession };
+export { isStandalone, isIOS, isAndroid, isPhone, doInstall, installNote, installBanner, installStrip, linkNote, installGuide, reloadForUpdate, updateSafe, applyUpdateIfSafe, checkUpdate, pickupSession };

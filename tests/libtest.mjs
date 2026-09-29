@@ -22,7 +22,7 @@ await d.click('.ss-chip[data-g="M"]'); await d.waitForTimeout(800); console.log(
 await d.click('.ss-grid.iso .ss-tile:nth-child(3)'); await d.waitForTimeout(700);
 const placed = await d.evaluate(() => { const st = window.__tables.instructions[0].data.steps.filter(s=>!s.kind)[0]; const a = st.ann[st.ann.length-1]; return a && {type:a.type, code:a.code, name:a.name, x:+a.x.toFixed(2), y:+a.y.toFixed(2), size:a.size}; });
 console.log('placed:', JSON.stringify(placed), placed && Math.abs(placed.x-0.25) < 0.03 && Math.abs(placed.y-0.7) < 0.03 ? '(at the tapped spot)' : '(NOT at the tapped spot)');
-console.log('selected bar: poses', await d.$$eval('#ann3d [data-pose]', x => x.length), '| swatches for ISO:', await d.$$eval('#ann3d [data-col]', x => x.length), '| dup/del:', !!(await d.$('#ann3d [data-dup]')), !!(await d.$('#ann3d [data-del2]')));
+console.log('selected bar: anim chips', await d.$$eval('#ann3d [data-anim]', x => x.length), '| swatches for ISO:', await d.$$eval('#ann3d [data-col]', x => x.length), '| pill trash:', !!(await d.$('.ann-pill.on [data-del] svg')));
 // search
 await d.click('#tools-open'); await d.waitForTimeout(500); await d.fill('#ss-q', 'gehör'); await d.waitForTimeout(600);
 console.log('search "gehör":', await d.$$eval('.ss-tile', x => x.map(e => e.title).join(' | ')));
