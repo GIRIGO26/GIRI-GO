@@ -2,6 +2,8 @@
 
 Leichtgewichtige Web-App für Video-/Foto-Arbeitsanleitungen: aufnehmen (3–5 s pro Schritt), annotieren, freigeben, per Link/QR ausführen, als SOP-PDF exportieren.
 
+**Repo:** `https://github.com/GIRIGO26/GIRI-GO` · **Live:** `https://go.ar-giri.de` (Cloudflare Workers, baut automatisch bei jedem Push auf `main`) · **Backend:** Supabase Frankfurt (`hcomtmogkuxxchrnticq`, eu-central-1) · Architektur: `ARCHITECTURE.md`, Datenbank: `supabase/schema.sql` + `supabase/migrations/`.
+
 ## v0.28 – KI-PDF-Import
 - **Neue Anleitung → „Aus PDF erstellen“**: Bestehende Arbeitsanweisung als PDF hochladen (max. 12 MB). Die KI schlägt Schritte, Kapitel, Warnhinweise und das passende Bild je Schritt vor; im Prüf-Dialog Texte ändern, Schritte löschen/verschieben, Bild wählen (Bildausschnitt · ganze Seite · Titelkarte), dann „Übernehmen“ → Entwurf mit Foto-Schritten, der Editor öffnet sich.
 - **Modell/Datenfluss:** Edge Function `pdf-analyze` → Google Vertex AI, **Gemini 3.5 Flash (`gemini-3.5-flash`), Region europe-west3 (Frankfurt)**, Projekt `giri-go`, Dienstkonto `giri-go-ai` (Secret `GOOGLE_SERVICE_ACCOUNT_JSON`). Structured Output (JSON-Schema) mit Bounding Boxes `[ymin,xmin,ymax,xmax]` 0–1000; die Bilder werden **im Browser** mit pdf.js aus der gerenderten Seite ausgeschnitten (funktioniert auch bei gescannten PDFs). Kein Anthropic/Claude in diesem Pfad. Überschreibbar per Function-Secrets `VERTEX_MODEL`, `VERTEX_REGION`, `VERTEX_PROJECT`.
@@ -97,8 +99,8 @@ Leichtgewichtige Web-App für Video-/Foto-Arbeitsanleitungen: aufnehmen (3–5 s
 
 ### 2. Auth konfigurieren (Magic Link)
 1. **Authentication → URL Configuration**
-   - Site URL: `https://leia-sales-ai.github.io/GIRI-GO/`
-   - Redirect URLs: `https://leia-sales-ai.github.io/GIRI-GO/**` hinzufügen
+   - Site URL: `https://go.ar-giri.de/`
+   - Redirect URLs: `https://go.ar-giri.de/**` hinzufügen (für lokale Entwicklung zusätzlich `http://localhost:5173/**`)
 2. **Authentication → Providers → Email**: Enabled, „Confirm email" darf an bleiben (Magic Link bestätigt automatisch).
 3. Für den Team-Einsatz nötig: **Authentication → Emails → SMTP Settings** eigenen Mailserver eintragen (aktuell Resend: Host `smtp.resend.com`, Port 465, User `resend`, Passwort = Resend-API-Key, Absender `giri-go@ar-giri.de`, „Minimum interval per user“ 60). Der eingebaute Mailversand ist auf wenige Mails pro Stunde begrenzt.
    - Damit die Mails schnell ankommen: In Resend die Domain `ar-giri.de` verifizieren (DNS: SPF, DKIM, DMARC – Status „Verified“). Ohne Verifizierung landen die Mails verzögert oder im Spam.
@@ -109,12 +111,12 @@ Leichtgewichtige Web-App für Video-/Foto-Arbeitsanleitungen: aufnehmen (3–5 s
    - Wer sich per Google/Microsoft anmeldet, braucht die Mail gar nicht (2b/2c).
 
 ### 2b. Google-Login (ab v0.14)
-1. Google Cloud Console → APIs & Dienste → Anmeldedaten → **OAuth-Client-ID** (Webanwendung). Autorisierte Weiterleitungs-URI: `https://goorpzgcxhtjbaothluv.supabase.co/auth/v1/callback`. OAuth-Zustimmungsseite: „Extern“ + **In Produktion** (für die Scopes E-Mail/Profil ist keine Google-Prüfung nötig); solange sie auf „Testing“ steht, können sich nur eingetragene Testnutzer anmelden.
+1. Google Cloud Console → APIs & Dienste → Anmeldedaten → **OAuth-Client-ID** (Webanwendung). Autorisierte Weiterleitungs-URI: `https://hcomtmogkuxxchrnticq.supabase.co/auth/v1/callback`. OAuth-Zustimmungsseite: „Extern“ + **In Produktion** (für die Scopes E-Mail/Profil ist keine Google-Prüfung nötig); solange sie auf „Testing“ steht, können sich nur eingetragene Testnutzer anmelden.
 2. Supabase → **Authentication → Sign In / Providers → Google** → Enabled, Client-ID + Client-Secret eintragen → Save.
 3. Fertig – der Button „Mit Google anmelden“ erscheint auf der Login-Seite automatisch, sobald der Provider aktiv ist (die App fragt `/auth/v1/settings` ab). Name kommt aus dem Google-Profil.
 
 ### 2c. Microsoft-Login (ab v0.15.1, für Kunden mit Microsoft 365)
-1. Azure-Portal / Entra Admin Center → App-Registrierungen → **Neue Registrierung**: Name „GIRI Go“, unterstützte Kontotypen „Konten in einem beliebigen Organisationsverzeichnis und persönliche Microsoft-Konten“, Redirect-URI (Web): `https://goorpzgcxhtjbaothluv.supabase.co/auth/v1/callback`.
+1. Azure-Portal / Entra Admin Center → App-Registrierungen → **Neue Registrierung**: Name „GIRI Go“, unterstützte Kontotypen „Konten in einem beliebigen Organisationsverzeichnis und persönliche Microsoft-Konten“, Redirect-URI (Web): `https://hcomtmogkuxxchrnticq.supabase.co/auth/v1/callback`.
 2. Zertifikate & Geheimnisse → **Neuer geheimer Clientschlüssel** (Wert kopieren, wird nur einmal angezeigt). API-Berechtigungen: `email`, `openid`, `profile`, `User.Read` (Standard).
 3. Supabase → **Authentication → Providers → Azure** → Enabled, Anwendungs-ID (Client) + Secret, Azure Tenant URL `https://login.microsoftonline.com/common` → Save. Button „Mit Microsoft anmelden“ erscheint automatisch.
 
@@ -122,10 +124,10 @@ Leichtgewichtige Web-App für Video-/Foto-Arbeitsanleitungen: aufnehmen (3–5 s
 - Firmen-Adresse (z. B. `@kunde.de`) → Workspace = Domain, wie beim Magic Link.
 - Öffentliche Anbieter (gmail.com, outlook.com, gmx, web.de, icloud …) → persönlicher Workspace pro Adresse, damit fremde Gmail-Nutzer nie im selben Workspace landen.
 
-### 3. GitHub Pages aktivieren
-1. Alle Dateien dieses Ordners ins Repo hochladen (Drag & Drop im Browser: „Add file → Upload files"), `index.html` muss im Root liegen.
-2. Repo → **Settings → Pages** → Source: **Deploy from a branch** → Branch `main`, Ordner `/ (root)` → Save.
-3. Nach 1–2 Minuten erreichbar unter `https://leia-sales-ai.github.io/GIRI-GO/`
+### 3. Hosting (Cloudflare Workers, seit v12.39)
+1. Repo `https://github.com/GIRIGO26/GIRI-GO`, Branch `main`; Cloudflare baut mit `npm run build:cf` (Ordner `dist/`) und veröffentlicht automatisch bei jedem Push.
+2. Nach 1–2 Minuten erreichbar unter `https://go.ar-giri.de/`. Installierte Apps holen die neue Version beim nächsten Öffnen (Versions-Check im Service Worker).
+3. Lokal: `npm run dev` (Vite, `http://localhost:5173`), Tests: `npm test`.
 
 ### 4. Erster Login
 - App öffnen → E-Mail + Name eingeben → Link in der Mail antippen.
