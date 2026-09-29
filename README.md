@@ -440,6 +440,12 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Installations-Hinweis**: nach „Später“/× bleibt eine schmale Zeile „📲 GIRI Go als App installieren · So geht’s“ auf der Startseite, solange die App nicht installiert ist (PC und Telefon).
 - Tests `animtest`, `libtest`, `check4` angepasst. 38 Tests grün.
 
+## v12.45.1 – Editor am PC: Symbolleiste kommt ins Bild, Video zeigt sofort das Standbild
+- **Symbolleiste unter dem Bild (PC)**: Die Bühne ist am PC eine eigene Scroll-Spalte; die Bibliothek stand unter dem Bild außerhalb des sichtbaren Bereichs – man sah nur die Reiter am unteren Rand, „es klappte nichts aus“. Jetzt scrollt ein Klick auf Reiter, Kategorie oder Gruppe die ganze Leiste ins Bild, ein Klick auf ein Symbol scrollt das Bild zurück (das Symbol liegt dann sichtbar in der Mitte). Die Leiste ist höher (bis 52 % der Fensterhöhe statt 236 px).
+- **Video-Schritt**: Das Standbild (Poster) erscheint sofort, dazu ein Ladekreis, bis das Video vom Server da ist (vorher: schwarze Fläche, „lädt ewig“ – die Ladezeit selbst hängt an der Videogröße, ≤ 1280 px/60 s ≈ 15 MB).
+- **Schnellerer Schrittwechsel**: Die 3D-Vorschauen der Symbolkacheln werden einmal gezeichnet und danach kopiert (die Leiste wurde bei jedem Schrittwechsel komplett neu gerendert).
+- Neuer Test `docktest` (Sichtbarkeit der Leiste nach Reiter-Klick, Bild nach Auswahl, Poster/Ladekreis, Zeiten).
+
 ## v12.45.0 – Rechte auf dem Server (Freigaben, Team-Sichtbarkeit, Rollen), DSGVO-Auskunft/-Löschung
 Bis hierhin prüfte die Datenbank nur grob (Workspace, „mehr als Viewer“); wer freigeben, veröffentlichen oder fremde Team-Anleitungen
 ändern darf, entschied allein die Oberfläche. Jetzt entscheidet die Datenbank – mit denselben Regeln wie `src/core/roles.js`.

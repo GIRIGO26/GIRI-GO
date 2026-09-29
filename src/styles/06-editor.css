@@ -51,6 +51,8 @@
 .ed-main{display:flex;flex-direction:column;gap:14px;min-width:0}
 .stage{padding:14px;min-width:0}
 @media(max-width:900px){.stage{padding:12px}}
+.media-box.loading::after{content:'';position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;animation:mspin .8s linear infinite;pointer-events:none;z-index:3}
+@keyframes mspin{to{transform:rotate(360deg)}}
 .media-box{position:relative;background:#000;border-radius:14px;overflow:hidden;width:100%;aspect-ratio:16/10;max-height:62vh;touch-action:none;margin-inline:auto;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .media-box video,.media-box img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
 .media-box .vbg{position:absolute;inset:-40px;background-size:cover;background-position:center;filter:blur(36px) brightness(.4) saturate(1.1);transform:scale(1.08);pointer-events:none}
@@ -429,7 +431,7 @@
 .ss-hint{margin:8px 0 0;font-size:12px;color:var(--ink-3);line-height:1.4;flex:0 0 auto}
 /* PC: docked under the picture – a compact card, the grid scrolls inside it */
 .symdock{margin-top:12px;padding:12px 14px 10px;border-radius:16px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line-2)}
-.symdock .ss-body{max-height:236px}
+.symdock .ss-body{max-height:min(52vh,480px)}
 .symdock .ss-tile{cursor:grab;user-select:none;-webkit-user-select:none}
 .symdock .ss-tile:active{cursor:grabbing}
 .symdock .ss-tile canvas,.symdock .ss-tile img{pointer-events:none}

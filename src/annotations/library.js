@@ -36,10 +36,17 @@ const sample = (v, color) => { const a = Object.assign({id:'p', type:v.type, col
   else if(v.type==='check'||v.type==='cross'||v.type==='smile') a.size = 0.95;
   else if(v.type==='emoji') a.emoji = '😀';
   return a; };
+// v12.45.1: the 3D previews are drawn once per symbol/size and copied afterwards – the docked panel is rebuilt with every step
+// change and used to redraw every tile (≈100–200 ms per switch on a laptop)
+const PREVIEWS = new Map();
 function previewCanvas(spec, size){
   const c = document.createElement('canvas'); const dpr = window.devicePixelRatio||1; c.width = size*dpr; c.height = size*dpr; c.style.width = c.style.height = size+'px';
-  const ctx = c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  const ctx = c.getContext('2d');
+  const key = [spec.id, spec.type, spec.extra||'', spec.color||'', size, dpr].join('|'); const hit = PREVIEWS.get(key);
+  if(hit){ ctx.drawImage(hit, 0, 0); return c; }
+  ctx.setTransform(dpr,0,0,dpr,0,0);
   try{ drawAnn(ctx, sample(spec, spec.color), {x:0, y:0, w:size, h:size}, false, null); }catch(e){}
+  if(PREVIEWS.size > 200) PREVIEWS.clear(); PREVIEWS.set(key, c);
   return c;
 }
 const labelOf = v => t('tool_'+v.id);
