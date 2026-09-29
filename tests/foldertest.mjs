@@ -14,6 +14,8 @@ await d.goto(BASE+'/index3.html#/x'); await d.waitForTimeout(200); await d.goto(
 console.log('instruction in f1:', await d.evaluate(()=>window.__tables.instructions[0].data.folder));
 console.log('team control:', await d.evaluate(() => document.querySelector('#tsel') ? 'select with '+document.querySelectorAll('#tsel option').length+' options' : 'chips'));
 console.log('folder panel many:', await d.evaluate(() => !!document.querySelector('.fpanel.many')), '| chips shown:', await d.$$eval('#fchips .fch:not(.add):not(.ghost)', x => x.length), '| hide toggle:', await d.$eval('#fhide', e => e.textContent.trim()).catch(() => 'none'));
+console.log('v12.38.2 filter card:', !!(await d.$('#filters .frow #tsel')), '| chips collapsed:', await d.$eval('#fchips', e => e.classList.contains('collapsed')), '| expand link:', await d.$eval('#fexp', e => e.textContent.trim()));
+await d.click('#fexp'); await d.waitForTimeout(200); console.log('after expand: collapsed =', await d.$eval('#fchips', e => e.classList.contains('collapsed')), '| link:', await d.$eval('#fexp', e => e.textContent.trim()));
 await d.click('#fhide'); await d.waitForTimeout(200); console.log('after show empties:', await d.$$eval('#fchips .fch:not(.add):not(.ghost)', x => x.length), '| toggle:', await d.$eval('#fhide', e => e.textContent.trim()));
 // v12.37.1: one search box for folders AND instructions (full text)
 console.log('folder search box gone:', !(await d.$('#fq')), '| one box:', !!(await d.$('#q')), '| placeholder:', await d.$eval('#q', e => e.placeholder));

@@ -117,11 +117,16 @@ async function renderDashboard(app, pid){
   let fq = ''; let hideEmpty = null; try{ hideEmpty = sessionStorage.getItem('gg_fhide'); }catch(e){} hideEmpty = hideEmpty==null ? fol.length > 20 : hideEmpty==='1';
   const folderChips = () => { const emptyN = fol.filter(x => !cnt(x.id) && x.id!==pid).length; const shown = fol.filter(x => x.id===pid || (!fq || x.name.toLowerCase().includes(fq) || visible.some(i => i.folder===x.id && matchQ(i))) && (!hideEmpty || cnt(x.id) > 0));
     const more = Math.max(0, shown.length - 60); const show = shown.slice(0, 60);
-    return `<a class="fch ${!pid?'on':''}" href="#/" data-f="all">${t('all_f')} <span>${cnt('all')}</span></a>${show.map(x => `<a class="fch ${pid===x.id?'on':''}" href="#/p/${x.id}" data-f="${x.id}">${IC.folder} ${esc(x.name)}${x.pw?' 🔒':''} <span>${cnt(x.id)}</span></a>`).join('')}${looseN ? `<a class="fch ${pid==='none'?'on':''}" href="#/p/none" data-f="none">${t('no_folder')} <span>${looseN}</span></a>`:''}${isEditor?`<button class="fch add" id="fadd" title="${t('new_folder')}">${IC.plus}</button>`:''}${manyF && emptyN ? `<button class="fch ghost" id="fhide">${hideEmpty ? t('folders_show_empty', {n:emptyN}) : t('folders_hide_empty', {n:emptyN})}</button>` : ''}${more ? `<span class="muted" style="font-size:12.5px">${t('folders_more', {n:more})}</span>` : ''}${manyF && !shown.length && fq ? `<span class="muted">${t('no_result')}</span>` : ''}`; };
-  const chips = folders.length ? `<div class="fpanel ${manyF?'many':''}">${manyF ? `<div class="fbar"><span class="tlbl">${t('folders_h')} <b class="tnum">${fol.length}</b></span></div>` : ''}<div class="fchips" id="fchips">${folderChips()}</div></div>` : '';
+    return `<a class="fch ${!pid?'on':''}" href="#/" data-f="all">${t('all_f')} <span>${cnt('all')}</span></a>${show.map(x => `<a class="fch ${pid===x.id?'on':''}" href="#/p/${x.id}" data-f="${x.id}">${IC.folder} ${esc(x.name)}${x.pw?' 🔒':''} <span>${cnt(x.id)}</span></a>`).join('')}${looseN ? `<a class="fch ${pid==='none'?'on':''}" href="#/p/none" data-f="none">${t('no_folder')} <span>${looseN}</span></a>`:''}${isEditor?`<button class="fch add" id="fadd" title="${t('new_folder')}">${IC.plus}</button>`:''}${more ? `<span class="muted" style="font-size:12.5px">${t('folders_more', {n:more})}</span>` : ''}${manyF && !shown.length && fq ? `<span class="muted">${t('no_result')}</span>` : ''}`; };
+  const emptyCount = () => fol.filter(x => !cnt(x.id) && x.id!==pid).length;
+  const hideBtn = () => { const n = emptyCount(); return manyF && n ? `<button class="flink" id="fhide">${hideEmpty ? t('folders_show_empty', {n}) : t('folders_hide_empty', {n})}</button>` : ''; };
+  // v12.38.2: many folders → two rows visible, the rest folds out (no scrollbar inside a card); a search shows everything that matches
+  let fExp = false; try{ fExp = sessionStorage.getItem('gg_fexp')==='1'; }catch(e){}
+  const expBtn = () => manyF ? `<button class="flink" id="fexp">${fExp || fq ? t('folders_less') : t('folders_all', {n:fol.length})}</button>` : '';
+  const chips = folders.length ? `<div class="fchips ${manyF && !fExp && !fq ? 'collapsed' : ''}" id="fchips">${folderChips()}</div>` : '';
   const teamChips = showTeams ? (tl.length <= 10
     ? `<div class="tfilter" id="tfilter"><span class="tlbl">${t('team_lbl')}</span><button class="fch sm ${!teamF?'on':''}" data-t="">${t('team_filter_all')}</button>${tl.map(tm => `<button class="fch sm ${teamF===tm.id?'on':''}" data-t="${tm.id}">${esc(tm.name)}</button>`).join('')}<button class="fch sm ${teamF==='none'?'on':''}" data-t="none">${t('team_none')}</button></div>`
-    : `<div class="tfilter" id="tfilter"><span class="tlbl">${t('team_lbl')}</span><select id="tsel" class="tsel"><option value="">${t('team_filter_all')}</option>${tl.map(tm => `<option value="${tm.id}" ${teamF===tm.id?'selected':''}>${esc(tm.name)}</option>`).join('')}<option value="none" ${teamF==='none'?'selected':''}>${t('team_none')}</option></select><span class="muted" style="font-size:12.5px">${t('team_of_n', {n:tl.length})}</span></div>`) : '';
+    : `<div class="tfilter" id="tfilter"><span class="tlbl">${t('team_lbl')}</span><select id="tsel" class="tsel"><option value="">${t('team_filter_all')}</option>${tl.map(tm => `<option value="${tm.id}" ${teamF===tm.id?'selected':''}>${esc(tm.name)}</option>`).join('')}<option value="none" ${teamF==='none'?'selected':''}>${t('team_none')}</option></select></div>`) : '';
   const teamNames = f ? teamNamesOf(f.teams) : [];
   // v12.38: page order = title → (new instruction + search) → "for you" (approvals, feedback) → install → team → folders → list
   const fbCount = () => visible.filter(i => inTeam(i, teamF) && statMap[i.id] && statMap[i.id].fb).length;
@@ -130,12 +135,11 @@ async function renderDashboard(app, pid){
     if(fbN) items.push(`<button class="ibx ${stF==='fb'?'on':''}" id="todo-fb">${IC.msg}<span>${fbN===1?t('inbox_fb_one'):t('inbox_fb_many',{n:fbN})}</span><b>${stF==='fb' ? '×' : '→'}</b></button>`);
     return items.length ? `<span class="tlbl">${t('inbox_h')}</span>${items.join('')}` : ''; };
   const v = el(`<main class="page dash">
-    <div class="dash-head"><div class="dash-title">${f ? `<div class="eyebrow">${IC.folder} ${t('folder')}</div>` : ''}<h1>${f ? esc(f.name) : t('dash_h1')}${f && f.id!=='none' && isEditor ? `<button class="pen-btn" id="fren" title="${t('rename_folder')}">${IC.edit}</button>`:''}</h1></div></div>
+    <div class="dash-head"><div class="dash-title">${f ? `<div class="eyebrow">${IC.folder} ${t('folder')}</div>` : ''}<h1>${f ? esc(f.name) : t('dash_h1')}${f && f.id!=='none' && isEditor ? `<button class="pen-btn" id="fren" title="${t('rename_folder')}">${IC.edit}</button>`:''}</h1>${!f ? `<p class="dash-sub">${[nOf(visible.length,'instruction','instructions'), showTeams ? nOf(tl.length,'team','teams') : '', folders.length ? nOf(folders.length,'folder','folders') : ''].filter(Boolean).join(' · ')}</p>` : ''}</div></div>
     <div class="dash-bar">${isEditor ? `<button class="btn primary" id="new">${IC.plus} ${t('new_instr')}</button>`:''}<label class="searchwrap">${IC.search || ''}<input class="search" id="q" type="search" placeholder="${t('search_ph')}" autocomplete="off"></label></div>
     <div class="inbox" id="inbox">${inboxHtml()}</div>
     <div id="inst-slot"></div>
-    ${teamChips}
-    ${chips}
+    ${(teamChips || chips) ? `<section class="filters fpanel ${manyF?'many':''} ${manyF && (fExp || fq) ? 'exp' : ''}" id="filters"><div class="frow">${teamChips || '<span></span>'}<div class="fmeta">${folders.length ? `<span class="tlbl">${t('folders_h')} <b>${fol.length}</b></span>` : ''}${hideBtn()}${expBtn()}</div></div>${chips}</section>` : ''}
     ${f ? `<div class="fhead" id="fhead"><span class="muted">${nOf(cnt(f.id),'instruction','instructions')}${teamNames.length?` · 👥 ${esc(teamNames.join(', '))}`:''}${f.pw?' · 🔒':''}</span>${f.id!=='none' ? `<button class="btn ghost sm" id="fmore">${IC.more} ${t('folder')}</button>`:''}</div>` : ''}
     <div class="list" id="list"></div>
     ${hiddenN?`<p class="muted" style="margin-top:10px;font-size:12px">${t('folder_hidden',{n:hiddenN})}</p>`:''}
@@ -162,13 +166,16 @@ async function renderDashboard(app, pid){
   }
   renderList();
   const nb = v.querySelector('#new'); if(nb) nb.onclick = () => newInstrDlg(pid);
-  const qi = v.querySelector('#q'); if(qi) qi.oninput = () => { q = qi.value.trim().toLowerCase(); fq = q; const fc = v.querySelector('#fchips'); if(fc){ fc.innerHTML = folderChips(); wireChips(); } renderList(); };
+  const qi = v.querySelector('#q'); if(qi) qi.oninput = () => { q = qi.value.trim().toLowerCase(); fq = q; redrawChips(); renderList(); };
   const wireInbox = () => { const td = v.querySelector('#todo'); if(td) td.onclick = () => { stF = stF==='review' ? '' : 'review'; try{ sessionStorage.setItem('gg_stf', stF); }catch(e){} render(); };
     const tf = v.querySelector('#todo-fb'); if(tf) tf.onclick = () => { stF = stF==='fb' ? '' : 'fb'; try{ sessionStorage.setItem('gg_stf', stF); }catch(e){} render(); }; };
   wireInbox(); G.onStats = () => { const ib = v.querySelector('#inbox'); if(ib){ ib.innerHTML = inboxHtml(); wireInbox(); } if(stF==='fb') renderList(); };
   $$('#tfilter button', v).forEach(b => b.onclick = () => { try{ sessionStorage.setItem('gg_team', b.dataset.t); }catch(e){} render(); });
   const ts = v.querySelector('#tsel'); if(ts) ts.onchange = () => { try{ sessionStorage.setItem('gg_team', ts.value); }catch(e){} render(); };
-  const wireChips = () => { const fa = v.querySelector('#fadd'); if(fa) fa.onclick = async () => { const nf = await newFolderDlg(); if(nf) go('p/'+nf.id); }; const fh = v.querySelector('#fhide'); if(fh) fh.onclick = () => { hideEmpty = !hideEmpty; try{ sessionStorage.setItem('gg_fhide', hideEmpty ? '1' : '0'); }catch(e){} v.querySelector('#fchips').innerHTML = folderChips(); wireChips(); }; };
+  const redrawChips = () => { const fc = v.querySelector('#fchips'); if(!fc) return; fc.innerHTML = folderChips(); fc.classList.toggle('collapsed', manyF && !fExp && !fq); const sec = v.querySelector('#filters'); if(sec) sec.classList.toggle('exp', manyF && !!(fExp || fq)); const fh = v.querySelector('#fhide'); if(fh) fh.outerHTML = hideBtn() || '<span hidden id="fhide"></span>'; const fe = v.querySelector('#fexp'); if(fe) fe.outerHTML = expBtn() || '<span hidden id="fexp"></span>'; wireChips(); };
+  const wireChips = () => { const fa = v.querySelector('#fadd'); if(fa) fa.onclick = async () => { const nf = await newFolderDlg(); if(nf) go('p/'+nf.id); };
+    const fh = v.querySelector('#fhide'); if(fh) fh.onclick = () => { hideEmpty = !hideEmpty; try{ sessionStorage.setItem('gg_fhide', hideEmpty ? '1' : '0'); }catch(e){} redrawChips(); };
+    const fe = v.querySelector('#fexp'); if(fe) fe.onclick = () => { fExp = !fExp; try{ sessionStorage.setItem('gg_fexp', fExp ? '1' : '0'); }catch(e){} redrawChips(); }; };
   wireChips();
   if(f && f.id!=='none'){
     const rows = () => visible.filter(i => i.folder===f.id);

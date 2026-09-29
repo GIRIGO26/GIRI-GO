@@ -384,3 +384,9 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Liste seitenweise**: 40 Karten, der Rest kommt beim Scrollen (IntersectionObserver) oder per „{n} weitere anzeigen“. Vorher wurden alle Karten samt Vorschaubild auf einmal gebaut – bei 1.095 Anleitungen fror die Seite. Vorschaubilder `loading="lazy"`.
 - **Cloudflare + Service Worker**: der Host leitet `/index.html` auf `/` um; die gecachte, umgeleitete Antwort (`/?v=check…`) wurde beim nächsten Start zur Seitenadresse. Der SW speichert die Shell jetzt ohne Antwort-URL (`plain()`), Versions-Check fragt `/` statt `/index.html`.
 - **Alte Medienlinks**: Geräte mit lokalem Spiegel schrieben Irland-URLs zurück. Frankfurt-DB: Trigger `instr_rewrite_old_urls` / `ws_rewrite_old_urls` schreiben `goorpzgcxhtjbaothluv` → `hcomtmogkuxxchrnticq` bei jedem Insert/Update um; App: `fixLegacyHosts()` (`src/core/config.js`) beim Laden aus dem Spiegel.
+
+## v12.38.2 – Startseite: Luft und Rhythmus
+- Titel bekommt eine ruhige Unterzeile („1.088 Anleitungen · 24 Teams · 468 Ordner“), größere Abstände zwischen den Blöcken (18/16/22 px statt überall 12).
+- Install-Hinweis am PC ist eine schlanke Zeile (Icon · Text · „So geht’s“ · Später · ×), kein Plakat mehr; auf dem Handy bleibt das große Banner.
+- **Filterkarte**: Team-Auswahl und Ordner in einer Karte. Kopfzeile: `Team ▾` links, rechts „Ordner 468 · 41 leere ausblenden · Alle 468 Ordner“. Chips kompakt (kein Ordner-Icon, Zähler als stille Zahl), bei vielen Ordnern zwei Reihen sichtbar mit Ausblendung, Rest klappt per „Alle … Ordner“ auf (`gg_fexp`), bei Suche automatisch offen. Kein Scrollbalken mehr in der Karte.
+- Neue Keys `folders_all`, `folders_less`; CSS-Block „v12.38.2“ in `09-premium.css`.
