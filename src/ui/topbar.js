@@ -34,12 +34,13 @@ function appMenu(){
       <div class="menu-h">${t('workspace')}</div>
       ${isEditor?`<button data-m="newf">${IC.folder} ${t('new_folder_menu')}</button>`:''}<button data-m="stats">${IC.eye} ${t('global_stats')}</button><button data-m="trash">${IC.trash} ${t('trash')}</button>${isEditor?`<button data-m="brand">${IC.brand} ${t('branding')}</button>`:''}
       ${u.isAdmin?`<div class="menu-h">${t('menu_admin')}</div><button data-m="admin">${IC.gear} ${t('ws_admin')}</button><button data-m="ai"><span class="emo">✦</span> ${t('ai_cfg')}</button><button data-m="import">${IC.upload} ${t('imp_title')}</button>`:''}
+      ${u.isMaster?`<div class="menu-h">${t('master')}</div><button data-m="master">${IC.users} ${t('master')}</button>`:''}
       <div class="menu-h">${t('menu_app')}</div>
       ${isStandalone()?'':`<button data-m="install"><span class="emo">📲</span> ${t('install_app')}</button>`}<button data-m="profile">${IC.edit} ${t('menu_profile')}</button><button data-m="logout">${IC.close} ${t('logout')}</button>
     </div>
     <div class="menu-foot app-ver">GIRI v${APP_VERSION} · ${esc(u.ws)}</div><div class="menu-legal"><a href="${LEGAL.imprint}" target="_blank" rel="noopener">${t('imprint')}</a> · <a href="${LEGAL.legal}" target="_blank" rel="noopener">${t('privacy_dpa')}</a></div></div>`, (bg, close) => {
     $$('[data-m]', bg).forEach(b => b.onclick = async () => { const m = b.dataset.m; if(m==='lang'){ close(); pickLang(); return; } close();
-      if(m==='newf'){ const nf = await newFolderDlg(); if(nf) go('p/'+nf.id); } else if(m==='stats') go('stats'); else if(m==='trash') go('trash'); else if(m==='brand') brandModal(); else if(m==='admin') go('admin'); else if(m==='ai') go('admin/ai'); else if(m==='import') go('admin/import'); else if(m==='install') installGuide(); else if(m==='profile') profileModal(); else if(m==='logout'){ await signOutAll(); go(''); render(); } });
+      if(m==='newf'){ const nf = await newFolderDlg(); if(nf) go('p/'+nf.id); } else if(m==='stats') go('stats'); else if(m==='trash') go('trash'); else if(m==='brand') brandModal(); else if(m==='admin') go('admin'); else if(m==='master') go('master'); else if(m==='ai') go('admin/ai'); else if(m==='import') go('admin/import'); else if(m==='install') installGuide(); else if(m==='profile') profileModal(); else if(m==='logout'){ await signOutAll(); go(''); render(); } });
   });
 }
 

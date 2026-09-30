@@ -1,6 +1,6 @@
 // runs the whole Playwright suite against the built app:  node tests/run.mjs [names…]
 import { spawn, spawnSync } from 'node:child_process'; import { TESTS, PORT } from './env.mjs'; import path from 'node:path';
-const ALL = ['swtest','navtest','blanktest','locktest','roletest','libtest','bigvidtest','vidtest','hangtest','pdftest_ai','tracktest','perftest','migtest','linktest','foldertest','logintest','dbblock','vcachetest','teamtest','sessiontest','offlinetest','trashtest','check4','chaptest','symtest','runtest','r14test','uitest','importtest','ssotest','captest','animtest','fbtest','addstep','r19test','pdftest','pdfsym','postertest','authztest','docktest','preloadtest'];
+const ALL = ['swtest','navtest','blanktest','locktest','roletest','libtest','bigvidtest','vidtest','hangtest','pdftest_ai','tracktest','perftest','migtest','linktest','foldertest','logintest','dbblock','vcachetest','teamtest','sessiontest','offlinetest','trashtest','check4','chaptest','symtest','runtest','r14test','uitest','importtest','ssotest','captest','animtest','fbtest','addstep','r19test','pdftest','pdfsym','postertest','authztest','docktest','preloadtest','offlinerec','swipetest','duptest','mastertest'];
 const OK = {chaptest: /admin instr matrix rows: 1/, pdftest: /orig pdf bytes: \d+/, check4: /runs after finish/};
 const names = process.argv.slice(2).length ? process.argv.slice(2) : ALL;
 spawnSync('node', [path.join(TESTS, 'build_mock.mjs')], {stdio:'inherit'});

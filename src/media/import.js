@@ -103,4 +103,4 @@ function attachDropImport(onFiles, hintFn){
   return () => { document.removeEventListener('dragenter', enter); document.removeEventListener('dragover', over); document.removeEventListener('dragleave', leave); document.removeEventListener('drop', drop); zone.remove(); };
 }
 
-export { replaceStepMedia, MAX_IMPORT_MB, isMediaFile, fileToMedia, importFiles, attachDropImport };
+export { replaceStepMedia, MAX_IMPORT_MB, isMediaFile, fileToMedia, importFiles, attachDropImport, progressBox };

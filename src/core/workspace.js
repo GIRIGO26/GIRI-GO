@@ -4,7 +4,8 @@ import { BRAND_DEFAULT, G, S, brandCache } from './state.js';
 
 /* ---------- Workspace row: Projekte (folders), Teams, Einladungen ---------- */
 
-const applyWsRow = data => { S.wsRow = {folders:(data&&data.folders)||[], teams:(data&&data.teams)||[], invites:(data&&data.invites)||[], symbols:(data&&data.symbols)||[], settings:(data&&data.settings)||{}}; if(data && data.brand){ S.brand = Object.assign({}, BRAND_DEFAULT, data.brand); brandCache.set(S.user.ws, S.brand); } };
+const applyWsRow = data => { S.wsRow = {folders:(data&&data.folders)||[], teams:(data&&data.teams)||[], invites:(data&&data.invites)||[], symbols:(data&&data.symbols)||[], settings:(data&&data.settings)||{},
+    name:(data&&data.name)||'', plan:(data&&data.plan)||'active', planUntil:(data&&data.plan_until)||null, seats:(data&&data.seats)||null, planNote:(data&&data.plan_note)||'', openDomain:!!(data&&data.open_domain), ownerEmail:(data&&data.owner_email)||''}; /* v12.47: plan fields are read-only here (set by the platform) */ if(data && data.brand){ S.brand = Object.assign({}, BRAND_DEFAULT, data.brand); brandCache.set(S.user.ws, S.brand); } };
 async function loadWs(force){ if(!G.sb || !S.user) return S.wsRow; if(G.wsLoaded && !force) return S.wsRow; let data = null; try{ const r = await G.sb.from('workspaces').select('*').eq('ws', S.user.ws).maybeSingle(); data = r.data; if(r.error) throw r.error; cacheWs(data); }catch(e){ data = cachedWs(); if(!data) return S.wsRow; } applyWsRow(data); G.wsLoaded = true; return S.wsRow; }
 // v0.29: cold start without waiting for the server – the last workspace row from this device (the network copy follows)
 const loadWsLocal = () => { const data = cachedWs(); if(data) applyWsRow(data); return !!data; };

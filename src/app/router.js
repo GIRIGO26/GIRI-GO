@@ -16,6 +16,7 @@ import { loadInstrs, rememberRemote } from '../core/translate.js';
 import { runUploads } from '../core/uploads.js';
 import { loadWs, loadWsLocal } from '../core/workspace.js';
 import { renderAdmin } from '../views/admin.js';
+import { renderMaster } from '../views/master.js';
 import { renderImporter } from '../views/importer.js';
 import { renderCapture } from '../views/capture.js';
 import { renderDashboard } from '../views/dashboard.js';
@@ -115,6 +116,7 @@ async function render(){
     if(view === 'trash') return renderTrash(app);
     if(view === 'admin' && id === 'import') return renderImporter(app);
     if(view === 'admin') return renderAdmin(app, id);
+    if(view === 'master') return renderMaster(app);
     return renderDashboard(app);
   })();
   return Promise.resolve(out).then(done, e => { done(); throw e; });

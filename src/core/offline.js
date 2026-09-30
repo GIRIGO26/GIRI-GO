@@ -14,7 +14,7 @@ const mirrorAll = async (rows, changed, have) => { try{ have = have || await mir
 // what is stored locally for this workspace – dirty copies win over what the server said
 const mirrorRaw = async () => { try{ return (await DB.all('instr')).filter(m => m.ws===S.user.ws); }catch(e){ return []; } }; // read once per load, hand it around
 const mirrorList = async have => (have || await mirrorRaw()).map(m => m.row);
-const mirrorMerge = async (rows, have) => { try{ const dirty = (have || await mirrorRaw()).filter(m => m.dirty); if(!dirty.length) return rows; const out = rows.slice(); for(const d of dirty){ const k = out.findIndex(r => r.id===d.id); if(k>=0) out[k] = d.row; else out.push(d.row); } return out; }catch(e){ return rows; } };
+const mirrorMerge = async (rows, have, mem) => { try{ const dirty = (have || await mirrorRaw()).filter(m => m.dirty); if(!dirty.length) return rows; const out = rows.slice(); for(const d of dirty){ const m = mem && mem.get(d.id); const row = m && (m.updatedAt||0) >= (d.row.updatedAt||0) ? m : d.row; const k = out.findIndex(r => r.id===d.id); if(k>=0) out[k] = row; else out.push(row); } return out; }catch(e){ return rows; } }; // v12.47: an in-memory object that is as new as its unsent copy stays (references in editor/camera)
 const dirtyCount = async () => { try{ return (await DB.all('instr')).filter(m => m.ws===(S.user&&S.user.ws) && m.dirty).length; }catch(e){ return 0; } };
 const pendingMedia = async () => { try{ return S.user ? (await pendingIds(S.user.ws)).length : 0; }catch(e){ return 0; } };
 

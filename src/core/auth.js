@@ -11,9 +11,11 @@ async function loadProfile(known){
   try{ const r = await G.sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle(); p = r.data; failed = !!r.error && netErr(r.error); }catch(e){ failed = true; }
   if(!p && failed){ p = cachedProfile(session.user.id); } // offline: last known profile
   if(p) cacheProfile(p);
-  if(!p && !failed){ // Trigger noch nicht gelaufen? Selbst anlegen.
-    const email = session.user.email||''; const ins = await G.sb.from('profiles').insert({id:session.user.id, email, name: email.split('@')[0], role:'creator', ws: email.split('@')[1].toLowerCase()}).select().maybeSingle(); p = ins.data; }
-  S.user = p ? {id:p.id, email:p.email, name:p.name||p.email.split('@')[0], role:p.role, ws:p.ws, isAdmin:!!p.is_admin || p.role==='admin'} : null;
+  if(!p && !failed){ // trigger not run yet? v12.47: the server places the person (invitation → domain → own workspace); the browser never picks a workspace
+    try{ const r = await G.sb.rpc('ensure_profile'); p = Array.isArray(r.data) ? r.data[0] : r.data; if(p) cacheProfile(p); }catch(e){} }
+  S.user = p ? {id:p.id, email:p.email, name:p.name||p.email.split('@')[0], role:p.role, ws:p.ws, isAdmin:!!p.is_admin || p.role==='admin', isMaster:!!p._master} : null;
+  // platform admin? (master panel) – answered by the server, remembered with the profile for offline starts
+  if(S.user && !failed && p._master == null){ try{ const {data} = await G.sb.rpc('is_master'); S.user.isMaster = !!data; p._master = !!data; cacheProfile(p); }catch(e){} }
   return S.user;
 }
 

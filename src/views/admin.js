@@ -68,7 +68,7 @@ async function renderAdmin(app, sub){
   }
   v.querySelector('#invite').onclick = async () => {
     const r = await modal(`<h2>${t('invite_title')}</h2><p class="muted" style="margin:0 0 12px">${t('invite_sub')}</p><div class="field"><label for="iv-mail">${t('email')}</label><input id="iv-mail" type="email" placeholder="name@${esc(S.user.ws)}"></div><div class="field"><label for="iv-role">${t('role')}</label><select id="iv-role">${ROLES.map(r=>`<option value="${r}">${roleLbl(r)}</option>`).join('')}</select></div><div class="actions"><button class="btn ghost" data-x>${t('cancel')}</button><button class="btn" data-ok>${t('invite')}</button></div>`, (bg, close) => { bg.querySelector('[data-x]').onclick = () => close(null); bg.querySelector('[data-ok]').onclick = () => close({email:bg.querySelector('#iv-mail').value.trim().toLowerCase(), role:bg.querySelector('#iv-role').value}); });
-    if(!r || !r.email) return; if(r.email.split('@')[1] !== S.user.ws){ toast(t('ws_note')); return; }
+    if(!r || !r.email || !r.email.includes('@')) return; // v12.47: any address – the invitation decides the workspace, not the mail domain
     ws.invites = (ws.invites||[]).filter(i => i.email !== r.email); ws.invites.push({email:r.email, role:r.role, at:Date.now(), by:S.user.email}); await saveWs({invites:ws.invites});
     const {error} = await G.sb.auth.signInWithOtp({email:r.email, options:{shouldCreateUser:true, emailRedirectTo: location.href.split('#')[0]}}); if(error) toast(error.message); else toast(t('invited',{e:r.email}));
     renderUsers();

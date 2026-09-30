@@ -20,7 +20,7 @@ S.brand = Object.assign({}, BRAND_DEFAULT);
 S.wsRow = {folders:[], teams:[], invites:[], symbols:[], settings:{}};
 
 // from core/uploads
-window.addEventListener('online', () => { runUploads(); retrySaves(); schedulePill(); });
+window.addEventListener('online', () => { retrySaves().finally(() => runUploads()); schedulePill(); }); // v12.47: rows first, then clips – the media patch lands on an existing row
 window.addEventListener('offline', () => schedulePill());
 window.addEventListener('beforeunload', e => { if(G.pendingSync > 0){ e.preventDefault(); e.returnValue = ''; } });
 
@@ -37,7 +37,7 @@ try{ G.recentEmojis = JSON.parse(localStorage.getItem('gg_emo')||'[]'); }catch(e
 window.addEventListener('error', e => { try{ toast('JS: '+(e.message||'').slice(0,120)); }catch(x){} });
 
 // from pdf/export
-window.addEventListener('unhandledrejection', e => { try{ const m = e.reason && (e.reason.message||String(e.reason)); if(m && !/AbortError|play\(\)/.test(m)) toast('Fehler: '+m.slice(0,120)); }catch(x){} });
+window.addEventListener('unhandledrejection', e => { try{ const m = e.reason && (e.reason.message||String(e.reason)); if(m && !/AbortError|play\(\)|Failed to fetch|Load failed|NetworkError|network error/i.test(m)) toast('Fehler: '+m.slice(0,120)); }catch(x){} }); // v12.47: a dropped connection is shown by the sync pill, not as an error
 
 // a tiny haptic tick on primary buttons (phones that support it)
 document.addEventListener('pointerdown', e => { if(e.pointerType==='touch' && navigator.vibrate && e.target.closest('.btn.mint, .btn:not(.ghost), .shutter, .ib-btn')){ try{ navigator.vibrate(8); }catch(x){} } }, {passive:true});

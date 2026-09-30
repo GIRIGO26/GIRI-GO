@@ -42,7 +42,9 @@ const rowToInstr = r => { const i = r.data || {}; i.id = r.id; i.ws = r.ws; i.st
 const loadInstrs = async () => {
   if(!G.sb || !S.user) { S.instrs = []; return; }
   const t0 = performance.now(); const sig0 = S.instrs.map(i => i.id+':'+(i.updatedAt||0)).join(',');
-  const offlineFallback = async error => { const local = await mirrorList(); S.instrs = local.sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0)); if(!netErr(error)) toast(error.message); else toast(t('offline_copy')); };
+  // v12.47: the copies from the device store never replace an in-memory object that is at least as new – the editor and the camera
+  // hold references, and a swap while offline made steps recorded since disappear from the list until the next full sync
+  const offlineFallback = async error => { const mem = new Map(S.instrs.map(i => [i.id, i])); const local = (await mirrorList()).map(r => { const m = mem.get(r.id); return m && (m.updatedAt||0) >= (r.updatedAt||0) ? m : r; }); S.instrs = local.sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0)); if(!netErr(error)) toast(error.message); else toast(t('offline_copy')); };
   let heads = null, error = null;
   // v12.37.1: page through the heads – PostgREST returns at most 1000 rows per request, large imports were cut off at 1000
   try{ heads = []; for(let from = 0; ; from += 1000){ const {data, error:e} = await G.sb.from('instructions').select('id, updated_at').eq('ws', S.user.ws).is('deleted_at', null).order('updated_at', {ascending:false}).order('id').range(from, from+999); if(e) throw e; heads.push(...(data||[])); if(!data || data.length < 1000) break; } }catch(e){ error = e; }
@@ -58,7 +60,7 @@ const loadInstrs = async () => {
   const mem = new Map(S.instrs.map(i => [i.id, i])); // unchanged rows keep their in-memory object (editor/capture hold references)
   const rows = heads.map(h => fresh.get(h.id) || mem.get(h.id) || (local.get(h.id) && fixLegacyHosts(local.get(h.id)))).filter(Boolean);
   rows.forEach(i => { if(!fresh.has(i.id)) rememberRemote(i); });
-  S.instrs = await mirrorMerge(rows, have); await mirrorAll(S.instrs, fresh, have);
+  S.instrs = await mirrorMerge(rows, have, mem); await mirrorAll(S.instrs, fresh, have);
   G.lastSync = Date.now(); const changed = S.instrs.map(i => i.id+':'+(i.updatedAt||0)).join(',') !== sig0;
   G.perf.sync = {ms: Math.round(performance.now()-t0), heads: heads.length, fetched: need.length, changed};
   return changed;

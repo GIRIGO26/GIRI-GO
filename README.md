@@ -440,6 +440,29 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Installations-Hinweis**: nach „Später“/× bleibt eine schmale Zeile „📲 GIRI Go als App installieren · So geht’s“ auf der Startseite, solange die App nicht installiert ist (PC und Telefon).
 - Tests `animtest`, `libtest`, `check4` angepasst. 38 Tests grün.
 
+## v12.47.0 – Go-Live-Paket: Selbst-Registrierung, Pläne, Master-Admin · Editor-Feinschliff · Offline-Fehler
+**Plattform (Migrationen v010–v012, Edge-Function `signup-notify`)**
+- **Selbst-Registrierung**: Wer sich anmeldet, landet nach fester Reihenfolge: **1.** Einladung in irgendeinem Workspace (jede Domain erlaubt) → dort mit der eingeladenen Rolle · **2.** Workspace mit derselben Firmen-Domain und „Domain offen“ → dort als Creator · **3.** sonst ein **eigener Workspace** (Admin, Testphase 30 Tage, Domain geschlossen). Gleiche E-Mail-Domain heißt also **nicht** gleicher Account – der erste Nutzer lädt Kollegen unter Admin → Nutzer ein. Bestehende Workspaces (ar-giri.com) bleiben wie bisher: Domain offen, Plan `active`.
+- **Benachrichtigung**: bei jeder Registrierung geht eine Mail an die Plattform-Admins (Person, Rolle, Workspace, Art: neuer Trial / Einladung / Domain, Plan, Nutzer- und Anleitungszahl, Knopf „Master-Admin öffnen“). HubSpot-Abgleich läuft weiter wie bisher (`hs_on_profile`).
+- **Pläne pro Workspace**: `trial` (Testphase), `active`, `demo`, `suspended`; Gültig-bis, Plätze, interne Notiz, Firmenname, „Domain offen“. Dashboard zeigt bei Testphase/Demo „noch N Tage“, nach Ablauf „abgelaufen – melde dich“ (weiter nutzbar), bei `suspended` „pausiert“ – dann sind Anleitungen nur noch lesbar (der Server lehnt Schreiben ab). Normale Admins können Plan-Felder nicht ändern (Trigger verwirft es).
+- **Master-Admin** (`#/master`, Menüeintrag nur für Plattform-Admins – Tabelle `platform_admins`, Start: bjoern@ar-giri.com): alle Workspaces mit Plan, Nutzern, Anleitungen, letztem Login; Suche; Plan bearbeiten; **Nutzer in einen anderen Workspace verschieben** (mit oder ohne Anleitungen); **Workspaces zusammenführen** (Nutzer, Anleitungen, Teams, Ordner, Symbole, Einladungen wandern, der leere Workspace wird gelöscht); Nutzerliste mit „Login-Link senden“; **Demo-Konto anlegen** (Workspace mit Plan `demo`, Einladung für die Interessenten-Adresse, optional Login-Link); weitere Plattform-Admins hinzufügen. Alle Funktionen prüfen `is_master()` im SQL.
+- **Einladungen** akzeptieren jetzt jede E-Mail-Adresse (vorher nur die Firmen-Domain).
+- Tests: `supabase/tests/signup.sql` (12 Fälle, auf Frankfurt grün), `mastertest` (Browser: Menü/Zugriff, Tabelle, Plan speichern, verschieben, Demo, zusammenführen, Banner trial/abgelaufen/pausiert, Einladung fremde Domain).
+
+**Editor / Bedienung**
+- **Emoji-Vorschau** im Symbol-Reiter ist groß (66 px statt 11 px – eine Beschriftungsregel hatte seit v12.44 die Größe überschrieben); Kacheln 100 px.
+- **Wischen am Handy**: Wisch nach links/rechts über dem Bild wechselt zum nächsten/vorigen Schritt (≥ 60 px, schnell, ohne Symbol unter dem Finger).
+- **Anleitung kopieren**: ⋯-Menü der Karte (Übersicht) und im Editor → „Duplizieren“: Kopie „Kopie von …“ als Entwurf mit eigenen IDs, Medien werden serverseitig kopiert, Fortschrittsanzeige, danach direkt im Editor.
+- **„Schritt hinzufügen“**-Menü: Überschrift ist jetzt als Titel der Knöpfe darunter erkennbar (Versalien, Trennlinie, grauer Kasten).
+- **Offline-Lampe**: „Offline“-Pille schwarz mit gelbem Punkt und gelbem Rand statt gelb auf gelb.
+- **Login-Seite**: die Liste „auf diesem Gerät gespeicherte Anleitungen“ steht unter der Anmeldung mit klarer Überschrift („Ohne Anmeldung: …“) statt davor.
+
+**Offline / Flugmodus**
+- Kein „Fehler: Load failed“ mehr nach einer Aufnahme im Flugmodus: die Upload-Warteschlange startet gar nicht erst ohne Netz, ein abgelehnter Upload wird still in die Warteschlange zurückgelegt, Netzfehler werden nicht mehr als Fehler-Toast gezeigt.
+- Neue Anleitung offline + mehrere Schritte: alle Schritte bleiben in der Übersicht (der Offline-Spiegel hatte neuere Objekte im Speicher durch ältere Kopien ersetzt) und es gibt keinen falschen Konflikt „auf anderem Gerät geändert“ mehr (der Upload hatte eine zweite Serverkopie mit altem Stand gespeichert). Test `offlinerec`.
+
+45 Tests grün.
+
 ## v12.46.1 – Vorladen auf drei Schritte
 - **Web-Anleitung (Werker-Link)**: Der Viewer lädt jetzt den sichtbaren Schritt plus **drei Schritte voraus** und einen zurück (vorher 1,5 Bildschirmhöhen in beide Richtungen); weiter entfernte Clips werden wieder freigegeben.
 - **Editor am Handy**: Hintergrund-Cache holt die nächsten **drei** Schritte statt zwei (PC unverändert: alle).

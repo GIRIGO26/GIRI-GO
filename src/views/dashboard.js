@@ -8,6 +8,20 @@ import { realSteps } from '../core/auth.js';
 import { $$, confirmM, el, esc, modal, promptM, toast } from '../core/helpers.js';
 import { fmtD, fmtDate, t } from '../core/i18n.js';
 import { deleteInstr, pwDialog, saveInstr } from '../core/passwords.js';
+import { duplicateInstr } from '../core/duplicate.js';
+import { progressBox } from '../media/import.js';
+// v12.47: a line about the plan: trial/demo with days left, expired, or suspended. Nothing for active workspaces.
+function planBanner(){
+  const w = S.wsRow || {}; const plan = w.plan || 'active'; if(plan === 'active') return null;
+  const until = w.planUntil ? new Date(w.planUntil) : null; const days = until ? Math.ceil((until - Date.now()) / 864e5) : null;
+  if(plan === 'suspended') return el(`<div class="plan-banner bad">${IC.warn} <div><b>${t('plan_suspended')}</b><span>${t('plan_suspended_sub')}</span></div></div>`);
+  const label = plan === 'demo' ? t('plan_demo') : t('plan_trial');
+  if(days != null && days <= 0) return el(`<div class="plan-banner warn">${IC.warn} <div><b>${t('plan_expired', {p: label})}</b><span>${t('plan_expired_sub')}</span></div></div>`);
+  const soon = days != null && days <= 7;
+  return el(`<div class="plan-banner ${soon ? 'warn' : ''}">${IC.checkc} <div><b>${days != null ? t('plan_days', {p: label, n: days}) : label}</b><span>${t('plan_trial_sub')}</span></div></div>`);
+}
+// v12.47: copy an instruction (files are copied inside the bucket – a progress box while that runs), then open the copy
+async function duplicateWithProgress(i){ const prog = progressBox(t('duplicate')); prog.set(i.title, 0, ''); try{ const c = await duplicateInstr(i, (done, total) => prog.set(null, total ? done/total : 1, total ? t('dup_busy', {n:done, total}) : '')); prog.remove(); toast(t('dup_done')); go('edit/'+c.id); }catch(e){ prog.remove(); toast(e.message||String(e)); } }
 import { titleHtml } from '../core/richtext.js';
 import { online } from '../core/offline.js';
 import { G, S, mediaUrl } from '../core/state.js';
@@ -73,11 +87,12 @@ function instrCard(i, statMap, opts={}){
   const act = async a => {
     if(a==='rec') go('rec/'+i.id); else if(a==='edit') go('edit/'+i.id); else if(a==='preview') go('preview/'+i.id); else if(a==='share') shareModal(i); else if(a==='pdf') exportPDFAsk(i); else if(a==='results') go('results/'+i.id); else if(a==='folder') moveToFolderDlg(i, opts.onChange);
     else if(a==='feedback'){ try{ sessionStorage.setItem('gg_rtab_'+i.id, 'feedback'); }catch(e){} go('results/'+i.id); }
+    else if(a==='dup'){ await duplicateWithProgress(i); }
     else if(a==='del'){ if(await confirmM(t('confirm_del_instr',{t:i.title}), t('delete'))){ try{ await trashInstr(i); toast(t('trashed_instr')); }catch(e){ toast(e.message||String(e)); } render(); } } };
   card.onclick = e => { const b = e.target.closest('[data-a]');
     if(!b){ if(e.target.closest('a, button')) return; act(cEdit || (cApprove && i.status==='review') ? 'edit' : 'preview'); return; }
     const a = b.dataset.a;
-    if(a==='more'){ modal(`<div class="menu"><div class="menu-h">${esc(i.title)}</div>${cEdit ? `<button data-m="edit">${IC.edit} ${t('edit')}</button><button data-m="rec">${IC.cam} ${t('record_next')}</button>`:''}${!cEdit && cApprove ? `<button data-m="edit">${IC.check} ${t('menu_approve')}</button>`:''}<button data-m="preview">${IC.play} ${t('preview')}</button>${cLinks ? `<button data-m="share">${IC.share} ${t('share')}</button>`:''}${cEdit || cLinks ? `<button data-m="pdf">${IC.pdf} ${t('pdf')}</button>`:''}${cStats ? `<button data-m="results">${IC.eye} ${t('stats')}</button>`:''}${cEdit ? `<button data-m="folder">${IC.folder} ${t('move_to_folder')}</button><button data-m="del" class="del">${IC.trash} ${t('delete')}</button>`:''}</div>`, (bg, close) => { $$('[data-m]', bg).forEach(x => x.onclick = () => { close(); act(x.dataset.m); }); }); return; }
+    if(a==='more'){ modal(`<div class="menu"><div class="menu-h">${esc(i.title)}</div>${cEdit ? `<button data-m="edit">${IC.edit} ${t('edit')}</button><button data-m="rec">${IC.cam} ${t('record_next')}</button>`:''}${!cEdit && cApprove ? `<button data-m="edit">${IC.check} ${t('menu_approve')}</button>`:''}<button data-m="preview">${IC.play} ${t('preview')}</button>${cLinks ? `<button data-m="share">${IC.share} ${t('share')}</button>`:''}${cEdit || cLinks ? `<button data-m="pdf">${IC.pdf} ${t('pdf')}</button>`:''}${cStats ? `<button data-m="results">${IC.eye} ${t('stats')}</button>`:''}${cEdit ? `<button data-m="folder">${IC.folder} ${t('move_to_folder')}</button><button data-m="dup">${IC.copy} ${t('duplicate')}</button><button data-m="del" class="del">${IC.trash} ${t('delete')}</button>`:''}</div>`, (bg, close) => { $$('[data-m]', bg).forEach(x => x.onclick = () => { close(); act(x.dataset.m); }); }); return; }
     act(a); };
   return card;
 }
@@ -171,6 +186,8 @@ async function renderDashboard(app, pid){
     </div>
   </main>`);
   app.appendChild(v);
+  // v12.47: plan state of the workspace (trial / demo running out, expired, suspended) – set by the platform, shown to everyone
+  { const pb = planBanner(); if(pb) v.querySelector('#inst-slot').appendChild(pb); }
   const ln = linkNote(); if(ln) v.querySelector('#inst-slot').appendChild(ln); const ban = ln ? null : installBanner(); if(ban) v.querySelector('#inst-slot').appendChild(ban); const inst = (ln || ban) ? null : installNote(); if(inst) v.querySelector('#inst-slot').appendChild(inst);
   if(!ln && !ban && !inst){ const strip = installStrip(); if(strip) v.querySelector('#inst-slot').appendChild(strip); } // dismissed → slim reminder until installed
   const list = v.querySelector('#list');
@@ -266,4 +283,4 @@ function grabFrame(url, time, maxW=640){
 
 const posterFromCanvas = (src, w, h, maxW=320) => { try{ const sc = Math.min(1, maxW/(w||1)); const c = document.createElement('canvas'); c.width = Math.round((w||320)*sc); c.height = Math.round((h||240)*sc); c.getContext('2d').drawImage(src, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', .6); }catch(e){ return null; } };
 
-export { roleLbl, nOf, initials, visFolders, isLoose, newFolderDlg, newInstrDlg, moveToFolderDlg, instrCard, renderDashboard, posterCache, stepPoster, stepPosterSync, grabFrame, posterFromCanvas };
+export { duplicateWithProgress, roleLbl, nOf, initials, visFolders, isLoose, newFolderDlg, newInstrDlg, moveToFolderDlg, instrCard, renderDashboard, posterCache, stepPoster, stepPosterSync, grabFrame, posterFromCanvas };

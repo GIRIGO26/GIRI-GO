@@ -84,9 +84,11 @@
 .srow .rowdel{position:absolute;right:6px;top:6px;width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink-3);background:var(--surface)}
 .srow .rowdel:hover{color:var(--red)}
 .srow{position:relative}
-.addstep{margin-top:10px;padding:14px 12px;border-radius:14px;border:1.5px dashed var(--line-2);text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;transition:border-color .15s,background .15s}
-.addstep:hover{border-color:var(--blue);background:var(--blue-lightest)}
-.addstep .as-t{font-weight:800;font-size:13px;display:inline-flex;align-items:center;gap:6px}
+/* v12.47: a section with a small heading line over its buttons (the dashed box with a bold '+ Schritt hinzufügen' read like one more button) */
+.addstep{margin-top:12px;padding:12px;border-radius:14px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line-2);text-align:left;display:flex;flex-direction:column;align-items:stretch;gap:10px}
+.addstep .as-t{font-weight:800;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center;gap:8px}
+.addstep .as-t svg{display:none}
+.addstep .as-t::after{content:'';flex:1;height:1px;background:var(--line-2)}
 .addstep .as-b{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .addstep .as-sub{font-size:11.5px;color:var(--ink-3);line-height:1.35}
 .ann-pill{display:inline-flex;align-items:center;gap:4px;padding:5px 6px 5px 10px;border-radius:9px;background:var(--surface-2);font-size:12px;font-weight:600;border:1.5px solid transparent}
@@ -412,15 +414,15 @@
 .ss-lbl{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin:4px 0 6px}
 .ss-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:8px}
 .ss-grid.iso{grid-template-columns:repeat(auto-fill,minmax(88px,1fr))}
-.ss-grid.emo{grid-template-columns:repeat(auto-fill,minmax(72px,1fr))}
+.ss-grid.emo{grid-template-columns:repeat(auto-fill,minmax(92px,1fr))} /* v12.47: emoji tiles much bigger */
 .ss-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px 4px 6px;border-radius:14px;background:var(--surface-2);border:1.5px solid transparent;min-height:84px;touch-action:manipulation}
 .ss-tile:hover{border-color:var(--blue);background:var(--blue-lightest)}
 .ss-tile canvas{width:52px;height:52px}
 .ss-tile img{width:56px;height:56px;object-fit:contain;filter:drop-shadow(0 3px 5px rgba(0,0,0,.28))}
 .ss-tile.iso{min-height:104px}
 .ss-tile span{font-size:11px;font-weight:700;color:var(--ink-2);max-width:100%;line-height:1.2;text-align:center;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.ss-tile.emo{min-height:76px;padding:4px}
-.ss-emo{font-size:46px;line-height:1.1}
+.ss-tile.emo{min-height:100px;padding:4px}
+.ss-tile span.ss-emo,.ss-emo{font-size:66px;line-height:1.1;-webkit-line-clamp:unset;display:block;color:inherit;max-width:none;overflow:visible} /* the label rule (.ss-tile span, 11 px) used to win – the emoji looked tiny since v12.44 */
 .ss-tile.add{border-style:dashed;border-color:var(--line-2);background:transparent;cursor:pointer}
 .ss-tile.add.busy{opacity:.5;pointer-events:none}
 .ss-grp{display:flex;align-items:center;gap:8px;margin:2px 0 10px;font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
@@ -438,9 +440,9 @@
 .symdock .ss-tile:active{cursor:grabbing}
 .symdock .ss-tile canvas,.symdock .ss-tile img{pointer-events:none}
 .symdock .ss-grid{grid-template-columns:repeat(auto-fill,minmax(72px,1fr))}
-.symdock .ss-grid.emo{grid-template-columns:repeat(auto-fill,minmax(68px,1fr))}
-.symdock .ss-tile.emo{min-height:64px}
-.symdock .ss-emo{font-size:38px}
+.symdock .ss-grid.emo{grid-template-columns:repeat(auto-fill,minmax(84px,1fr))}
+.symdock .ss-tile.emo{min-height:86px}
+.symdock .ss-tile span.ss-emo,.symdock .ss-emo{font-size:54px}
 .symdock .ss-grid.iso{grid-template-columns:repeat(auto-fill,minmax(84px,1fr))}
 .tool-ghost canvas,.tool-ghost img{width:52px;height:52px;object-fit:contain}
 @media(max-width:560px){.ss-top{flex-wrap:wrap}.ss-search{flex:1 1 100%;margin-left:0}.symsheet .ss-tabs{flex-wrap:wrap;overflow:visible}}

@@ -18,7 +18,7 @@ import { attachDropImport, importFiles, replaceStepMedia } from '../media/import
 import { exportPDF } from '../pdf/export.js';
 import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
-import { grabFrame, nOf, posterCache, stepPoster, stepPosterSync } from './dashboard.js';
+import { duplicateWithProgress, grabFrame, nOf, posterCache, stepPoster, stepPosterSync } from './dashboard.js';
 import { preloadInstr, touchEditorCache } from '../media/preload.js';
 import { exportPDFAsk, shareModal } from './share.js';
 import { emojiPicker, symbolFromFile, symbolPicker } from './symbols.js';
@@ -68,7 +68,7 @@ async function renderEditor(app, id, selStepId, fbId){
   v.querySelector('#rec').onclick = () => go('rec/'+instr.id);
   v.querySelector('#prev').onclick = () => go('preview/'+instr.id);
   let fbOpenN = 0;
-  v.querySelector('#more').onclick = () => modal(`<div class="menu"><div class="menu-h">${esc(instr.title)}</div><button data-m="undo" ${undo.length?'':'disabled'}>${IC.undo} ${t('undo')}</button><button data-m="redo" ${redo.length?'':'disabled'}>${IC.redo} ${t('redo')}</button><div class="menu-sep"></div>${canLinks ? `<button data-m="share">${IC.share} ${t('share')}</button>` : ''}<button data-m="pdf">${IC.pdf} ${t('pdf')}</button><button data-m="results">${IC.eye} ${t('stats_fb')}${fbOpenN ? `<span class="nbadge">${fbOpenN}</span>` : ''}</button><div class="menu-sep"></div><button data-m="settings">${IC.gear} ${t('tab_settings')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='undo') doUndo(); else if(m==='redo') doRedo(); else if(m==='share') shareModal(instr); else if(m==='pdf') exportPDFAsk(instr); else if(m==='results') go('results/'+instr.id); else if(m==='settings') showTab('settings'); }); });
+  v.querySelector('#more').onclick = () => modal(`<div class="menu"><div class="menu-h">${esc(instr.title)}</div><button data-m="undo" ${undo.length?'':'disabled'}>${IC.undo} ${t('undo')}</button><button data-m="redo" ${redo.length?'':'disabled'}>${IC.redo} ${t('redo')}</button><div class="menu-sep"></div>${canLinks ? `<button data-m="share">${IC.share} ${t('share')}</button>` : ''}<button data-m="pdf">${IC.pdf} ${t('pdf')}</button><button data-m="results">${IC.eye} ${t('stats_fb')}${fbOpenN ? `<span class="nbadge">${fbOpenN}</span>` : ''}</button><div class="menu-sep"></div>${canEdit ? `<button data-m="dup">${IC.copy} ${t('duplicate')}</button>` : ''}<button data-m="settings">${IC.gear} ${t('tab_settings')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='undo') doUndo(); else if(m==='redo') doRedo(); else if(m==='dup') duplicateWithProgress(instr); else if(m==='share') shareModal(instr); else if(m==='pdf') exportPDFAsk(instr); else if(m==='results') go('results/'+instr.id); else if(m==='settings') showTab('settings'); }); });
   const setChip = () => { const c = v.querySelector('#stchip'); c.className = 'chip dot '+instr.status; c.textContent = t(instr.status==='review'?'in_review':instr.status); updateCTA(); };
   function updateCTA(){ const b = v.querySelector('#cta'); b.hidden = true; b.className = 'btn sm'; const narrow = matchMedia('(max-width:560px)').matches;
     if(instr.status==='draft' && realSteps(instr).length && myRole!=='viewer'){ b.hidden = false; b.textContent = t(narrow ? 'submit_review_short' : 'submit_review'); b.onclick = submitForReview; }
@@ -473,7 +473,7 @@ async function renderEditor(app, id, selStepId, fbId){
       const hit = [...visibleAnns()].reverse().find(a => { const bb = annBounds(isV ? trackedAt(a, curTime) : a, r); return px>=bb.x-16 && px<=bb.x+bb.w+16 && py>=bb.y-16 && py<=bb.y+bb.h+16; });
       selAnn = hit ? hit.id : null;
       if(hit) drag = {a:hit, kind:'move', sx:p.x, sy:p.y, o:snapOf(hit), r, moved:false};
-      else drag = {kind:'none', moved:false, sx:p.x, sy:p.y};
+      else drag = {kind:'none', moved:false, sx:p.x, sy:p.y, cx0:e.clientX, cy0:e.clientY, t0:performance.now()};
       draw();
     });
     cv.addEventListener('pointermove', e => {
@@ -501,7 +501,12 @@ async function renderEditor(app, id, selStepId, fbId){
       if(e) pts.delete(e.pointerId);
       if(pinch){ if(pts.size<2){ pinch = null; await touch(); } return; }
       if(!drag) return; const d = drag; drag = null; if(d.kind==='orbit'){ cv._orbit = false; renderAnnList(); }
-      if(d.kind==='none'){ if(!d.moved){ lastTap = {x:d.sx, y:d.sy}; if(isV && !med.paused){ clearTimeout(resumeTimer); autoPaused = false; showing = null; med.pause(); } showTapMark(d.sx, d.sy); } else clearTapMark(); return; }
+      if(d.kind==='none'){
+        if(!d.moved){ lastTap = {x:d.sx, y:d.sy}; if(isV && !med.paused){ clearTimeout(resumeTimer); autoPaused = false; showing = null; med.pause(); } showTapMark(d.sx, d.sy); return; }
+        clearTapMark();
+        // v12.47: a quick horizontal swipe over the picture (phone) = previous / next step, like the arrows in the step bar
+        if(e && isPhone()){ const dx = e.clientX-d.cx0, dy = e.clientY-d.cy0; if(Math.abs(dx) >= 60 && Math.abs(dy) <= Math.abs(dx)*0.6 && performance.now()-d.t0 < 700){ const rs = realSteps(instr); const k = rs.findIndex(x => x.id===sel); const nx = dx < 0 ? rs[k+1] : rs[k-1]; if(nx){ if(isV){ try{ med.pause(); }catch(x){} } selectStep(nx.id); } } }
+        return; }
       clearTapMark();
       if(d.moved) await touch();
     };

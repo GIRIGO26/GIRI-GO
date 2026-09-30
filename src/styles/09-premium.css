@@ -328,3 +328,12 @@ table.roles td.muted{font-size:12.5px}
 .l-legal{grid-column:1/-1;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:18px 16px 8px;font-size:12.5px;color:var(--ink-3)}
 .l-legal a{color:var(--ink-3);text-decoration:none}
 .l-legal a:hover{color:var(--ink);text-decoration:underline}
+
+/* v12.47: plan line on the dashboard (trial / demo / expired / suspended) */
+.plan-banner{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:var(--green-lightest);color:var(--mint-ink);box-shadow:inset 0 0 0 1px var(--green-light);margin-bottom:12px;font-size:13.5px}
+.plan-banner svg{flex:none;width:22px;height:22px}
+.plan-banner div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.plan-banner b{font-size:14px}
+.plan-banner span{color:inherit;opacity:.85}
+.plan-banner.warn{background:#FFF4DE;color:#7A4A00;box-shadow:inset 0 0 0 1px #F5D89A}
+.plan-banner.bad{background:#FDE8E8;color:#7F1D1D;box-shadow:inset 0 0 0 1px #F5B5B5}

@@ -180,7 +180,7 @@ async function renderCapture(app, id, modeArg, stepArg){
     if(instr.status==='published'){ instr.status='draft'; instr.approvals={tech:null,dsgvo:null}; }
     capN++; try{ localStorage.setItem('gg_cap_n', String(capN)); }catch(e){} updStatus(false);
     toast(nextMsg || t('cap_saved',{n})); refreshStrip();
-    await saveInstr(instr); log('saved instr', realSteps(instr).length); runUploads();
+    await saveInstr(instr); log('saved instr', realSteps(instr).length); runUploads().catch(()=>{});
     if(navigator.vibrate) try{ navigator.vibrate(30); }catch(e){}
   }
   startCam();

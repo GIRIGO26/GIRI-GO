@@ -107,7 +107,7 @@ async function savedList(before){
     it.querySelector('[data-rm]').onclick = async e => { e.preventDefault(); e.stopPropagation(); if(!(await confirmM(t('off_remove_q'), t('off_remove')))) return; await cacheDel(r.id); it.remove(); if(!list.children.length) box.remove(); };
     list.appendChild(it); });
   const ib = box.querySelector('#offl-inst'); if(ib) ib.onclick = () => installGuide();
-  before.parentNode.insertBefore(box, before);
+  before.parentNode.insertBefore(box, before.nextSibling); // v12.47: below the login card – it is the worker's list, not a login note
 }
 
 function attachAuth(){ G.sb.auth.onAuthStateChange((ev, session) => {

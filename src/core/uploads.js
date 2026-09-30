@@ -1,5 +1,5 @@
 import { uploadPoster } from './posters.js';
-import { schedulePill } from './offline.js';
+import { online, schedulePill } from './offline.js';
 import { $, el } from './helpers.js';
 import { t } from './i18n.js';
 import { fetchInstr, saveInstr } from './passwords.js';
@@ -24,7 +24,7 @@ function syncUI(){
 }
 
 async function runUploads(){
-  if(!G.sb || !S.user || UP.running) return; UP.running = true;
+  if(!G.sb || !S.user || UP.running || !online()) return; UP.running = true; // v12.47: nothing to try without network (a failed transfer used to surface as 'Fehler: Load failed')
   try{
     const ids = await pendingIds(S.user.ws); const all = []; for(const id of ids){ const m = await DB.get('media', id); if(m && (m.blob||m.buf) && !m.remote) all.push(m); else pendingRemove(id); }
     UP.total = all.length; UP.done = 0; UP.failed = 0; syncUI();
@@ -36,13 +36,15 @@ async function runUploads(){
         else { m.convFailed = true; await DB.put('media', m); }
       }
       const path = `${m.ws}/${m.instrId}/${m.id}.${extOf(blob)}`;
-      const {error} = await G.sb.storage.from('media').upload(path, blob, {upsert:true, contentType: blob.type || undefined});
-      if(error){ UP.failed++; syncUI(); continue; }
+      let error = null; try{ error = (await G.sb.storage.from('media').upload(path, blob, {upsert:true, contentType: blob.type || undefined})).error; }catch(e){ error = e; } // a network drop rejects instead of returning {error}
+      if(error){ UP.failed++; syncUI(); if(!online()) break; continue; }
       const url = PUBLIC_MEDIA(path);
       m.remote = url; m.path = path; await DB.put('media', m); S.remoteUrl.set(m.id, url); pendingRemove(m.id);
-      // Schritt in der Anleitung mit Remote-URL versehen (frische Server-Version holen, um nichts zu überschreiben)
-      const inst = await fetchInstr(m.instrId);
-      if(inst){ const st = (inst.steps||[]).find(s => s.mediaId === m.id); if(st && !st.mediaUrl){ const patch = {mediaUrl:url, mediaPath:path}; if(/^data:/.test(st.poster||'')){ try{ patch.posterUrl = await uploadPoster(inst.id, m.id, st.poster); delete st.poster; }catch(e){} } if(m.converted){ patch.w = m.w; patch.h = m.h; if(m.duration){ patch.duration = m.duration; if(!st.trimEnd || st.trimEnd > m.duration) patch.trimEnd = m.duration; } } Object.assign(st, patch); await saveInstr(inst); const local = S.instrs.find(i=>i.id===inst.id); if(local){ const ls = local.steps.find(s=>s.mediaId===m.id); if(ls){ Object.assign(ls, patch); if(patch.posterUrl) delete ls.poster; } } } }
+      // the step gets its server URL. v12.47: through the copy the app holds in memory (editor/capture work on it and it carries the
+      // version stamp _base) – saving a separately fetched server copy left the in-memory one with a stale stamp, and the next edit
+      // after a restart was reported as "changed on another device". Only when the instruction is not in memory the server copy is used.
+      const inst = S.instrs.find(i => i.id===m.instrId) || await fetchInstr(m.instrId);
+      if(inst){ const st = (inst.steps||[]).find(s => s.mediaId === m.id); if(st && !st.mediaUrl){ const patch = {mediaUrl:url, mediaPath:path}; if(/^data:/.test(st.poster||'')){ try{ patch.posterUrl = await uploadPoster(inst.id, m.id, st.poster); delete st.poster; }catch(e){} } if(m.converted){ patch.w = m.w; patch.h = m.h; if(m.duration){ patch.duration = m.duration; if(!st.trimEnd || st.trimEnd > m.duration) patch.trimEnd = m.duration; } } Object.assign(st, patch); if(patch.posterUrl) delete st.poster; await saveInstr(inst); } }
       UP.done++; syncUI();
     }
   } finally { UP.running = false; syncUI(); schedulePill(); if(UP.failed) setTimeout(()=>{ UP.failed=0; syncUI(); }, 6000); }
