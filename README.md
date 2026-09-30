@@ -440,6 +440,13 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Installations-Hinweis**: nach „Später“/× bleibt eine schmale Zeile „📲 GIRI Go als App installieren · So geht’s“ auf der Startseite, solange die App nicht installiert ist (PC und Telefon).
 - Tests `animtest`, `libtest`, `check4` angepasst. 38 Tests grün.
 
+## v12.47.2 – „GIRI“ statt „GIRI Go“, Logo in CI-Blau, BETA-Chip, ISO-Hinweis beim Login
+- **Produktname**: überall in der Oberfläche „GIRI“ (Install-Banner, Menü, Master-Panel, Registrierungs-Mail); im PDF-Kopf steht nur noch das Logo, kein „GO“-Badge mehr. Kommentare/Doku im Code behalten „GIRI Go“ als Projektname.
+- **Logo/App-Icon**: der blaue Pfeil war Indigo `#3B4DA6` – jetzt CI-Primärblau `#004EAD` (Icons 192/512/maskable, Apple-Touch, Favicon, Topbar-Logo, PDF-/Poster-Logo). Icon-URLs auf `?v=3` – Android/PC holen das neue Icon beim nächsten Manifest-Update; auf dem iPhone bleibt das alte Icon, bis die App neu auf den Home-Bildschirm gelegt wird.
+- **BETA-Chip** neben dem Logo (alle Seiten, auch Login); Tipp darauf erklärt: App wird laufend ausgebaut, Anleitungen bleiben erhalten, Feedback an giri@ar-giri.de.
+- **Login-Seite**: Kasten unter der Anmeldung „AR-Experts GmbH ist ISO 27001 zertifiziert. Diese neue Version der App befindet sich gerade in der Zertifizierung – Abschluss bis Ende 2026 geplant. Daten liegen in Frankfurt (EU).“
+- Test `betatest`. 47 Tests.
+
 ## v12.47.1 – Installations-Banner ganz oben, Editor-Feinschliff, Werker-Endbildschirm im hellen Design
 - **„Als App installieren“** ist jetzt ein dunkles Banner **ganz oben** auf der Startseite (über „Anleitungen / SOPs“), PC und Handy gleich, mit der Aussage „dann geht es auch offline“. Es erscheint **bei jedem Start im Browser** neu – „Später“ blendet es nur für diesen Tab aus. In der installierten App gibt es kein Banner. (Die frühere Karte/Zeile mit 7-Tage-Pause ist raus.)
 - **Editor · Schritt hinzufügen**: Kacheln mit großen Symbolen (26 px) und Text darunter, auch am PC – das „T“ von „Leerer Schritt“ hatte keine Größe und füllte die Kachel.

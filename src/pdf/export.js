@@ -36,8 +36,8 @@ async function exportPDF2(instr){
   const header = () => {
     let hx = M; if(brandLogo){ const lh = 6.6, lw = Math.min(30, lh*brandLogo.ratio); try{ doc.addImage(brandLogo.data, 'PNG', M, 6.8, lw, lh); }catch(e){} hx = M + lw + 3; }
     F(true); doc.setFontSize(7.5); doc.setTextColor(...grey); txt(((brand.name && !brandLogo ? brand.name+'   ·   ' : '') + t('pdf_h_doc')).toUpperCase(), hx, 12);
-    const bh = 5.4, bw = 9.5; let x = W-M-bw; doc.setFillColor(0,78,173); doc.roundedRect(x, 7.4, bw, bh, 1.2, 1.2, 'F'); doc.setTextColor(255); doc.setFontSize(8); txt('GO', x+bw/2, 11.2, {align:'center'});
-    if(ggLogo){ const lh = 6.6, lw = lh*ggLogo.ratio; try{ doc.addImage(ggLogo.data, 'PNG', x-lw-2.2, 6.8, lw, lh); }catch(e){} }
+    // v12.47.2: the product is "GIRI" – logo top right, no "GO" badge any more
+    if(ggLogo){ const lh = 6.6, lw = lh*ggLogo.ratio; try{ doc.addImage(ggLogo.data, 'PNG', W-M-lw, 6.8, lw, lh); }catch(e){} }
     doc.setDrawColor(...line); doc.setLineWidth(.25); doc.line(M, 16, W-M, 16);
   };
   const footer = (p, total) => { doc.setDrawColor(...line); doc.setLineWidth(.25); doc.line(M, H-13, W-M, H-13); F(false); doc.setFontSize(7.5); doc.setTextColor(...grey);

@@ -36,6 +36,7 @@ function renderLogin(app){
           <div class="again"><span id="again-hint">${t('again_q')}</span> <button id="li-again" disabled>${t('again_send')}</button> <span id="again-in" class="tnum"></span></div>
           <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px;justify-content:center"><button class="btn ghost sm" id="li-other">${t('other_email')}</button><button class="btn ghost sm" id="li-google2" hidden>${t('login_google')}</button></div></div>
       </div>
+      <div class="l-trust"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg><div><b>${t('iso_t')}</b><span>${t('iso_sub')}</span></div></div>
     </section>
     <section class="l-visual" aria-hidden="true" ${isStandalone() ? 'hidden' : ''}><img id="l-img" src="login.jpg" alt=""><div class="l-cap"><b>${t('hero_kicker')}</b><span>${t('hero_cap')}</span></div></section>
     <footer class="l-legal"><a href="${LEGAL.imprint}" target="_blank" rel="noopener">${t('imprint')}</a><span>·</span><a href="${LEGAL.legal}" target="_blank" rel="noopener">${t('privacy_dpa')}</a><span>·</span><span>© AR-Experts GmbH</span></footer>

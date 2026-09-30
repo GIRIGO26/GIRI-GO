@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-// GIRI – signup-notify (v1, v12.47): a person signed up (profile created) → e-mail to the platform admins (public.platform_admins)
+// GIRI – signup-notify (v2, v12.47.2: "GIRI" wording): a person signed up (profile created) → e-mail to the platform admins (public.platform_admins)
 // with who, which workspace (new trial / joined by invitation / joined by domain), and the workspace's counts.
 // Called by the database (trigger profiles_signup_notify → signup_poke → pg_net) with the shared secret; never by browsers.
 // Sends via Resend (key in the vault: resend_api_key), sender GIRI <giri@ar-giri.de>.
@@ -44,13 +44,13 @@ Deno.serve(async (req: Request) => {
     ];
     const html = `<!doctype html><html><body style="margin:0;padding:0;background:#F4F6FA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#111">
       <div style="max-width:560px;margin:0 auto;padding:28px 16px">
-        <div style="background:#000;color:#fff;border-radius:14px 14px 0 0;padding:16px 22px;font-weight:800;font-size:18px;letter-spacing:.02em">GIRI Go</div>
+        <div style="background:#000;color:#fff;border-radius:14px 14px 0 0;padding:16px 22px;font-weight:800;font-size:18px;letter-spacing:.02em">GIRI</div>
         <div style="background:#fff;border-radius:0 0 14px 14px;padding:22px 22px 18px;border:1px solid #E6E8EE;border-top:0">
           <p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#6B7280">${isNewWs ? "Neue Registrierung" : "Neuer Nutzer"}</p>
           <h1 style="margin:0 0 14px;font-size:20px;line-height:1.3">${esc(p.name || p.email)}</h1>
           <table style="border-collapse:collapse;font-size:14px;width:100%">${rows.map(([k, v]) => `<tr><td style="padding:6px 10px 6px 0;color:#6B7280;white-space:nowrap;vertical-align:top">${k}</td><td style="padding:6px 0">${v}</td></tr>`).join("")}</table>
           <a href="${APP}#/master" style="display:inline-block;margin-top:16px;background:#000;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:12px;font-size:15px">Master-Admin öffnen</a>
-          <p style="margin:18px 0 0;font-size:12px;color:#8A8F98;line-height:1.5">Du bekommst diese Mail, weil du Plattform-Admin von GIRI Go bist.</p>
+          <p style="margin:18px 0 0;font-size:12px;color:#8A8F98;line-height:1.5">Du bekommst diese Mail, weil du Plattform-Admin von GIRI bist.</p>
         </div>
         <p style="margin:14px 0 0;text-align:center;font-size:11px;color:#9AA0A6">GIRI · AR-Experts GmbH</p>
       </div></body></html>`;

@@ -5,7 +5,7 @@ const CACHE = 'giri-go-shell';
 // v12.38: cache a copy without the response URL – the host redirects /index.html → /, and a cached response that still carries
 // its redirected URL (…/?v=check…) would become the address of the next navigation served from the cache
 const plain = async r => new Response(await r.clone().arrayBuffer(), {status: r.status, statusText: r.statusText, headers: r.headers});
-const CORE = ['./', './manifest.webmanifest', './icons/icon-192.png?v=2', './icons/icon-512.png?v=2'];
+const CORE = ['./', './manifest.webmanifest', './icons/icon-192.png?v=3', './icons/icon-512.png?v=3'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(async c => { await c.addAll(CORE).catch(() => {}); try{ const r = await fetch('./', {cache:'no-cache'}); if(r.ok) await c.put('./index.html', await plain(r)); }catch(e){} })); });
 // v12.39: a new service worker rescues installed apps that are stuck on an old shell – app versions before 12.37.1 had a dead
 // in-page version check and never reloaded on their own. On activation: fetch the current shell, and if the cached one is older,

@@ -13,14 +13,17 @@ import { brandModal } from '../views/branding.js';
 
 /* ---------- Top bar (v0.34): logo · where am I · one menu button ---------- */
 function topbar(app, opts={}){
+  // v12.47.2: "BETA" next to the logo – customers should know the app still changes a lot; a tap explains it
+  const betaInfo = () => modal(`<h2>${t('beta_title')}</h2><p class="muted" style="margin:0 0 14px;line-height:1.5">${t('beta_sub')}</p><div class="actions"><button class="btn" data-x>${t('close')}</button></div>`, (bg, close) => { bg.querySelector('[data-x]').onclick = () => close(); });
   const tb = el(`<header class="topbar">
     ${opts.back ? `<button class="tb-btn" data-back aria-label="back">${IC.back}</button>` : ''}
-    <div class="brand"><span class="logo" role="img" aria-label="GIRI"></span><span class="wordmark">GIRI</span>${opts.sub ? `<span class="where"><span class="sep"></span><span class="where-t">${esc(opts.sub)}</span></span>`:''}</div>
+    <div class="brand"><span class="logo" role="img" aria-label="GIRI"></span><span class="wordmark">GIRI</span><button class="beta" type="button" data-beta title="${t('beta_title')}">BETA</button>${opts.sub ? `<span class="where"><span class="sep"></span><span class="where-t">${esc(opts.sub)}</span></span>`:''}</div>
     <div class="spacer"></div>
     <button class="tb-btn tb-lang" data-lang title="${t('language')}">${FLAGS[G.LANG.toUpperCase()]||''} <span class="tb-langc">${G.LANG.toUpperCase()}</span></button>
     ${S.user ? `<button class="tb-btn tb-user" id="tbmenu" data-menu aria-haspopup="menu" title="${t('menu')}"><span class="avatar">${esc(initials(S.user.name))}</span><span class="tb-name">${esc(S.user.name.split(' ')[0])}</span><span class="tb-burger">${IC.menu}</span></button>` : ''}
   </header>`);
   const lb = tb.querySelector('[data-lang]'); if(lb) lb.onclick = pickLang;
+  { const b = tb.querySelector('[data-beta]'); if(b) b.onclick = betaInfo; }
   if(opts.back) tb.querySelector('[data-back]').onclick = () => go(opts.back);
   const mb = tb.querySelector('[data-menu]'); if(mb) mb.onclick = appMenu;
   app.appendChild(tb);
