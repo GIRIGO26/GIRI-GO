@@ -37,7 +37,17 @@ function linkNote(){
   n.querySelector('[data-ok]').onclick = () => n.remove(); return n;
 }
 
-// phones: a banner that cannot be missed (dashboard + login), until dismissed – then quiet for 7 days
+// v12.47.1: ONE banner for PC and phone at the very top of the dashboard, every time the app is opened in a browser tab
+// ("Später" hides it for this tab only – the next start shows it again); says plainly that the installed app works offline
+function installTop(){
+  if(isStandalone()) return null; try{ if(sessionStorage.getItem('gg_inst_hide')) return null; }catch(e){}
+  const n = el(`<div class="inst-top" id="inst-top"><div class="it-ico">📲</div><div class="it-txt"><b>${t('it_title')}</b><span>${t('it_sub')}</span></div><div class="it-acts"><button class="it-btn" data-go>${t('it_btn')}</button><button class="it-later" data-later>${t('later')}</button></div></div>`);
+  n.querySelector('[data-go]').onclick = () => { if(G.installPrompt) doInstall(); else installGuide(); };
+  n.querySelector('[data-later]').onclick = () => { try{ sessionStorage.setItem('gg_inst_hide', '1'); }catch(e){} n.remove(); };
+  return n;
+}
+
+// phones: a banner that cannot be missed (login), until dismissed – then quiet for 7 days
 const isPhone = () => isIOS() || isAndroid() || (matchMedia('(pointer:coarse)').matches && matchMedia('(max-width:900px)').matches);
 function installBanner(){
   if(isStandalone() || !isPhone()) return null; try{ const until = +(localStorage.getItem('gg_inst_snooze')||0); if(until > Date.now()) return null; }catch(e){}
@@ -126,4 +136,4 @@ async function checkUpdate(force){
 
 async function pickupSession(){ if(!G.sb || S.user || G.pickingUp || !G.authReady) return; G.pickingUp = true; try{ const {data:{session}} = await G.sb.auth.getSession(); if(session){ await loadProfile(); if(S.user) render(); } }catch(e){} G.pickingUp = false; }
 
-export { isStandalone, isIOS, isAndroid, isPhone, doInstall, installNote, installBanner, installStrip, linkNote, installGuide, reloadForUpdate, updateSafe, applyUpdateIfSafe, checkUpdate, pickupSession };
+export { isStandalone, isIOS, isAndroid, isPhone, doInstall, installNote, installBanner, installStrip, installTop, linkNote, installGuide, reloadForUpdate, updateSafe, applyUpdateIfSafe, checkUpdate, pickupSession };

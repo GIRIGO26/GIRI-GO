@@ -67,6 +67,10 @@
 .vw-start,.vw-end{position:absolute;inset:0;z-index:7;background:#000;display:flex;align-items:center;justify-content:center;padding:24px;overflow:auto}
 .vw-start .card,.vw-end .card{background:#161618;color:#fff;padding:26px;max-width:440px;width:100%;border:1px solid #2A2A2E;box-shadow:0 30px 80px rgba(0,0,0,.5);position:relative}
 .vw-end .card{max-width:480px}
+.vw-end .card .sub{color:#B8C6DB;margin:4px 0 0}
+.vw-end .card .btn.ghost{color:#fff;border-color:#22437A}
+.viewer.light .vw-end .card .sub{color:#525252}
+.viewer.light .vw-end .card .btn.ghost{color:#000;border-color:var(--line-2)}
 .vw-start h1{font-size:24px;margin-bottom:6px;letter-spacing:-.02em}
 .vw-start .field input{background:#222226;border-color:#3A3A40;color:#fff}
 .vw-start .field input:focus{border-color:var(--mint);box-shadow:0 0 0 4px rgba(3,211,155,.18)}
@@ -140,7 +144,7 @@
 .viewer.light .vw-top .ch,.viewer.light .vstep .vtext .num{color:var(--brand)}
 .viewer.light .vstep .vmedia .vbg{filter:blur(36px) brightness(1.05) saturate(.9);opacity:.35}
 .viewer.light .round,.viewer.light .vw-chap .ch-bar .round,.viewer.light .langbtn2{background:rgba(0,0,0,.08);color:#000}
-.viewer.light .vstep .vtext p,.viewer.light .vend-in p{color:#525252}
+.viewer.light .vstep .vtext p{color:#525252}
 .viewer.light .vstep .vtext .rich{color:#525252}
 .viewer.light .vstep .vtext .rich b,.viewer.light .vstep .vtext .rich a{color:#000}
 .viewer.light .vstep .vtext .warnbox{background:rgba(255,210,63,.25);color:#7a5a00;border-left-color:#e6b800}
@@ -150,7 +154,7 @@
 .viewer.light .vw-side .it:hover{background:#F4F4F4}
 .viewer.light .vw-start .card,.viewer.light .vw-end .card{background:#fff;color:#000;border:1px solid #E4E6EB;box-shadow:var(--shadow-2)}
 .viewer.light .vw-start .field input{background:#fff;border-color:#D3D6DC;color:#000}
-.viewer.light .vend-sum span{background:#EFEFEF}
+.viewer.light .vend-sum span{background:rgba(255,255,255,.22);color:#fff}
 .viewer.light .vw-hint{background:rgba(0,0,0,.6);color:#fff}
 .viewer.light .vw-chap .ch-sub,.viewer.light .vw-chap .ch-sub2{color:#525252}
 .viewer.light .ch-tile{background:#EFEFEF;box-shadow:0 10px 30px rgba(0,0,0,.12)}

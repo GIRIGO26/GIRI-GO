@@ -337,3 +337,24 @@ table.roles td.muted{font-size:12.5px}
 .plan-banner span{color:inherit;opacity:.85}
 .plan-banner.warn{background:#FFF4DE;color:#7A4A00;box-shadow:inset 0 0 0 1px #F5D89A}
 .plan-banner.bad{background:#FDE8E8;color:#7F1D1D;box-shadow:inset 0 0 0 1px #F5B5B5}
+
+/* v12.47.1: install banner at the very top of the dashboard – PC and phone, every browser start, says "works offline" */
+.inst-top{position:relative;display:grid;grid-template-columns:auto 1fr auto;gap:0 16px;align-items:center;padding:16px 18px;margin:0 0 22px;border-radius:18px;background:linear-gradient(135deg,#0B0B0C,#1a2740 60%,#012756);color:#fff;border:1px solid rgba(255,255,255,.08);box-shadow:0 18px 40px -20px rgba(1,39,86,.75);overflow:hidden}
+.inst-top::after{content:"";position:absolute;right:-50px;top:-70px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(3,211,155,.32),transparent 70%);pointer-events:none}
+.inst-top .it-ico{font-size:38px;line-height:1;filter:drop-shadow(0 6px 12px rgba(0,0,0,.4))}
+.inst-top .it-txt{display:flex;flex-direction:column;gap:4px;min-width:0}
+.inst-top .it-txt b{font-size:18px;letter-spacing:-.015em;line-height:1.2}
+.inst-top .it-txt span{font-size:13.5px;opacity:.85;line-height:1.35}
+.inst-top .it-acts{display:flex;align-items:center;gap:8px;position:relative;z-index:1}
+.inst-top .it-btn{background:var(--mint);color:#000;font-weight:800;font-size:15px;padding:12px 20px;border-radius:12px;box-shadow:0 8px 18px -8px rgba(0,0,0,.5);white-space:nowrap}
+.inst-top .it-btn:hover{filter:brightness(1.05)}
+.inst-top .it-later{background:transparent;color:#fff;opacity:.8;font-weight:600;font-size:14px;padding:10px 8px}
+.inst-top .it-later:hover{opacity:1;text-decoration:underline}
+@media(max-width:700px){
+  .inst-top{grid-template-columns:auto 1fr;gap:6px 12px;padding:14px 14px 14px 16px;margin-bottom:16px}
+  .inst-top .it-ico{font-size:32px;align-self:start}
+  .inst-top .it-txt b{font-size:16px}
+  .inst-top .it-txt span{font-size:13px}
+  .inst-top .it-acts{grid-column:2;margin-top:4px}
+  .inst-top .it-btn{padding:11px 16px;font-size:14px}
+}

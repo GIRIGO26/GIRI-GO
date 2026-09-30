@@ -88,7 +88,7 @@ Schema-Änderungen = SQL-Migration im Supabase-Projekt (MCP/CLI) **und** derselb
 ## 6. Bauen, Testen, Ausliefern
 
 - `npm run dev` lokal · `npm run build` → `index.html` + `assets/` im Repo-Root (werden mit eingecheckt) · `npm run build:cf` → `dist/` für Cloudflare.
-- `npm test` = `node tests/run.mjs` – 45 Playwright-Ende-zu-Ende-Tests gegen den gebauten Stand; Supabase ist durch einen
+- `npm test` = `node tests/run.mjs` – 46 Playwright-Ende-zu-Ende-Tests gegen den gebauten Stand; Supabase ist durch einen
   In-Memory-Mock ersetzt (`tests/build_mock.mjs` → `index3.html`), keine Geheimnisse, kein Netz. Einzelne Tests: `node tests/run.mjs libtest vidtest`.
 - CI: `.github/workflows/ci.yml` baut und lässt die Suite bei jedem Push/PR laufen; Screenshots und Ausgaben hängen als Artifact am Lauf.
 - Release: Version in `app/index.html` (`APP_VERSION`) und `package.json` hochzählen, README-Abschnitt, `npm run build`, Commit auf `main`

@@ -2,7 +2,7 @@ import { newShareKey } from '../core/links.js';
 import { pdfImport } from '../media/pdfimport.js';
 import { trashInstr } from '../core/trash.js';
 import { cachedUrl } from '../core/viewcache.js';
-import { installBanner, installNote, installStrip, linkNote } from '../app/pwa.js';
+import { installTop, linkNote } from '../app/pwa.js';
 import { go, render } from '../app/router.js';
 import { realSteps } from '../core/auth.js';
 import { $$, confirmM, el, esc, modal, promptM, toast } from '../core/helpers.js';
@@ -188,8 +188,8 @@ async function renderDashboard(app, pid){
   app.appendChild(v);
   // v12.47: plan state of the workspace (trial / demo running out, expired, suspended) – set by the platform, shown to everyone
   { const pb = planBanner(); if(pb) v.querySelector('#inst-slot').appendChild(pb); }
-  const ln = linkNote(); if(ln) v.querySelector('#inst-slot').appendChild(ln); const ban = ln ? null : installBanner(); if(ban) v.querySelector('#inst-slot').appendChild(ban); const inst = (ln || ban) ? null : installNote(); if(inst) v.querySelector('#inst-slot').appendChild(inst);
-  if(!ln && !ban && !inst){ const strip = installStrip(); if(strip) v.querySelector('#inst-slot').appendChild(strip); } // dismissed → slim reminder until installed
+  const ln = linkNote(); if(ln) v.querySelector('#inst-slot').appendChild(ln);
+  { const top = installTop(); if(top) v.insertBefore(top, v.firstChild); } // v12.47.1: install banner above the page title, every browser start
   const list = v.querySelector('#list');
   const inScope = i => (q ? true : inFolder(i, f ? f.id : 'all')) && inTeam(i, teamF) && (!stF || (stF==='fb' ? !!(statMap[i.id] && statMap[i.id].fb) : i.status===stF)) && matchQ(i);
   function renderList(){
