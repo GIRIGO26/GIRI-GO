@@ -59,7 +59,13 @@ const mediaUrl = async id => {
 const BRAND_DEFAULT = {name:'', color:'#004EAD', logo:null, theme:'dark'};
  const brandCache = new Map();
 
-async function loadBrand(ws){ if(!G.sb || !ws) return S.brand; if(brandCache.has(ws)){ S.brand = brandCache.get(ws); return S.brand; } const {data} = await G.sb.from('workspaces').select('brand').eq('ws', ws).maybeSingle(); S.brand = Object.assign({}, BRAND_DEFAULT, (data && data.brand) || {}); brandCache.set(ws, S.brand); return S.brand; }
+// v12.48: workspace rows are readable for their members only – a worker link (no login, or another company) gets the branding
+// through ws_brand(), which returns nothing but the brand
+async function loadBrand(ws){ if(!G.sb || !ws) return S.brand; if(brandCache.has(ws)){ S.brand = brandCache.get(ws); return S.brand; }
+  let brand = null;
+  if(S.user && S.user.ws === ws){ try{ const {data} = await G.sb.from('workspaces').select('brand').eq('ws', ws).maybeSingle(); brand = data && data.brand; }catch(e){} }
+  if(!brand){ try{ const {data, error} = await G.sb.rpc('ws_brand', {p_ws: ws}); if(!error && data && typeof data === 'object') brand = data; }catch(e){} }
+  S.brand = Object.assign({}, BRAND_DEFAULT, brand || {}); if(brand) brandCache.set(ws, S.brand); return S.brand; }
 
 async function saveBrand(brand){ const {error} = await G.sb.from('workspaces').upsert({ws:S.user.ws, brand, updated_at:new Date().toISOString()}); if(error) throw error; S.brand = Object.assign({}, BRAND_DEFAULT, brand); brandCache.set(S.user.ws, S.brand); }
 

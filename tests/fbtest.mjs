@@ -35,9 +35,9 @@ d.on('console', mm => { if(mm.type()==='error' && !/Failed to load|CORS|ERR_/.te
 await d.goto(BASE+'/index3.html#/edit/'+vid2); await d.waitForTimeout(2000);
 console.log('hash:', await d.evaluate(()=>location.hash), 'editor:', await d.$$eval('.editor', x=>x.length), 'page h1:', await d.$eval('#app', e => (e.querySelector('h1,.title')||{}).value || (e.querySelector('h1')||{}).textContent));
 console.log('banner:', await d.$eval('#fb-banner', e => e.hidden ? 'hidden' : e.textContent.trim()));
-console.log('settings toggle:', !!(await d.$('#fbk')), '| badge on ⋯ visible:', await d.$eval('#res-n', e => !e.hidden));
+console.log('settings toggle:', !!(await d.$('#fbk')), '| badge on the analytics tab (v12.48):', await d.$eval('.itab[data-itab="results"] .nbadge', e => e.textContent.trim()).catch(() => 'none'));
 // v0.35: where feedback lands + creator mail toggle (default on, saved as fbNotify)
-await d.click('#more'); await d.waitForTimeout(200); console.log('menu stats entry:', await d.$eval('.modal-bg [data-m="results"]', e => e.textContent.trim().replace(/\s+/g,' '))); await d.click('.modal-bg [data-m="settings"]'); await d.waitForTimeout(300);
+console.log('analytics tab (v12.48, instead of the ⋯ entry):', await d.$eval('.itab[data-itab="results"]', e => e.textContent.trim().replace(/\s+/g,' ')), '| ⋯ entry gone:', await (async () => { await d.click('#more'); await d.waitForTimeout(200); return !(await d.$('.modal-bg [data-m="results"]')); })()); await d.click('.modal-bg [data-m="settings"]'); await d.waitForTimeout(300);
 console.log('fb-sub:', await d.$eval('#fb-sub', e => e.hidden ? 'hidden' : e.textContent.trim().replace(/\s+/g,' ').slice(0, 120)), '| notify checked:', await d.$eval('#fbn', e => e.checked));
 await d.click('#fbn'); await d.waitForTimeout(500); console.log('fbNotify saved:', await d.evaluate(()=>window.__tables.instructions.find(r=>r.id===location.hash.split('/')[2]).data.fbNotify)); await d.click('#fbn'); await d.waitForTimeout(400);
 await d.click('#fbnr'); await d.waitForTimeout(400); console.log('reviewers saved:', await d.evaluate(()=>window.__tables.instructions.find(r=>r.id===location.hash.split('/')[2]).data.fbNotifyReviewers)); await d.click('#fbnr'); await d.waitForTimeout(300);

@@ -31,7 +31,7 @@
 .wait .again{margin-top:8px;font-size:13px;font-weight:700;color:var(--ink-3)}
 .wait .again button{color:var(--blue);font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .wait .again button[disabled]{color:var(--ink-3);text-decoration:none;pointer-events:none}
-@media(max-width:900px){.login2{grid-template-columns:minmax(0,1fr);gap:14px;padding-top:10px;min-height:0}.l-visual{min-height:0;height:min(44vw,230px);order:0;border-radius:20px}.l-form{order:1}.l-form h1{font-size:23px;margin:6px 0 12px}.l-sub,.l-proof{display:none}.l-cap{left:16px;bottom:14px}.l-cap span{font-size:14px}}
+@media(max-width:900px){.login2{grid-template-columns:minmax(0,1fr);gap:14px;padding-top:10px;min-height:0}.l-visual{min-height:0;height:min(44vw,230px);order:0;border-radius:20px}.l-form{order:1}.l-legal{order:2}.l-form h1{font-size:23px;margin:6px 0 12px}.l-sub,.l-proof{display:none}.l-cap{left:16px;bottom:14px}.l-cap span{font-size:14px}}
 /* legacy login blocks (unused templates kept harmless) */
 .login-wrap{max-width:440px;margin:40px auto;padding:28px}
 .login-card{padding:26px}

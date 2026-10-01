@@ -6,7 +6,7 @@ import { symbolPanel, symbolSheet } from '../annotations/library.js';
 import { go } from '../app/router.js';
 import { needsShot, realSteps } from '../core/auth.js';
 import { $$, confirmM, el, esc, fitRect, fmtSec, modal, promptM, toast } from '../core/helpers.js';
-import { fmtDate, t } from '../core/i18n.js';
+import { fmtD, fmtDate, t } from '../core/i18n.js';
 import { saveInstr } from '../core/passwords.js';
 import { mdToHtml, mdToPlain, titleHtml } from '../core/richtext.js';
 import { G, S, mediaUrl } from '../core/state.js';
@@ -18,6 +18,7 @@ import { attachDropImport, importFiles, replaceStepMedia } from '../media/import
 import { exportPDF } from '../pdf/export.js';
 import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
+import { instrCrumbs, instrTabs } from '../ui/instrnav.js';
 import { duplicateWithProgress, grabFrame, nOf, posterCache, stepPoster, stepPosterSync } from './dashboard.js';
 import { preloadInstr, touchEditorCache } from '../media/preload.js';
 import { exportPDFAsk, shareModal } from './share.js';
@@ -29,15 +30,15 @@ async function renderEditor(app, id, selStepId, fbId){
   const instr = S.instrs.find(i=>i.id===id); if(!instr || !canSee(instr)) return go('');
   if(!Array.isArray(instr.steps)) instr.steps = []; instr.steps.forEach(st => { if(st && st.kind!=='chapter' && !Array.isArray(st.ann)) st.ann = []; }); if(!instr.approvals) instr.approvals = {tech:null, dsgvo:null}; if(!Array.isArray(instr.history)) instr.history = [];
   if(selStepId === 'fb'){ fbId = fbId || null; selStepId = null; } else fbId = null;
-  topbar(app, {back:'/', sub: t('edit')});
+  topbar(app, {crumbs: instrCrumbs(instr)}); // v12.48: Instructions › folder › this instruction
   // v12.39: capabilities from the team roles – editing, technical approval and privacy approval are separate rights
   const canEdit = can(instr, 'edit'), canTech = can(instr, 'approve_tech'), canDsgvo = can(instr, 'approve_dsgvo'), canLinks = can(instr, 'links');
   const myRole = canEdit ? 'editor' : 'viewer'; const canApprove = canTech && canDsgvo; const canApproveKey = k => k==='tech' ? canTech : canDsgvo;
   let tab = 'steps'; try{ tab = sessionStorage.getItem('gg_tab_'+id) || 'steps'; }catch(e){}
   const v = el(`<main class="page">
-    <div class="ed-head"><div class="title-wrap"><input class="title" id="ititle" value="${esc(instr.title)}" placeholder="${t('title')}" ${myRole==='viewer'?'disabled':''}><button class="pen-btn" id="rename" title="${t('rename')}">${IC.edit}</button></div>
-      <div class="ed-meta"><span class="chip dot ${instr.status}" id="stchip">${t(instr.status==='review'?'in_review':instr.status)}</span><span class="muted tnum" id="vchip">v${instr.version}</span><span class="muted" id="ed-n"></span></div>
-      <div class="ed-acts"><button class="btn mint sm" id="rec">${IC.cam} <span>${t('record')}</span></button><button class="btn ghost sm" id="prev" title="${t('preview')}">${IC.play} <span>${t('preview')}</span></button><button class="btn sm" id="cta" hidden></button><button class="btn ghost icon" id="more" title="${t('more')}">${IC.more}<span class="nbadge dot" id="res-n" hidden></span></button></div></div>
+    <div class="ed-head"><div class="ed-top"><div class="title-wrap"><input class="title" id="ititle" value="${esc(instr.title)}" placeholder="${t('title')}" ${myRole==='viewer'?'disabled':''}><button class="pen-btn" id="rename" title="${t('rename')}">${IC.edit}</button></div>
+      <div class="ed-meta"><button type="button" class="chip dot ${instr.status}" id="stchip" title="${t('status_details')}">${t(instr.status==='review'?'in_review':instr.status)}</button><span class="muted tnum" id="vchip">v${instr.version}</span><span class="muted" id="ed-n"></span><span class="muted ed-when" id="ed-when"></span></div></div>
+      <div class="ed-bar">${instrTabs(instr, 'edit')}<div class="ed-acts"><button class="btn mint sm" id="rec">${IC.cam} <span>${t('record')}</span></button><button class="btn sm" id="cta" hidden></button><button class="btn ghost icon" id="more" title="${t('more')}">${IC.more}</button></div></div></div>
     <div class="fb-banner" id="fb-banner" hidden><span>${IC.msg} <b id="fb-n"></b></span><a class="btn sm" href="#/results/${instr.id}" id="fb-open">${t('fb_view')}</a></div>
     <div class="editor" id="tab-steps" data-pane="${selStepId ? 'step' : 'list'}" ${tab!=='steps'?'hidden':''}>
       <aside class="card steps-panel">
@@ -62,13 +63,17 @@ async function renderEditor(app, id, selStepId, fbId){
       <div class="card side-info" id="appr"></div>
     </div></main>`);
   app.appendChild(v);
+  // v12.48: the head (title, tabs, record / submit / approve) stays on screen on the PC – the side panels start below it
+  { const eh = v.querySelector('.ed-head'); const setH = () => v.style.setProperty('--edh', eh.offsetHeight + 'px'); setH(); const ro = new ResizeObserver(setH); ro.observe(eh);
+    const onSc = () => eh.classList.toggle('stuck', window.scrollY > 4); window.addEventListener('scroll', onSc, {passive:true}); onSc();
+    G.activeCleanup = () => { ro.disconnect(); window.removeEventListener('scroll', onSc); }; }
   // v12.43: no tab row – the steps are the editor; approval & settings, link/QR, PDF and statistics live in the ⋯ menu, preview is a button
   const showTab = k => { tab = k; try{ sessionStorage.setItem('gg_tab_'+id, tab); }catch(e){} v.querySelector('#tab-steps').hidden = tab!=='steps'; v.querySelector('#tab-settings').hidden = tab!=='settings'; if(tab==='steps') setTimeout(()=>window.dispatchEvent(new Event('resize')), 30); else window.scrollTo({top:0}); };
   { const sb = v.querySelector('[data-sback]'); if(sb) sb.onclick = () => showTab('steps'); }
   v.querySelector('#rec').onclick = () => go('rec/'+instr.id);
-  v.querySelector('#prev').onclick = () => go('preview/'+instr.id);
+  v.querySelector('#stchip').onclick = () => { showTab('settings'); setTimeout(() => { const a = v.querySelector('#appr'); if(a) a.scrollIntoView({behavior:'smooth', block:'start'}); }, 60); }; // v12.48: the status chip leads to the approvals
   let fbOpenN = 0;
-  v.querySelector('#more').onclick = () => modal(`<div class="menu"><div class="menu-h">${esc(instr.title)}</div><button data-m="undo" ${undo.length?'':'disabled'}>${IC.undo} ${t('undo')}</button><button data-m="redo" ${redo.length?'':'disabled'}>${IC.redo} ${t('redo')}</button><div class="menu-sep"></div>${canLinks ? `<button data-m="share">${IC.share} ${t('share')}</button>` : ''}<button data-m="pdf">${IC.pdf} ${t('pdf')}</button><button data-m="results">${IC.eye} ${t('stats_fb')}${fbOpenN ? `<span class="nbadge">${fbOpenN}</span>` : ''}</button><div class="menu-sep"></div>${canEdit ? `<button data-m="dup">${IC.copy} ${t('duplicate')}</button>` : ''}<button data-m="settings">${IC.gear} ${t('tab_settings')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='undo') doUndo(); else if(m==='redo') doRedo(); else if(m==='dup') duplicateWithProgress(instr); else if(m==='share') shareModal(instr); else if(m==='pdf') exportPDFAsk(instr); else if(m==='results') go('results/'+instr.id); else if(m==='settings') showTab('settings'); }); });
+  v.querySelector('#more').onclick = () => modal(`<div class="menu"><div class="menu-h">${esc(instr.title)}</div><button data-m="undo" ${undo.length?'':'disabled'}>${IC.undo} ${t('undo')}</button><button data-m="redo" ${redo.length?'':'disabled'}>${IC.redo} ${t('redo')}</button><div class="menu-sep"></div>${canLinks ? `<button data-m="share">${IC.share} ${t('share')}</button>` : ''}<button data-m="pdf">${IC.pdf} ${t('pdf')}</button><div class="menu-sep"></div>${canEdit ? `<button data-m="dup">${IC.copy} ${t('duplicate')}</button>` : ''}<button data-m="settings">${IC.gear} ${t('tab_settings')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='undo') doUndo(); else if(m==='redo') doRedo(); else if(m==='dup') duplicateWithProgress(instr); else if(m==='share') shareModal(instr); else if(m==='pdf') exportPDFAsk(instr); else if(m==='results') go('results/'+instr.id); else if(m==='settings') showTab('settings'); }); });
   const setChip = () => { const c = v.querySelector('#stchip'); c.className = 'chip dot '+instr.status; c.textContent = t(instr.status==='review'?'in_review':instr.status); const vc = v.querySelector('#vchip'); if(vc) vc.textContent = 'v'+instr.version; updateCTA(); };
   function updateCTA(){ const b = v.querySelector('#cta'); b.hidden = true; b.className = 'btn sm'; const narrow = matchMedia('(max-width:560px)').matches;
     if(instr.status==='draft' && realSteps(instr).length && myRole!=='viewer'){ b.hidden = false; b.textContent = t(narrow ? 'submit_review_short' : 'submit_review'); b.onclick = submitForReview; }
@@ -153,26 +158,25 @@ async function renderEditor(app, id, selStepId, fbId){
     // the chapter of the selected step is always open (e.g. coming back from the camera with a fresh step)
     if(sel !== openedFor){ openedFor = sel; let ch = null; for(const s of instr.steps){ if(s.kind==='chapter') ch = s; else if(s.id===sel){ if(ch && collapsed.has(ch.id)){ collapsed.delete(ch.id); saveColl(); } break; } } }
     const edn = v.querySelector('#ed-n'); if(edn) edn.textContent = '· ' + nOf(realSteps(instr).length, 'step', 'steps');
+    const ew = v.querySelector('#ed-when'); if(ew) ew.textContent = instr.updatedAt ? '· ' + t('changed_by', {d: fmtD(instr.updatedAt), n: instr.lastBy || instr.createdBy || ''}).replace(/ (von|by) $/, '') : '';
     if(!instr.steps.length){ list.innerHTML = `<div class="muted" style="padding:10px">${t('no_steps')}</div>`; if(myRole!=='viewer') list.appendChild(addStepCard()); }
     instr.steps.forEach((s, idx) => { try{
       if(s.kind==='chapter'){
         curCh = s; const [cs, ce] = chapterBlock(idx); const cnt = ce-cs-1; const isC = collapsed.has(s.id);
         const chIdx = instr.steps.slice(0, idx).filter(x => x.kind==='chapter').length;
-        const r = el(`<div class="chrow ${isC?'coll':''}" data-id="${s.id}" style="--chc:${['#004EAD','#03D39B','#F5A524','#8B5CF6','#EC4899','#0EA5E9'][chIdx % 6]}"><span class="grip" title="drag">${IC.grip}</span><button class="chev" title="${isC?t('expand'):t('collapse')}">${IC.down}</button><input value="${esc(s.title)}" placeholder="${t('chapter')}"><button class="chlbl" type="button">${esc(s.title)||t('chapter')}</button><span class="cnt tnum" data-lbl="${isC ? (cnt===1 ? t('step') : t('steps')) : ''}">${cnt}</span><button class="mini" data-up title="${t('move_up')}">${IC.up}</button><button class="mini" data-dn title="${t('move_down')}">${IC.down}</button><button class="mini x" title="${t('delete')}">${IC.trash}</button><button class="mini chmore" title="${t('more')}">${IC.more}</button></div>`);
+        const r = el(`<div class="chrow ${isC?'coll':''}" data-id="${s.id}" style="--chc:${['#004EAD','#03D39B','#F5A524','#8B5CF6','#EC4899','#0EA5E9'][chIdx % 6]}"><span class="grip" title="${t('drag')}">${IC.grip}</span><button class="chev" title="${isC?t('expand'):t('collapse')}">${IC.down}</button><input value="${esc(s.title)}" placeholder="${t('chapter')}"><button class="chlbl" type="button" title="${t('ch_rename_hint')}">${esc(s.title)||t('chapter')}</button><span class="cnt tnum" data-lbl="${isC ? (cnt===1 ? t('step') : t('steps')) : ''}">${cnt}</span><button class="mini x" title="${t('delete')}">${IC.trash}</button></div>`);
         const toggle = () => { if(collapsed.has(s.id)) collapsed.delete(s.id); else collapsed.add(s.id); saveColl(); renderList(); };
-        r.querySelector('.chlbl').onclick = toggle;
-        r.querySelector('.chmore').onclick = () => modal(`<div class="menu"><div class="menu-h">${esc(s.title)||t('chapter')}</div><button data-m="ren">${IC.edit} ${t('ch_rename')}</button><button data-m="up" ${idx===0?'disabled':''}>${IC.up} ${t('move_up')}</button><button data-m="dn">${IC.down} ${t('move_down')}</button><button data-m="del" class="del">${IC.trash} ${t('delete')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = async () => { close(); const m = b.dataset.m; if(m==='up') moveChapter(idx, -1); else if(m==='dn') moveChapter(idx, 1); else if(m==='del'){ instr.steps.splice(idx,1); await touch(); renderList(); } else { const name = await promptM(t('ch_rename'), t('chapter_ph'), s.title||''); if(name!==null){ s.title = name.trim(); await touch(); renderList(); } } }); });
+        // v12.48: chapters move like steps – by the grip (drag & drop); the label (phone) renames, the chevron folds
+        r.querySelector('.chlbl').onclick = async () => { if(myRole==='viewer') return toggle(); const name = await promptM(t('ch_rename'), t('chapter_ph'), s.title||''); if(name!==null){ s.title = name.trim(); await touch(); renderList(); } };
         r.querySelector('input').oninput = e => { s.title = e.target.value; debounce('ch'+s.id, touch); };
         r.querySelector('.chev').onclick = toggle;
-        r.querySelector('[data-up]').onclick = () => moveChapter(idx, -1);
-        r.querySelector('[data-dn]').onclick = () => moveChapter(idx, 1);
         r.querySelector('.x').onclick = async () => { instr.steps.splice(idx,1); await touch(); renderList(); };
         attachDrag(r, idx); list.appendChild(r); return;
       }
       n++;
       if(curCh && collapsed.has(curCh.id)) return;
       const chC = curCh ? ['#004EAD','#03D39B','#F5A524','#8B5CF6','#EC4899','#0EA5E9'][instr.steps.slice(0, instr.steps.indexOf(curCh)).filter(x => x.kind==='chapter').length % 6] : 'transparent';
-      const r = el(`<div class="srow ${s.id===sel?'sel':''} ${curCh?'in-ch':''} ${s.mediaId && localMedia.has(s.mediaId)?'local':''}" data-id="${s.id}" tabindex="0" style="--chc:${chC}"><span class="grip" title="drag">${IC.grip}</span><span class="n tnum">${n}</span><div class="th-wrap ${s.mediaId?'':'noshot'} ${s.placeholder?'ph':''} ${s.textOnly?'txt':''}">${s.mediaId ? '<img class="th" alt="">' : `<span class="th">${s.textOnly ? IC.text : IC.cam}</span>`}${s.placeholder ? `<u class="phtag">${t('ph_tag')}</u>` : ''}${s.type==='video'?`<span class="vd tnum">${fmtSec(Math.max(0,(s.trimEnd||s.duration)-(s.trimStart||0)))}s</span>`:''}</div><div class="tt">${titleHtml(s.title)||`<span class="muted">${t('step')} ${n}</span>`}${myRole!=='viewer' ? `<button class="mini x rowdel" data-rowdel title="${t('delete')}">${IC.trash}</button>`:''}<small>${instr.checklist && (instr.checkMode||'all')!=='all' && confirmSteps(instr).includes(s) ? '☑ ' : ''}${s.ann.length?s.ann.length+' ⌖':''} ${s.desc?'· '+esc(mdToPlain(s.desc).replace(/\n+/g,' ').slice(0,30)):''}</small></div></div>`);
+      const r = el(`<div class="srow ${s.id===sel?'sel':''} ${curCh?'in-ch':''} ${s.mediaId && localMedia.has(s.mediaId)?'local':''}" data-id="${s.id}" tabindex="0" style="--chc:${chC}"><span class="grip" title="${t('drag')}">${IC.grip}</span><span class="n tnum">${n}</span><div class="th-wrap ${s.mediaId?'':'noshot'} ${s.placeholder?'ph':''} ${s.textOnly?'txt':''}">${s.mediaId ? '<img class="th" alt="">' : `<span class="th">${s.textOnly ? IC.text : IC.cam}</span>`}${s.placeholder ? `<u class="phtag">${t('ph_tag')}</u>` : ''}${s.type==='video'?`<span class="vd tnum">${fmtSec(Math.max(0,(s.trimEnd||s.duration)-(s.trimStart||0)))}s</span>`:''}</div><div class="tt">${titleHtml(s.title)||`<span class="muted">${t('step')} ${n}</span>`}${myRole!=='viewer' ? `<button class="mini x rowdel" data-rowdel title="${t('delete')}">${IC.trash}</button>`:''}<small>${instr.checklist && (instr.checkMode||'all')!=='all' && confirmSteps(instr).includes(s) ? '☑ ' : ''}${s.ann.length?s.ann.length+' ⌖':''} ${s.desc?'· '+esc(mdToPlain(s.desc).replace(/\n+/g,' ').slice(0,30)):''}</small></div></div>`);
       if(s.mediaId){ const known = stepPosterSync(s); if(known) r.querySelector('.th').src = known; else stepPoster(s).then(u => { if(u) r.querySelector('.th').src = u; }); }
       const rd = r.querySelector('[data-rowdel]'); if(rd) rd.onclick = e => { e.stopPropagation(); delStep(s); };
       r.onclick = e => { if(e.target.closest('.grip')) return; selectStep(s.id); if(isPhone()) setPane('step'); };
@@ -335,7 +339,7 @@ async function renderEditor(app, id, selStepId, fbId){
     stage.querySelector('#retake').onclick = () => go(`rec/${instr.id}/replace/${s.id}`);
     stage.querySelector('#after').onclick = () => go(`rec/${instr.id}/after/${s.id}`);
     { const ae = stage.querySelector('#after-empty'); if(ae) ae.onclick = () => addEmptyStep(s); const af = stage.querySelector('#after-file'); if(af) af.onchange = e => { const fs = [...e.target.files]; e.target.value = ''; doImport(fs); }; }
-    stage.querySelector('#repl-file').onchange = async e => { const f = e.target.files[0]; if(!f) return; try{ await replaceStepMedia(instr, s, f); await touch(); posterCache.clear(); renderList(); renderStage(); toast(t('saved')); }catch(err){ toast('Fehler: '+err.message); } e.target.value=''; };
+    stage.querySelector('#repl-file').onchange = async e => { const f = e.target.files[0]; if(!f) return; try{ await replaceStepMedia(instr, s, f); await touch(); posterCache.clear(); renderList(); renderStage(); toast(t('saved')); }catch(err){ toast(t('error_prefix')+': '+err.message); } e.target.value=''; };
     if(noShot) return; // nothing to play or annotate yet
     { const pr = stage.querySelector('#ph-rec'); if(pr) pr.onclick = () => go(`rec/${instr.id}/replace/${s.id}`); const pk = stage.querySelector('#ph-keep'); if(pk) pk.onclick = async () => { delete s.placeholder; await touch(); toast(t('ph_kept')); renderList(); renderStage(); }; }
 
@@ -589,7 +593,7 @@ async function renderEditor(app, id, selStepId, fbId){
     (instr.steps||[]).forEach(st => { if(st && st.mediaId) DB.has('media', st.mediaId).then(h => { if(h) markLocal(st.mediaId); }).catch(()=>{}); });
     setTimeout(() => preloadInstr(instr, {current: sel, limit: isPhone() ? 3 : 0, onDone: markLocal}), 1500); }
   // open worker feedback → banner; arriving via "adopt" → the feedback's photo/video becomes a new step after the step it refers to
-  (async () => { try{ const {data} = await G.sb.from('feedback').select('id,status').eq('instr_id', instr.id).eq('status', 'open'); const n = (data||[]).length; fbOpenN = n; const rn = v.querySelector('#res-n'); if(rn && n){ rn.hidden = false; } const bn = v.querySelector('#fb-banner'); if(bn && n){ bn.hidden = false; bn.querySelector('#fb-n').textContent = t('fb_open_n', {n}); bn.querySelector('#fb-open').onclick = () => { try{ sessionStorage.setItem('gg_rtab_'+instr.id, 'feedback'); }catch(e){} }; } }catch(e){} })();
+  (async () => { try{ const {data} = await G.sb.from('feedback').select('id,status').eq('instr_id', instr.id).eq('status', 'open'); const n = (data||[]).length; fbOpenN = n; const rt = v.querySelector('.itab[data-itab="results"]'); if(rt && n && !rt.querySelector('.nbadge')) rt.insertAdjacentHTML('beforeend', `<span class="nbadge">${n}</span>`); const bn = v.querySelector('#fb-banner'); if(bn && n){ bn.hidden = false; bn.querySelector('#fb-n').textContent = t('fb_open_n', {n}); bn.querySelector('#fb-open').onclick = () => { try{ sessionStorage.setItem('gg_rtab_'+instr.id, 'feedback'); }catch(e){} }; } }catch(e){} })();
   if(fbId && myRole!=='viewer'){ (async () => {
     try{ const {data:fb} = await G.sb.from('feedback').select('*').eq('id', fbId).maybeSingle(); if(!fb) return;
       if(fb.media_url){ toast(t('fb_adopting')); const res = await fetch(fb.media_url); if(!res.ok) throw new Error('HTTP '+res.status); const blob = await res.blob(); const ext = fb.media_url.split('.').pop().split('?')[0]; const file = new File([blob], `feedback-${fb.id}.${ext}`, {type: blob.type || (fb.media_type==='video' ? 'video/mp4' : 'image/jpeg')});
@@ -598,7 +602,7 @@ async function renderEditor(app, id, selStepId, fbId){
       else if(fb.step_id && instr.steps.some(x => x.id===fb.step_id)){ sel = fb.step_id; renderList(); renderStage(); if(fb.text) toast('💬 '+fb.text.slice(0,140)); }
       await G.sb.from('feedback').update({status:'done', resolved_at:new Date().toISOString()}).eq('id', fb.id); toast(t('fb_adopted'));
     }catch(e){ toast(t('fb_fail')+': '+(e.message||e)); } })(); }
-  G.activeCleanup = () => { if(stageCleanup) stageCleanup(); document.removeEventListener('keydown', onKey); detachDrop(); };
+  { const c0 = G.activeCleanup; G.activeCleanup = () => { if(stageCleanup) stageCleanup(); document.removeEventListener('keydown', onKey); detachDrop(); if(c0) c0(); }; }
 }
 
 const debounces = {};

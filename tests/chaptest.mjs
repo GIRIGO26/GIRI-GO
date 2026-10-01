@@ -4,7 +4,7 @@ const m = await (await browser.newContext({viewport:{width:390,height:844}, isMo
 m.on('pageerror', e => errs.push(e.message+' '+(e.stack||'').split('\n').slice(0,2).join('|')));
 m.on('console', msg => { if(msg.type()==='error') errs.push('console: '+msg.text()); });
 await m.goto(BASE+'/index3.html'); await m.waitForTimeout(2000);
-await m.evaluate(()=>{ const r = window.__tables.instructions[0]; r.status='published'; r.data.checklist = true; r.data.checkMode = 'chapter'; });
+await m.evaluate(()=>{ const r = window.__tables.instructions[0]; r.status='published'; r.data.checklist = true; r.data.checkMode = 'chapter'; r.updated_at = new Date(Date.now()+5000).toISOString(); }); // v12.48: a change on the server has a newer date – the app syncs only what changed
 const vid = await m.evaluate(()=>window.__tables.instructions[0].id);
 await m.goto(BASE+'/index3.html#/'); await m.waitForTimeout(600);
 // 1) overview on open (3 chapters)
@@ -17,12 +17,13 @@ await m.click('.ch-tile[data-g="1"]'); await m.waitForTimeout(600);
 console.log('hash after pick:', await m.evaluate(()=>location.hash));
 console.log('start card visible:', await m.isVisible('.vw-start'));
 await m.fill('#wname', 'Anna'); await m.click('#begin'); await m.waitForTimeout(800);
-console.log('confirm buttons (chapter mode):', await m.$$eval('.vstep [data-ok]', b => b.map(x => x.closest('.vstep').dataset.i+':'+x.textContent.trim())));
+// v12.48: no OK button per step any more – the steps that need an answer carry data-need, the fixed bar answers the step in view
+console.log('steps that need an answer (chapter mode):', await m.$$eval('.vstep[data-need]', b => b.map(x => x.dataset.i)), '| locked sections:', await m.$$eval('.vstep.locked', b => b.length), '| bar label:', await m.$eval('#va-okl', e => e.textContent).catch(() => 'none'));
 console.log('feedback buttons:', await m.$$eval('.vstep [data-fb]', b => b.length));
 console.log('current step in view:', await m.evaluate(()=>document.querySelector('#vcnt').textContent));
 await m.screenshot({path:OUT+'/c2-chapter2.png'});
 // confirm the chapter-2 step → overview shows progress
-await m.click('.vstep[data-i="3"] [data-ok]'); await m.waitForTimeout(400);
+await m.$eval('.vstep[data-i="3"]', e => e.scrollIntoView()); await m.waitForTimeout(700); await m.click('#va-ok'); await m.waitForTimeout(500);
 await m.click('.tt-wrap'); await m.waitForTimeout(600);
 console.log('reopened overview:', await m.$$eval('.ch-tile', t => t.map(x => (x.querySelector('.done')?'✓ ':'')+x.querySelector('.txt span').textContent.trim())));
 await m.screenshot({path:OUT+'/c3-overview-progress.png'});
@@ -39,12 +40,12 @@ await m.goto(BASE+'/index3.html#/'); await m.waitForTimeout(400);
 await m.goto(BASE+'/index3.html#/v/'+vid+'/2/en'); await m.waitForTimeout(1500);
 console.log('/2/en: hash', await m.evaluate(()=>location.hash), 'title', await m.evaluate(()=>document.querySelector('#vttl').textContent));
 // 5) custom mode with one marked step; all-mode counts
-await m.evaluate(()=>{ localStorage.clear(); const r = window.__tables.instructions[0]; r.data.checkMode = 'custom'; r.data.steps.filter(s=>!s.kind)[1].confirm = true; });
+await m.evaluate(()=>{ localStorage.clear(); const r = window.__tables.instructions[0]; r.data.checkMode = 'custom'; r.data.steps.filter(s=>!s.kind)[1].confirm = true; r.updated_at = new Date(Date.now()+15000).toISOString(); });
 await m.goto(BASE+'/index3.html#/'); await m.waitForTimeout(400);
 await m.goto(BASE+'/index3.html#/v/'+vid+'/1'); await m.waitForTimeout(1500);
 await m.fill('#wname', 'Anna'); await m.click('#begin'); await m.waitForTimeout(500);
-console.log('custom mode confirm buttons:', await m.$$eval('.vstep [data-ok]', b => b.map(x => x.closest('.vstep').dataset.i)));
-await m.click('.vstep[data-i="1"] [data-ok]'); await m.waitForTimeout(400);
+console.log('custom mode steps that need an answer:', await m.$$eval('.vstep[data-need]', b => b.map(x => x.dataset.i)));
+await m.$eval('.vstep[data-i="1"]', e => e.scrollIntoView()); await m.waitForTimeout(700); await m.click('#va-ok'); await m.waitForTimeout(500);
 console.log('end sum:', await m.evaluate(()=>document.querySelector('#vend-sum').textContent));
 await m.goto(BASE+'/index3.html#/'); await m.waitForTimeout(600);
 console.log('local run cleared after auto-finish:', await m.evaluate(()=>!localStorage.getItem('gg_run_'+window.__tables.instructions[0].id)));

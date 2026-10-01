@@ -2,6 +2,7 @@ import { newShareKey } from '../core/links.js';
 import { go } from '../app/router.js';
 import { $$, el, esc, toast } from '../core/helpers.js';
 import { fmtD, t } from '../core/i18n.js';
+import { sendInvite } from '../core/invite.js';
 import { saveInstr } from '../core/passwords.js';
 import { uploadPoster } from '../core/posters.js';
 import { G, S } from '../core/state.js';
@@ -71,7 +72,7 @@ const probe = (url, isVideo) => new Promise(res => { let done = false; const fin
   else { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => fin({w:i.naturalWidth||1280, h:i.naturalHeight||960, img:i}); i.onerror = () => fin(null); i.src = url; } });
 
 async function renderImporter(app){
-  topbar(app, {back:'/admin', sub:t('imp_title')});
+  topbar(app, {crumbs: [{label: t('instructions'), href: ''}, {label: t('ws_admin'), href: 'admin'}, {label: t('imp_title')}]});
   if(!S.user.isAdmin){ app.appendChild(el(`<main class="page page-narrow"><div class="card empty"><h2>${t('imp_title')}</h2><div>${t('only_admin')}</div></div></main>`)); return; }
   let conn = null, list = null; const sel = new Set(); const opts = {folders:true, status:true, icons:true};
   const done = new Map(); (S.instrs||[]).forEach(i => { if(i.source && i.source.kind==='giri-classic' && i.source.oldId) done.set(i.source.oldId, i.id); });
@@ -190,7 +191,7 @@ async function renderImporter(app){
       if(oUsers){ const invites = [...(S.wsRow.invites||[])]; for(const u of plan.users){ st.textContent = u.email;
           if(u.kind==='update'){ if(u.prof.id===S.user.id) continue; if(u.prof.is_admin && u.role!=='admin') continue; if(u.prof.role===u.role) continue; const {error} = await G.sb.from('profiles').update(u.role==='admin' ? {role:'admin', is_admin:true} : {role:u.role}).eq('id', u.prof.id); if(error) res.err.push(u.email); else res.upd++; }
           else { const k = invites.findIndex(i => (i.email||'').toLowerCase()===u.email); const inv = {email:u.email, role:u.role, at:Date.now(), by:S.user.email, name:u.name||''}; if(k>=0) invites[k] = Object.assign(invites[k], inv); else invites.push(inv); res.inv++;
-            if(oMail){ const {error} = await G.sb.auth.signInWithOtp({email:u.email, options:{shouldCreateUser:true, emailRedirectTo: location.href.split('#')[0]}}); if(!error) res.mailed++; } } }
+            if(oMail){ const r = await sendInvite(u.email); if(r.ok) res.mailed++; } } } // v12.48: the invitation mail (falls back to the code mail)
         await saveWs({invites}); }
     }catch(e){ res.err.push(e.message||String(e)); }
     st.innerHTML = `<b style="color:var(--mint-ink)">✓</b> ${t('imp_st_done', res)}${res.err.length ? ` <span style="color:var(--red)">· ${esc(res.err.join(', '))}</span>` : ''}`; b.disabled = false; toast(t('imp_st_done', res));
@@ -202,7 +203,9 @@ async function renderImporter(app){
     opts.folders = v.querySelector('#o-folders').checked; opts.status = v.querySelector('#o-status').checked; opts.icons = v.querySelector('#o-icons').checked;
     const ids = new Set(visSel()); const items = list.instructions.filter(i => ids.has(i.id)); if(!items.length) return;
     v.querySelector('#imp-select').hidden = true; const pr = v.querySelector('#imp-progress'); pr.hidden = false; const rows = v.querySelector('#imp-rows'); rows.innerHTML = '';
-    const ctx = {folderMap:folderByOld, symbols:new Map(), projects:list.projects||[]};
+    // v12.48: every version of a Classic version group (v1, v2, v3 …) – the newest one is imported, the older ones become its history
+    const versions = new Map(); (list.instructions||[]).forEach(i => { const g = i.version_group_id || i.id; if(!versions.has(g)) versions.set(g, []); versions.get(g).push(i); });
+    const ctx = {folderMap:folderByOld, symbols:new Map(), projects:list.projects||[], versions};
     for(const it of items){ const row = el(`<div class="imp-row"><b>${esc(it.name||'–')}</b><span class="imp-st muted">${t('imp_waiting')}</span></div>`); rows.appendChild(row); it._row = row; }
     let ok = 0, fail = 0;
     const runOne = async it => { const st = it._row.querySelector('.imp-st'); st.className = 'imp-st muted'; try{ const r = await importOne(it, conn, opts, ctx, msg => { st.textContent = msg; }); const sk = r._skipped||0; delete r._skipped; const dg = !!r._downgraded; delete r._downgraded; st.innerHTML = `<b style="color:var(--mint-ink)">✓ ${t('imp_ok')}</b>${sk?` <span class="muted">· ${t('imp_skipped', {n:sk})}</span>`:''}${dg?` <span class="muted">· ${t('imp_as_draft')}</span>`:''}`; it._row.classList.add('ok'); ok++; done.set(it.id, true); sel.delete(it.id); }
@@ -219,8 +222,17 @@ async function importOne(summary, conn, opts, ctx, say){
   say(t('imp_s_meta'));
   const {instruction: I} = await call(conn, 'instruction', {id: summary.id});
   const ws = S.user.ws; const iid = uid();
-  const instr = {id:iid, ws, title:(plainText(I.name || summary.name) || t('untitled')).slice(0, 200), shareKey:newShareKey(), createdBy:S.user.name, createdAt:Date.parse(I.created_at)||Date.now(), updatedAt:Date.parse(I.updated_at)||Date.parse(I.created_at)||Date.now(), status:'draft', version:0, approvals:{tech:null,dsgvo:null}, checklist:false, steps:[], history:[],
-    source:{kind:'giri-classic', server:conn.server, oldId:I.id, version:I.version||1, published:!!I.published, description:htmlToMd(I.description||'').slice(0, 2000), at:Date.now()}};
+  // v12.48: dates and version from Classic – the first version's creation date, this version's last change (the list's dates if the
+  // detail lacks them), the version number, and the older versions of the group as history entries (before: version 0 and, when the
+  // detail came without dates, the import moment as the instruction's date)
+  const group = ((ctx.versions && ctx.versions.get(summary.version_group_id || summary.id)) || [summary]).slice().sort((a,b) => (a.version||0)-(b.version||0));
+  const P = x => Date.parse(x || '') || 0; const now0 = Date.now();
+  const createdAt = Math.min(...group.map(x => P(x.created_at)).filter(Boolean), P(I.created_at) || P(summary.created_at) || now0);
+  const updatedAt = P(I.updated_at) || P(summary.updated_at) || P(I.created_at) || P(summary.created_at) || now0;
+  const vNow = I.version || summary.version || 1;
+  const instr = {id:iid, ws, title:(plainText(I.name || summary.name) || t('untitled')).slice(0, 200), shareKey:newShareKey(), createdBy:S.user.name, createdAt, updatedAt, status:'draft', version: Math.max(0, vNow - 1), approvals:{tech:null,dsgvo:null}, checklist:false, steps:[], history:[],
+    source:{kind:'giri-classic', server:conn.server, oldId:I.id, version:vNow, creator:summary.creator || null, published:!!I.published, description:htmlToMd(I.description||'').slice(0, 2000), at:now0, versions: group.map(x => ({id:x.id, version:x.version||1, published:!!x.published, created_at:x.created_at, updated_at:x.updated_at}))}};
+  group.filter(x => x.id !== I.id && (x.version||1) < vNow).forEach(x => instr.history.push({version:x.version||1, at:P(x.updated_at) || P(x.created_at) || createdAt, by:x.creator || '', note:t(x.published ? 'imp_hist_pub' : 'imp_hist_v', {v:x.version||1})}));
   // folder from the old project
   if(opts.folders && I.project_id){
     let fid = ctx.folderMap.get(I.project_id);
@@ -291,15 +303,15 @@ async function importOne(summary, conn, opts, ctx, say){
   // status: keep "published" published (with the old approvals noted), everything else arrives as a draft.
   // Without both approval rights for this instruction's teams the server would refuse the approvals → it stays a draft.
   if(opts.status && I.published && !(can(instr, 'approve_tech') && can(instr, 'approve_dsgvo'))){
-    instr.history.push({version:0, at:Date.now(), by:S.user.name, note:t('imp_no_approve_right')}); instr._downgraded = true;
+    instr.history.push({version:instr.version, at:Date.now(), by:S.user.name, note:t('imp_no_approve_right')}); instr._downgraded = true;
   } else if(opts.status && I.published){
     const now = Date.now(); const ap = I.approvals || {}; const by = x => (x && x.user && ([x.user.first_name, x.user.last_name].filter(Boolean).join(' ') || x.user.email)) || 'Import'; const at = x => (x && Date.parse(x.at)) || now;
-    instr.status = 'published'; instr.version = I.version || 1; instr.approvals = {tech:{by:by(ap.technical), at:at(ap.technical)}, dsgvo:{by:by(ap.privacy), at:at(ap.privacy)}};
+    instr.status = 'published'; instr.version = vNow; instr.approvals = {tech:{by:by(ap.technical), at:at(ap.technical)}, dsgvo:{by:by(ap.privacy), at:at(ap.privacy)}};
     // v12.37.1: the version keeps its original date (last approval, else last change in Classic) instead of the import moment
     const origAt = Math.max(at(ap.technical)!==now ? at(ap.technical) : 0, at(ap.privacy)!==now ? at(ap.privacy) : 0) || Date.parse(I.updated_at) || Date.parse(I.created_at) || now;
     instr.publishedAt = origAt;
-    instr.history.push({version:instr.version, at:origAt, by:S.user.name, note:`Import aus GIRI Classic (${conn.server.replace(/^https?:\/\//,'')})`, tech:instr.approvals.tech, dsgvo:instr.approvals.dsgvo});
-  }
+    instr.history.push({version:instr.version, at:origAt, by:summary.creator || S.user.name, note:t('imp_hist_import', {s: conn.server.replace(/^https?:\/\//,'')}), tech:instr.approvals.tech, dsgvo:instr.approvals.dsgvo});
+  } else instr.history.push({version:instr.version, at:updatedAt, by:summary.creator || '', note:t('imp_hist_draft', {v:vNow, s: conn.server.replace(/^https?:\/\//,'')})});
   say(t('imp_s_save')); await saveInstr(instr, {keepDate:true}); rememberRemote(instr); if(!S.instrs.find(x => x.id===instr.id)) S.instrs.unshift(instr);
   instr._skipped = skipped;
   return instr;

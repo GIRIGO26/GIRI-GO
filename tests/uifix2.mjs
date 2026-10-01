@@ -45,7 +45,7 @@ const vid = await m.evaluate(() => { const r = window.__tables.instructions[0]; 
 await m.goto(BASE+'/index3.html#/v/'+vid); await m.waitForTimeout(1500); const ov = await m.$('#ov-start'); if(ov){ await ov.click(); await m.waitForTimeout(400); }
 console.log('light viewer:', !!(await m.$('.viewer.light')));
 await m.fill('#wname', 'Björn'); await m.click('#begin'); await m.waitForTimeout(600);
-await m.evaluate(() => { document.querySelectorAll('[data-ok]').forEach(b => b.click()); }); await m.waitForTimeout(500);
+for(const i of await m.$$eval('.vstep[data-need]', xs => xs.map(x => x.dataset.i))){ await m.$eval(`.vstep[data-i="${i}"]`, e => e.scrollIntoView()); await m.waitForTimeout(600); await m.click('#va-ok'); await m.waitForTimeout(350); } // v12.48: the answer bar
 await m.evaluate(() => { const e = document.querySelector('.vend'); if(e) e.scrollIntoView(); }); await m.waitForTimeout(600);
 const col = await m.evaluate(() => { const p = document.querySelector('#vend-p'); const c = document.querySelector('.vend-sum span'); return {p: p && getComputedStyle(p).color, chip: c && getComputedStyle(c).color + ' on ' + getComputedStyle(c).backgroundColor}; });
 console.log('end section – subtitle colour:', col.p, '| chip:', col.chip);

@@ -11,10 +11,11 @@ await skipOv(); await m.screenshot({path:OUT+'/r1-start.png'});
 await m.click('#langbtn2'); await m.waitForTimeout(300); await m.click('[data-l="PL"]'); await m.waitForTimeout(1200); await m.screenshot({path:OUT+'/r2-start-pl.png'});
 await m.fill('#wname', 'Anna'); await m.click('#begin'); await m.waitForTimeout(500);
 // add a note on step 1, then confirm all steps
-await m.click('.vstep[data-i="0"] [data-nok]'); await m.waitForTimeout(300); await m.fill('#nk-note', 'Schraube leicht schwergängig'); await m.click('#modals [data-ok]'); await m.waitForTimeout(400);
+// v12.48: the fixed answer bar answers the step in view (no buttons per step any more)
+await m.$eval('.vstep[data-i="0"]', e => e.scrollIntoView()); await m.waitForTimeout(600); await m.click('#va-nok'); await m.waitForTimeout(300); await m.fill('#nk-note', 'Schraube leicht schwergängig'); await m.click('#modals [data-ok]'); await m.waitForTimeout(400);
 await m.screenshot({path:OUT+'/r3-note.png'});
-const n = await m.evaluate(()=>document.querySelectorAll('.vstep [data-ok]').length);
-for(let i=0;i<n;i++){ await m.click(`.vstep[data-i="${i}"] [data-ok]`); await m.waitForTimeout(350); }
+const need = await m.$$eval('.vstep[data-need]', xs => xs.map(x => x.dataset.i));
+for(const i of need){ await m.$eval(`.vstep[data-i="${i}"]`, e => e.scrollIntoView()); await m.waitForTimeout(600); await m.click('#va-ok'); await m.waitForTimeout(400); }
 console.log('items:', JSON.stringify(await m.evaluate(()=>JSON.parse(localStorage.getItem('gg_run_'+window.__tables.instructions[0].id)).items)).slice(0,160));
 // leave without finishing → reopen → dialog offers finish
 await m.goto(BASE+'/index3.html#/'); await m.waitForTimeout(500);

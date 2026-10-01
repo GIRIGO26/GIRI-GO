@@ -468,3 +468,12 @@
 .tools-cta{background:linear-gradient(135deg,var(--blue-2),var(--blue));color:#fff;border-color:transparent}
 .tools-cta small{color:rgba(255,255,255,.8)}
 .tools-cta .tc-ico{background:rgba(255,255,255,.18);color:#fff}
+
+/* v12.48: chapter rows – grip · fold · title · count · delete (moving = drag & drop, like steps) */
+.chrow{grid-template-columns:36px 32px minmax(0,1fr) auto 32px}
+.chrow .chlbl{display:none}
+@media(max-width:560px){
+  .chrow{grid-template-columns:30px 44px minmax(0,1fr) auto 44px}
+  .chrow .chlbl{display:block}
+  .chrow .x{display:inline-flex !important;width:44px;height:44px;border-radius:12px}
+}

@@ -22,6 +22,11 @@ S.wsRow = {folders:[], teams:[], invites:[], symbols:[], settings:{}};
 // from core/uploads
 window.addEventListener('online', () => { retrySaves().finally(() => runUploads()); schedulePill(); }); // v12.47: rows first, then clips – the media patch lands on an existing row
 window.addEventListener('offline', () => schedulePill());
+// v12.48: unsent changes are retried every 30 s and whenever the app comes back to the front – the 'online' event alone is not
+// reliable (a network that comes back without the event, a flaky connection that never reported 'offline')
+const retryPending = () => { if(!navigator.onLine || !(G.pendingSync > 0) || !S.user) return; retrySaves().finally(() => runUploads()); schedulePill(); };
+setInterval(retryPending, 30000);
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') setTimeout(retryPending, 1500); });
 window.addEventListener('beforeunload', e => { if(G.pendingSync > 0){ e.preventDefault(); e.returnValue = ''; } });
 
 // from app/router
@@ -37,7 +42,7 @@ try{ G.recentEmojis = JSON.parse(localStorage.getItem('gg_emo')||'[]'); }catch(e
 window.addEventListener('error', e => { try{ toast('JS: '+(e.message||'').slice(0,120)); }catch(x){} });
 
 // from pdf/export
-window.addEventListener('unhandledrejection', e => { try{ const m = e.reason && (e.reason.message||String(e.reason)); if(m && !/AbortError|play\(\)|Failed to fetch|Load failed|NetworkError|network error/i.test(m)) toast('Fehler: '+m.slice(0,120)); }catch(x){} }); // v12.47: a dropped connection is shown by the sync pill, not as an error
+window.addEventListener('unhandledrejection', e => { try{ const m = e.reason && (e.reason.message||String(e.reason)); if(m && !/AbortError|play\(\)|Failed to fetch|Load failed|NetworkError|network error/i.test(m)) toast(t('error_prefix')+': '+m.slice(0,120)); }catch(x){} }); // v12.47: a dropped connection is shown by the sync pill, not as an error
 
 // a tiny haptic tick on primary buttons (phones that support it)
 document.addEventListener('pointerdown', e => { if(e.pointerType==='touch' && navigator.vibrate && e.target.closest('.btn.mint, .btn:not(.ghost), .shutter, .ib-btn')){ try{ navigator.vibrate(8); }catch(x){} } }, {passive:true});

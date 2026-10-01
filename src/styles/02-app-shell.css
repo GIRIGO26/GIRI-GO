@@ -37,3 +37,15 @@
 .perf-chip .perf-log{display:none;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.2);opacity:.85}
 .perf-chip.open .perf-log{display:block}
 .topbar .ver{cursor:default;-webkit-user-select:none;user-select:none}
+/* v12.48: a redraw of the same page (sync, colleague's change) does not fade in again */
+#app.soft .page,#app.soft .card.instr{animation:none !important}
+/* v12.48: iPhone safe areas – the bottom band in the page colour, the sides clear of the notch in landscape, and heights that
+   follow the visible viewport (100vh on iOS includes the area behind the browser bars) */
+body{padding-bottom:env(safe-area-inset-bottom,0px)}
+.topbar{padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px))}
+@media(max-width:560px){.topbar{padding-left:max(12px, env(safe-area-inset-left,0px));padding-right:max(12px, env(safe-area-inset-right,0px))}}
+.page{padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px))}
+@supports (height:100dvh){
+  .steps-panel{max-height:calc(100dvh - 104px)}
+  .modal{max-height:92dvh}
+}

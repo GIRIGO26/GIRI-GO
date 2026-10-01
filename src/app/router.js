@@ -44,7 +44,7 @@ function promptRefresh(){
 // when the tab comes back to the front: has the open instruction moved on elsewhere? (websockets often die in background tabs)
 async function refreshIfStale(){
   if(!G.sb || !S.user) return; const h = location.hash.replace(/^#\/?/, ''); const [view, id] = h.split('/');
-  if(!view || ['p','trash','results','stats','admin'].includes(view)){ try{ await loadInstrs(); }catch(e){} render(); return; }
+  if(!view || ['p','trash','results','stats','admin'].includes(view)){ let changed = true; try{ changed = await loadInstrs(); }catch(e){} if(changed !== false) render(); return; } // v12.48: no redraw (flicker) when nothing changed
   if((view==='edit'||view==='rec') && id){ try{ const {data} = await G.sb.from('instructions').select('id, updated_at').eq('id', id).maybeSingle(); if(data) remoteChanged(data); }catch(e){} }
 }
 function ensureRealtime(){
@@ -80,7 +80,11 @@ async function render(){
   if(G.activeCleanup){ try{ G.activeCleanup(); }catch(e){} G.activeCleanup = null; }
   const h = location.hash.replace(/^#\/?/, '');
   const [view, id, extra, extra2, extra3] = h.split('/');
-  const app = $('#app'); G.busyCheck = null; if(G.pendingUpdate && updateSafe()){ reloadForUpdate(); return; }
+  const app = $('#app');
+  // v12.48: the same page drawn again (sync, a colleague's change, back to the tab) keeps where the list was scrolled to and does not
+  // fade in again – on busy workspaces that looked like flickering
+  const soft = G.lastRoute === h; G.lastRoute = h; const keepY = soft ? window.scrollY : 0; app.classList.toggle('soft', soft);
+  const restoreY = () => { if(soft && keepY && G.lastRoute === h && Math.abs(window.scrollY - keepY) > 2) window.scrollTo(0, keepY); }; G.busyCheck = null; if(G.pendingUpdate && updateSafe()){ reloadForUpdate(); return; }
   if(!G.sb){ app.innerHTML = `<main class="page page-narrow"><div class="card empty"><h2>GIRI</h2><div>${t('loading_backend')}</div><br><button class="btn" onclick="location.reload()">${t('reload')}</button></div></main>`; return; }
   if(!I18N[G.LANG]){ app.innerHTML = `<div class="loading"><div class="spin"></div></div>`; const ok = await loadUiLang(G.LANG); if(stale()) return; if(!ok) G.LANG = 'en'; }
   if(view === 'v' && id){ app.innerHTML = ''; const tv = performance.now(); const cold = G.perf.log.length === 0; return Promise.resolve(renderViewer(app, id, false, extra, extra2, extra3)).then(r => { const total = Math.round(performance.now()-tv); const entry = {view:'v', total, mode:'werker', auth:0, build:total, sync:null}; G.perf.log.push(entry); if(cold || total > 1500) logPerf(entry, cold); return r; }); }
@@ -89,7 +93,8 @@ async function render(){
   if(!S.user){ return renderLogin(app); }
   ensureRealtime(); runUploads(); retrySaves(); schedulePill();
   const needWs = view==='' || view==='admin' || view==='p';
-  const recent = S.instrs.length && G.lastSync && (Date.now()-G.lastSync) < SYNC_FRESH_MS && (!needWs || S.wsRow);
+  // v12.48: offline with instructions in memory → draw at once (the background sync falls back to the device copy without waiting)
+  const recent = S.instrs.length && ((G.lastSync && (Date.now()-G.lastSync) < SYNC_FRESH_MS) || !online()) && (!needWs || S.wsRow);
   // v0.29: cold start (app reopened, page reloaded) → the local mirror from the last visit is drawn at once, the server copy follows;
   // before: 3–4 sequential round trips (profile, list, changed rows, workspace) before anything appeared
   let localFirst = false;
@@ -105,7 +110,7 @@ async function render(){
   setTimeout(migratePosters, 1500);
   if(sessionExpired()){ await signOutAll(); toast(t('session_expired')); go(''); return renderLogin(app); }
   const tb = performance.now();
-  const done = r => { const total = Math.round(performance.now()-P.t0); const cold = G.perf.log.length === 0; const entry = {view: view||'dashboard', total, mode: P.mode, auth: P.auth, build: Math.round(performance.now()-tb), sync: (P.mode==='sofort'||P.mode==='lokal') ? null : {ms: P.syncMs, fetched: (G.perf.sync||{}).fetched||0, heads: (G.perf.sync||{}).heads||0}}; G.perf.last = entry; G.perf.log.push(entry); window.__perfLog = G.perf.log; if(G.perf.log.length > 30) G.perf.log.shift(); if(total > 1500) console.warn('[giri-go] langsamer Screenwechsel', entry); perfChip(); if(cold || total > 1500) logPerf(entry, cold); return r; };
+  const done = r => { restoreY(); const total = Math.round(performance.now()-P.t0); const cold = G.perf.log.length === 0; const entry = {view: view||'dashboard', total, mode: P.mode, auth: P.auth, build: Math.round(performance.now()-tb), sync: (P.mode==='sofort'||P.mode==='lokal') ? null : {ms: P.syncMs, fetched: (G.perf.sync||{}).fetched||0, heads: (G.perf.sync||{}).heads||0}}; G.perf.last = entry; G.perf.log.push(entry); window.__perfLog = G.perf.log; if(G.perf.log.length > 30) G.perf.log.shift(); if(total > 1500) console.warn('[giri-go] langsamer Screenwechsel', entry); perfChip(); if(cold || total > 1500) logPerf(entry, cold); return r; };
   const out = (() => {
     if(view === 'rec' && id) return renderCapture(app, id, extra, extra2);
     if(view === 'edit' && id) return renderEditor(app, id, extra, extra2);

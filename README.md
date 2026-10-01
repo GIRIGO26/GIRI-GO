@@ -440,6 +440,54 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Installations-Hinweis**: nach „Später“/× bleibt eine schmale Zeile „📲 GIRI Go als App installieren · So geht’s“ auf der Startseite, solange die App nicht installiert ist (PC und Telefon).
 - Tests `animtest`, `libtest`, `check4` angepasst. 38 Tests grün.
 
+## v12.48.0 – Review vom 1. Oktober: Sicherheit, Orientierung, Checkliste, Offline, Einladungen
+Grundlage: Review von Felix, Ewald und Björn (Checkliste mit Status im Doc „GIRI — Review follow-up“).
+
+**Sicherheit – Migration `v013_security_hardening.sql` (vor dem Go-Live anwenden, danach `supabase/tests/security.sql`)**
+- **Identität**: Die E-Mail (und ID) eines Profils ändert nur noch das System – sie folgt der Login-Adresse (Trigger auf `auth.users`). Vorher konnte jeder angemeldete Nutzer die E-Mail im eigenen Profil ändern und damit Team-Rollen anderer oder den Plattform-Admin übernehmen. `is_master()` liest die Adresse des Logins, nicht des Profils. Rolle/Admin ändern nur Admins, nie die eigene.
+- **Workspace-Zeile**: Teams, Einladungen, Einstellungen, Branding und Name nur noch Admins (und Plattform-Admins); Ordner brauchen das Recht `projects`, eigene Symbole `edit`. Vorher konnte ein Creator sich selbst als Team-Admin eintragen oder Admins einladen.
+- **Lesen**: Workspace-Zeilen sieht nur, wer dazugehört (plus Plattform-Admins). Vorher konnte jeder angemeldete Nutzer alle Workspaces lesen (Mitglieder, E-Mails, Rollen, Link-Passwort-Hashes). Werker-Links ohne Login bekommen das Branding über `ws_brand(ws)` – nur das Branding.
+- **Storage**: Auflisten/Lesen über die API nur im eigenen Workspace-Ordner (vorher: alle Dateien aller Workspaces auflistbar); öffentliche Datei-URLs funktionieren weiter.
+- Fehlende Workspace-Zeilen für Konten vor v12.47 werden nachgetragen; Tabelle `mail_log` (nur Service-Role) für die Limits der Einladungs-Mails.
+
+**Einladungen**
+- Neue Edge Function **`invite-notify`**: echte Einladungs-Mail (Deutsch oder Englisch, im Dialog wählbar) – wer lädt ein, in welche Firma, mit welcher Rolle; Knopf „Jetzt anmelden“ öffnet die Anmeldeseite mit eingetragener Adresse (`#/join/<mail>`); die drei Schritte; **Gültigkeit**: die Einladung bleibt offen, bis die Person sich anmeldet oder der Admin sie zurückzieht, der Code aus der zweiten Mail gilt 60 Minuten und einmal. Antwort geht an die einladende Person.
+- Missbrauchsschutz: nur offene Einladungen des eigenen Workspace, nur Admins/Plattform-Admins, 1 Mail pro Minute und 5 pro Tag je Einladung, 30 pro Tag je Workspace (Kunden 200), 300 pro Stunde gesamt. Solange `v013` fehlt, verschickt die Function nichts und die App schickt wie bisher die Code-Mail.
+- Verwaltung: offene Einladungen als Liste mit „eingeladen …“ / „Mail …“, **Erneut senden**, Zurückziehen mit Rückfrage; Hinweis, wenn die Person schon Mitglied ist oder GIRI in einem anderen Bereich nutzt. Master-Demo und Classic-Strukturimport verschicken dieselbe Einladung.
+- Anmeldeseite aus der Einladung: Adresse eingetragen, Namensfeld offen, Hinweis „Du wurdest eingeladen“, Knopf „Anmelden“. Am Handy steht die Impressum-Zeile jetzt unter dem Formular.
+- Mail-Vorlage `supabase/email-magic-link.html` neu: „GIRI“, Deutsch + Englisch, „gültig 60 Minuten, nur einmal“. **In Supabase für „Magic Link“ und „Confirm sign up“ einfügen**; „Email OTP Expiration“ muss 3600 s sein.
+
+**Orientierung**
+- Kopfzeile mit **Pfad** (Anleitungen › Ordner › Anleitung, jedes Glied anklickbar); der Zurück-Pfeil geht eine Ebene hoch; am Handy steht der volle Pfad in einer schmalen Zeile darunter.
+- Eine Anleitung hat drei **Reiter**: Bearbeiten · Vorschau · Auswertung (Zähler offener Rückmeldungen am Reiter). Aus der Auswertung führt der Reiter bzw. Pfad zurück zur Anleitung (vorher: Sackgasse).
+- **Editor-Kopf**: Titel, Status-Chip (öffnet Freigabe & Einstellungen), Version, Schrittzahl, „geändert … von …“; am PC bleibt der Kopf beim Scrollen stehen.
+- **Avatar** → Profil (eigenes Foto, Name, Sprache, Abmelden); daneben **≡** → App-Menü (Statistik, Papierkorb · Verwaltung, Branding, KI, Import nur für Admins · Master · Installieren, Sprache, Beta). Branding nur noch für Admins.
+- **Startseite**: Install-Banner → Meldungen → Kopf mit „Neue Anleitung“ und Suche → Filter. Status in der Reihenfolge Alle · Entwurf · In Prüfung · Veröffentlicht; aktive Filter als Chips mit „Zurücksetzen“. Navigator: erst Ordner, dann Teams, beide einklappbar (Teams bei > 6 eingeklappt), Suche bei vielen Teams, höchstens 40 Ordner + „alle zeigen“, „?“ erklärt Ordner und Teams.
+- **Neuer Ordner**: ein Dialog (Name, sichtbar für alle oder ausgewählte Teams) statt zwei verschiedener Wege.
+- **Verwaltung**: Teams als aufklappbare Karten mit Mitgliederzahl und Suche; Ordner- und Anleitungs-Zugriff einklappbar mit Suche, 50 Zeilen + „alle“.
+- **Editor**: Kapitel wie Schritte per Griff ziehen (kein Kontextmenü), Umbenennen per Tipp auf den Namen.
+
+**Werker-Ansicht mit Checkliste**
+- Feste Leiste unten: **OK / Nicht OK** für den Schritt im Bild. Ohne Antwort geht es nicht weiter: Schritte danach sind ausgeblendet, Sprünge über Liste oder Übersicht werden abgelehnt. Vor dem Start darf man ein Kapitel wählen (auch per Kapitel-Link) – die Sperre beginnt dann dort, frühere Kapitel zählen als offen.
+- **Kapitelkarten** zwischen den Kapiteln („Kapitel 1 erledigt – weiter mit Kapitel 2“).
+- **Ehrliches Ende**: „Alles OK“, „Fertig – N Schritte nicht OK“ oder „N Schritte offen“ (mit Sprung zum offenen Schritt); Abschließen mit offenen Schritten fragt nach.
+- Knöpfe auf der Markenfarbe lesbar (helle Markenfarbe → dunkle Schrift); kein Haken mehr in der Sprachliste.
+
+**Offline**
+- Flugmodus: „Neue Anleitung“ öffnet sofort die Kamera (vorher Warten aufs Netz, zweiter Tipp = zweite Anleitung); Startseite und Workspace kommen sofort vom Gerät.
+- **Offline-Änderungen gingen verloren**: der Offline-Spiegel löschte das Kennzeichen „noch hochzuladen“ – behoben; Hochladen wird alle 30 s und beim Zurückkehren in die App erneut versucht.
+- **Leere Seite offline nach einem Update**: Der Service Worker übernimmt eine neue Version erst, wenn alle Dateien dieser Version im Cache liegen; alte Dateien werden erst danach gelöscht.
+- **Flackern** am PC: Seiten werden nur neu gezeichnet, wenn sich wirklich etwas geändert hat; die Scrollposition bleibt.
+- Startseite: Globus-Symbol raus; dafür „Offline verfügbar machen“ für eine Anleitung oder einen ganzen Ordner (⋯-Menü) und eine Markierung „auf dem Gerät“.
+- iPhone: kein Balken mehr am unteren Rand (Abstand für den Home-Balken sitzt jetzt am Inhalt).
+
+**Import aus GIRI Classic**
+- Versionsnummer, Datum der ersten Version und der letzten Änderung bleiben erhalten (vorher: Version 0 und Importdatum); ältere Versionen derselben Gruppe stehen als Historie in der Anleitung; ein Entwurf hat die Version davor.
+
+**Texte**: alle Oberflächentexte DE/EN geprüft (1056 Schlüssel, deckungsgleich), fehlende Übersetzungen ergänzt; „KI“ im Deutschen, „AI“ im Englischen.
+
+Tests: neu `chkgate`, `orient`, `invitetest`, `airplane`; angepasst `foldertest`, `trashtest`, `check4`, `chaptest`, `runtest`, `fbtest`, `r19test`, `uifix2`, `migtest`. 51 Tests.
+
 ## v12.47.2 – „GIRI“ statt „GIRI Go“, Logo in CI-Blau, BETA-Chip, ISO-Hinweis beim Login
 - **Produktname**: überall in der Oberfläche „GIRI“ (Install-Banner, Menü, Master-Panel, Registrierungs-Mail); im PDF-Kopf steht nur noch das Logo, kein „GO“-Badge mehr. Kommentare/Doku im Code behalten „GIRI Go“ als Projektname.
 - **Logo/App-Icon**: der blaue Pfeil war Indigo `#3B4DA6` – jetzt CI-Primärblau `#004EAD` (Icons 192/512/maskable, Apple-Touch, Favicon, Topbar-Logo, PDF-/Poster-Logo). Icon-URLs auf `?v=3` – Android/PC holen das neue Icon beim nächsten Manifest-Update; auf dem iPhone bleibt das alte Icon, bis die App neu auf den Home-Bildschirm gelegt wird.

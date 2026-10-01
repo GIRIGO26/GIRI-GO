@@ -1,4 +1,4 @@
-import { mirrorPut, flushDirty, netErr, schedulePill } from './offline.js';
+import { mirrorPut, flushDirty, netErr, schedulePill, online } from './offline.js';
 import { esc, modal, toast } from './helpers.js';
 import { t } from './i18n.js';
 import { G, S } from './state.js';
@@ -74,6 +74,7 @@ const saveInstr = async (i, opts) => {
   if(i.ws === (S.user && S.user.ws) && !S.instrs.some(x => x.id === i.id)) S.instrs.unshift(i); // new instruction: in memory at once (v0.29 – navigation no longer waits for a server round trip)
   (i.steps||[]).forEach(s => { if(s.mediaId && !s.mediaUrl && S.remoteUrl.has(s.mediaId)){ s.mediaUrl = S.remoteUrl.get(s.mediaId); } }); // uploaded here meanwhile → never save it without its URL
   await mirrorPut(i, true);
+  if(!online()){ schedulePill(); return; } // v12.48: offline → stays in the device queue, sent when the network is back (no 30 s wait for a token refresh)
   const ok = await upsertInstrRow(i);
   if(ok){ await mirrorPut(i, false); if(G.conflictReload){ G.conflictReload = false; try{ const {render} = await import('../app/router.js'); render(); }catch(e){} } } else { toast(t('saved_offline')); }
   schedulePill();

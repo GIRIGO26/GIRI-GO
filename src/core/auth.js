@@ -13,7 +13,8 @@ async function loadProfile(known){
   if(p) cacheProfile(p);
   if(!p && !failed){ // trigger not run yet? v12.47: the server places the person (invitation → domain → own workspace); the browser never picks a workspace
     try{ const r = await G.sb.rpc('ensure_profile'); p = Array.isArray(r.data) ? r.data[0] : r.data; if(p) cacheProfile(p); }catch(e){} }
-  S.user = p ? {id:p.id, email:p.email, name:p.name||p.email.split('@')[0], role:p.role, ws:p.ws, isAdmin:!!p.is_admin || p.role==='admin', isMaster:!!p._master} : null;
+  const md = (session.user && session.user.user_metadata) || {}; // v12.48: profile photo – uploaded in the profile, or the one from a Google sign-in
+  S.user = p ? {id:p.id, email:p.email, name:p.name||p.email.split('@')[0], role:p.role, ws:p.ws, isAdmin:!!p.is_admin || p.role==='admin', isMaster:!!p._master, avatar: (md.avatar_url === null ? '' : (md.avatar_url || md.picture || ''))} : null;
   // platform admin? (master panel) – answered by the server, remembered with the profile for offline starts
   if(S.user && !failed && p._master == null){ try{ const {data} = await G.sb.rpc('is_master'); S.user.isMaster = !!data; p._master = !!data; cacheProfile(p); }catch(e){} }
   return S.user;

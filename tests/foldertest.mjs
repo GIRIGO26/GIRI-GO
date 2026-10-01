@@ -33,6 +33,9 @@ else console.log('full-text: no step description in seed to test with');
 await d.fill('#q', ''); await d.waitForTimeout(200);
 await d.screenshot({path:OUT+'/fo1-many.png', fullPage:true});
 // a team row scopes the folders: tm2 owns the odd Arbeitsplatz folders (20) + folders without team are NOT shown under a team
+// v12.48: with more than 6 teams the team section starts folded – open it first
+console.log('teams section folded at start:', await d.$eval('#dnav [data-sec="teams"]', e => e.classList.contains('coll')), '| sections in order:', await d.$$eval('#dnav [data-sec]', x => x.map(e => e.dataset.sec).join(',')));
+if(await d.$eval('#dnav [data-sec="teams"]', e => e.classList.contains('coll'))) await d.click('#dnav [data-tg="teams"]');
 await d.click('#dnav [data-t="tm2"]'); await d.waitForTimeout(800);
 console.log('team tm2 folders:', await d.$$eval(F, x => x.length), '| first:', await d.$$eval(F, x => x.slice(0,3).map(e => e.textContent.trim().replace(/\s+/g,' ')).join(', ')), '| session team:', await d.evaluate(() => sessionStorage.getItem('gg_team')));
 await d.click('#dnav [data-t="none"]'); await d.waitForTimeout(800);
@@ -41,6 +44,7 @@ await d.click('#dnav [data-nav="all"]'); await d.waitForTimeout(800); console.lo
 // admin: delete empty folders
 await d.goto(BASE+'/index3.html#/admin'); await d.waitForTimeout(1200);
 d.once('dialog', dlg => dlg.accept());
+console.log('admin folder card folded with 42 folders:', await d.$eval('details.acc-card:has(#del-empty)', e => !e.open)); await d.click('details.acc-card:has(#del-empty) > summary'); await d.waitForTimeout(200); // v12.48
 await d.click('#del-empty'); await d.waitForTimeout(300); const ok = await d.$('.modal [data-ok]'); if(ok) await ok.click(); await d.waitForTimeout(600);
 console.log('folders after cleanup:', await d.evaluate(() => window.__tables.workspaces[0].folders.map(f => f.name).join(', ')));
 // v12.37.1: delete a folder WITH its instructions → they go to the trash

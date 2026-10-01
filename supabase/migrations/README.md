@@ -14,7 +14,11 @@ direkt in `schema.sql` geführt (Supabase-Migrationsliste: `v001…v004`).
 | `v010_signup_plans_master.sql` | 12.47.0 | Sign-up-Modell (`place_new_user`: Einladung → Domain-Workspace → eigener Trial-Workspace), Plan-Felder am Workspace (`plan`, `plan_until`, `seats`, `open_domain` …), `platform_admins` + `is_master()`, Master-RPCs (`master_overview/users/set_plan/move_user/merge_workspace/create_demo/add_admin`), Benachrichtigung `signup_poke` → Edge-Function `signup-notify`, pausierte Workspaces nur lesend |
 | `v011_bypass_reset.sql` | 12.47.0 | Master-Funktionen setzen `giri.bypass_guard` am Ende zurück (kein Leck innerhalb einer Transaktion) |
 | `v012_merge_fix.sql` | 12.47.0 | `master_merge_workspace` fasst `instr_stats` (View) nicht mehr an |
+| `v013_security_hardening.sql` | 12.48.0 | Nach dem Review vom 1. 10.: Profil-E-Mail/-ID nur durch das System (folgt dem Login), Rolle/Admin nur durch Admins und nie die eigene, `is_master()` über `auth.users`; Workspace-Zeile: Teams/Einladungen/Einstellungen/Branding/Name nur Admins, Ordner → `projects`, Symbole → `edit` (`ws_write_guard`); Workspace lesen nur Mitglieder + Plattform-Admins, Branding anonym über `ws_brand(ws)`; Storage-Lesen/Auflisten über die API nur im eigenen Workspace-Ordner; fehlende Workspace-Zeilen für Altkonten; Tabelle `mail_log` für die Limits von `invite-notify` |
 
 Prüfung nach jeder Rechte-Änderung: `../tests/authz.sql` (als `postgres` ausführen, alle Zeilen `ok = true`; jede Schreibaktion wird
 zurückgerollt). Nach Änderungen am Sign-up-Modell oder den Master-Funktionen zusätzlich `../tests/signup.sql`
 (`select * from pg_temp.signup_test('ar-giri.com', 'bjoern@ar-giri.com');` – 12 Zeilen, alle `ok = true`).
+Nach `v013` (und jeder Änderung an Identität, Workspace-Rechten oder Storage-Policies): `../tests/security.sql` –
+`select * from pg_temp.security_test('<workspace>', '<creator ohne Admin>', '<Org-Admin>', '<Nutzer eines ANDEREN Workspace>', '<Plattform-Admin>');`
+(23 Zeilen, alle `ok = true`, jede Schreibaktion wird zurückgerollt).

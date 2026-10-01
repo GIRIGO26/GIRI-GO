@@ -23,9 +23,9 @@ function renderLogin(app){
       <p class="l-sub">${t('hero_p')}</p>
       <ul class="l-proof"><li>${IC.cam}<span>${t('hero_p1')}</span></li><li>${IC.checkc}<span>${t('hero_p2')}</span></li><li>${IC.upload}<span>${t('hero_p3')}</span></li></ul>
       <div class="l-card card">
-        <div class="field"><label for="li-email">${t('email')}</label><input id="li-email" type="email" placeholder="max@firma.de" autocomplete="email" inputmode="email"></div>
+        <div class="field"><label for="li-email">${t('email')}</label><input id="li-email" type="email" placeholder="${t('email_ph')}" autocomplete="email" inputmode="email"></div>
         <button class="l-new" id="li-newtoggle" type="button">${t('new_here')}</button>
-        <div class="field" id="li-namewrap" hidden><label for="li-name">${t('name')} <span style="font-weight:500;text-transform:none;letter-spacing:0">(${t('first_time')})</span></label><input id="li-name" placeholder="Max Mustermann" autocomplete="name"></div>
+        <div class="field" id="li-namewrap" hidden><label for="li-name">${t('name')} <span style="font-weight:500;text-transform:none;letter-spacing:0">(${t('first_time')})</span></label><input id="li-name" placeholder="${t('name_ph')}" autocomplete="name"></div>
         <button class="btn" id="li-go" style="width:100%;padding:14px;font-size:15px">${t('login')}</button>
         <div class="l-or" id="l-or" hidden><span>${t('or')}</span></div>
         <button class="btn ghost gbtn" id="li-ms" hidden style="width:100%;padding:12px;font-size:14px;margin-bottom:8px"><svg width="18" height="18" viewBox="0 0 23 23"><rect x="1" y="1" width="10" height="10" fill="#F35325"/><rect x="12" y="1" width="10" height="10" fill="#81BC06"/><rect x="1" y="12" width="10" height="10" fill="#05A6F0"/><rect x="12" y="12" width="10" height="10" fill="#FFBA08"/></svg> ${t('login_ms')}</button>
@@ -43,6 +43,14 @@ function renderLogin(app){
   </main>`);
   const img = v.querySelector('#l-img'); img.onerror = () => { img.remove(); v.querySelector('.l-visual').classList.add('fallback'); };
   try{ v.querySelector('#li-email').value = localStorage.getItem('gg_email')||''; }catch(e){}
+  // v12.48: from the invitation mail (#/join/<e-mail>) – address filled in, name field open (first sign-in), what happens next
+  let joinMail = ''; try{ const jm = /^#\/join\/([^/?#]+)/.exec(location.hash); if(jm) joinMail = decodeURIComponent(jm[1]).trim().toLowerCase(); }catch(e){}
+  if(joinMail.includes('@')){
+    v.querySelector('#li-email').value = joinMail;
+    v.querySelector('.l-card').insertAdjacentHTML('afterbegin', `<div class="l-join" role="status">${IC.mail}<div><b>${t('join_t')}</b><span>${t('join_sub')}</span></div></div>`);
+    v.querySelector('#li-namewrap').hidden = false; v.querySelector('#li-newtoggle').hidden = true; v.querySelector('#login-note').textContent = t('join_note'); v.querySelector('#li-go').textContent = t('otp_go');
+    setTimeout(() => { const n = v.querySelector('#li-name'); if(n && !n.value) n.focus({preventScroll:true}); }, 80);
+  }
   v.querySelector('#li-email').addEventListener('focus', e => e.target.select());
   v.querySelector('#li-newtoggle').onclick = () => { const w = v.querySelector('#li-namewrap'); w.hidden = false; v.querySelector('#li-newtoggle').hidden = true; setTimeout(() => v.querySelector('#li-name').focus(), 50); };
   const emailOf = () => v.querySelector('#li-email').value.trim().toLowerCase();

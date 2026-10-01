@@ -112,6 +112,7 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
   const useChk = !!instr.checklist; const chkSteps = confirmSteps(instr); const chkSet = new Set(chkSteps.map(s=>s.id)); const chMode = instr.checkMode||'all';
   const okLbl = () => chMode==='chapter' ? t('done_chapter') : t('done');
   const isDone = it => !!(it && it.ok!=null);
+  let gateIdx = -1, gateFrom = 0; // v12.48: the checklist gate (see gateUpdate)
   // chapter groups for the overview (steps before the first heading form an intro group)
   const groups = []; { let g = null; for(const st of instr.steps){ if(st.kind==='chapter'){ g = {id:st.id, title:st.title, steps:[]}; groups.push(g); } else { if(!g){ g = {id:'_intro', title:'', steps:[]}; groups.push(g); } g.steps.push(st); } } }
   const groupOf = sid => groups.findIndex(g => g.steps.some(st => st.id===sid));
@@ -148,25 +149,33 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
   const RUNKEY = 'gg_run_'+instr.id; let runDone = false;
   const runRow = () => ({id:run.id, instr_id:run.instrId, ws:run.ws, worker:run.worker, version:run.version, started_at:new Date(run.startedAt).toISOString(), finished_at: run.finishedAt ? new Date(run.finishedAt).toISOString() : null, items:run.items});
   const pushRun = async () => { if(isPreview || !run.startedAt || !G.sb) return; try{ const {error} = await G.sb.from('runs').upsert(runRow()); if(error) console.warn(error.message); }catch(e){} };
-  const saveRun = () => { if(!run.startedAt || runDone) return; if(isPreview) return; LS.set(RUNKEY, {id:run.id, worker:run.worker, startedAt:run.startedAt, version:run.version, items:run.items, at:Date.now()}); debounce('pushrun', pushRun, 600); };
+  const saveRun = () => { if(!run.startedAt || runDone) return; if(isPreview) return; LS.set(RUNKEY, {id:run.id, worker:run.worker, startedAt:run.startedAt, version:run.version, items:run.items, from:gateFrom, at:Date.now()}); debounce('pushrun', pushRun, 600); };
   const inRun = () => useChk && !isPreview && !!run.startedAt && !runDone;
   const inRunOpen = () => inRun() && !chkSteps.every(s => isDone(run.items[s.id]));
   const backHref = isPreview ? '#/edit/'+instr.id : '#/';
-  const v = el(`<div class="viewer ${brand.theme==='light'?'light':''}" style="--brand:${esc(brand.color||'#004EAD')}">
+  // v12.48: text and buttons on the brand colour pick white or near-black by contrast – a light brand colour (yellow, mint) made
+  // white text unreadable on the end screen
+  const onBrand = (() => { const m = /^#?([0-9a-f]{6})$/i.exec(String(brand.color||'#004EAD').trim()); if(!m) return 'dark'; const n = parseInt(m[1], 16); const lin = c => { c /= 255; return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); }; const L = 0.2126*lin(n>>16&255) + 0.7152*lin(n>>8&255) + 0.0722*lin(n&255); return (1.05)/(L+0.05) >= (L+0.05)/0.05 ? 'dark' : 'light'; })(); // 'dark' = dark background → white text
+  const v = el(`<div class="viewer ${brand.theme==='light'?'light':''} on-${onBrand} ${useChk?'chk':''}" style="--brand:${esc(brand.color||'#004EAD')};--on-brand:${onBrand==='dark'?'#fff':'#111'}">
     <div class="vw-top">${(isPreview || S.user) ? `<a class="round" href="${backHref}" id="vback" style="width:40px;height:40px;flex:0 0 auto" aria-label="back">${IC.back}</a>` : ''}${brand.logo?`<img class="vlogo" src="${esc(brand.logo)}" alt="">`:''}<div class="tt-wrap"><div class="ch" id="vch">${esc(brand.name||'')}</div><div class="ttl" id="vttl"></div></div><span class="cnt tnum" id="vcnt" style="flex:0 0 auto;font-weight:800;font-size:13px;background:rgba(255,255,255,.18);padding:4px 10px;border-radius:999px"></span><button class="round langbtn" id="langbtn" style="width:40px;height:40px;flex:0 0 auto" title="${t('language')}">${IC.globe}</button><button class="round" id="menu" style="width:40px;height:40px;flex:0 0 auto" aria-label="menu">${IC.menu}</button></div>
     <div class="vw-scroll" id="vs"></div>
+    ${useChk ? `<div class="vw-act" id="vw-act" hidden><div class="va-t"><span class="tnum" id="va-n"></span><b id="va-q">${t('chk_q')}</b></div><div class="va-b"><button class="btn nok" id="va-nok" type="button">${IC.cross} <span>${t('not_ok')}</span></button><button class="btn done" id="va-ok" type="button">${IC.check} <span id="va-okl">${okLbl()}</span></button></div></div>` : ''}
     <aside class="vw-side" id="side"><div class="row" style="justify-content:space-between"><b id="side-h">${t('chapters')}</b><button class="round" id="sclose" style="width:36px;height:36px">${IC.close}</button></div><div id="sidelist"></div>${useChk && !isPreview ? `<button class="btn mint" id="finish" style="width:100%;margin-top:16px">${t('finish')}</button>`:''}${offlineOK ? `<div class="side-off" id="side-off"><span id="side-off-t">${t('off_title')}</span><button class="btn ghost sm" id="side-off-rm">${t('off_remove')}</button></div>` : ''}${!isPreview && !isStandalone() ? `<button class="btn ghost sm side-inst" id="side-inst">📲 ${t('install_app')}</button>` : ''}</aside>
   </div>`);
   app.appendChild(v);
   const vs = v.querySelector('#vs');
   if(!steps.length){ vs.innerHTML = `<div class="empty" style="color:#fff;padding-top:120px"><h2 style="color:#fff">${t('no_steps')}</h2></div>`; return; }
   // steps
-  const players = new Map(); const refreshers = []; const imgOffs = []; const lazy = new Map();
+  const players = new Map(); const refreshers = []; const imgOffs = []; const lazy = new Map(); const answers = new Map();
+  // v12.48: a card between two chapters – "chapter 1 done", then which chapter comes next (before, a new chapter only showed in the small top line)
+  const chapCards = new Map(); // group index → card
+  const chapCardFor = gi => { const g = groups[gi]; const sec = el(`<section class="vstep vchap" data-g="${gi}"><div class="vchap-in"><div class="vc-done" hidden></div><div class="vc-eye"></div><h2></h2><p class="vc-n"></p><div class="vc-hint">↑ <span></span></div></div></section>`); chapCards.set(gi, sec); return sec; };
   for(const [i,s] of steps.entries()){
-    const sec = el(`<section class="vstep" data-id="${s.id}" data-i="${i}">
+    { const gi = groupOf(s.id); if(gi > 0 && groups[gi].steps[0] && groups[gi].steps[0].id === s.id && groups[gi].id !== '_intro') vs.appendChild(chapCardFor(gi)); }
+    const sec = el(`<section class="vstep" data-id="${s.id}" data-i="${i}"${useChk && chkSet.has(s.id) ? ' data-need="1"' : ''}>
       <div class="vmedia"><div class="vbg"></div>${s.type==='video'?`<video muted playsinline loop preload="auto"></video>`:s.mediaId?`<img alt="">`:`<div class="vnoshot">${IC.cam}<span>${t('vw_noshot')}</span></div>`}<canvas></canvas>${s.type==='video'?'<div class="prog"><i></i></div><span class="ptime"></span>':''}${i===0 && steps.length>1 ? `<div class="vw-hint">↑ ${t('scroll_hint')}</div>`:''}</div>
       <div class="vtext"><div class="num"></div><h2></h2><div class="rich" hidden></div><div class="warnbox" hidden></div>
-        ${(useChk && chkSet.has(s.id))||useFb?`<div class="chk">${useChk && chkSet.has(s.id)?`<button class="btn done off" data-ok>${IC.check} ${okLbl()}</button><button class="btn nok" data-nok>${t('not_ok')}</button>`:''}${useFb?`<button class="btn note ${useChk && chkSet.has(s.id)?'':'fbw'}" data-fb title="${t('feedback')}">${IC.msg}${useChk && chkSet.has(s.id)?'':' '+t('feedback')}</button>`:''}</div>`:''}</div>
+        ${useFb?`<div class="chk"><button class="btn note fbw" data-fb title="${t('feedback')}">${IC.msg} ${t('feedback')}</button></div>`:''}</div>
     </section>`);
     const fbB = sec.querySelector('[data-fb]'); if(fbB) fbB.onclick = () => feedbackDialog(s, i+1);
     vs.appendChild(sec);
@@ -195,27 +204,26 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
       med.addEventListener('loadeddata', draw, {once:true});
     } else { med.addEventListener('load', draw, {once:true}); players.set(s.id, {play(){ ensureMedia(); }, stop(){}}); }
     setTimeout(draw, 80);
-    if(useChk){
-      const okB = sec.querySelector('[data-ok]'), nokB = sec.querySelector('[data-nok]'), noteB = sec.querySelector('[data-note]');
-      const refresh = () => { const it = run.items[s.id]; if(okB){ okB.classList.toggle('off', !(it && it.ok)); okB.innerHTML = `${IC.check} ${okLbl()}`; nokB.classList.toggle('on', !!(it && it.ok===false)); nokB.textContent = it && it.ok===false ? `✗ ${t('not_ok')}` : t('not_ok'); } if(noteB){ noteB.title = t('add_note'); noteB.classList.toggle('on', !!(it && (it.note || it.photoId || it.photoUrl))); } updateSide(); updateEndSum(); };
-      refreshers.push(refresh);
+    if(useChk && chkSet.has(s.id)){
       let pvHint = false; const pv = () => { if(isPreview && !pvHint){ pvHint = true; toast(t('preview_local')); } };
-      // note + photo dialog (used for "not OK" and for optional remarks on any step)
+      // note + photo dialog (used for "not OK")
       const noteDialog = async (title, danger) => {
         const it = run.items[s.id] || {};
         const r = await modal(`<h2>${title} – ${t('step')} ${i+1}</h2><div class="field"><label for="nk-note">${danger ? t('nok_note') : t('note_label')}</label><textarea id="nk-note">${esc(it.note||'')}</textarea></div><label class="btn ghost" style="cursor:pointer" id="nk-lbl">${IC.cam} ${(it.photoId||it.photoUrl) ? t('photo_replace') : t('nok_photo')}<input type="file" accept="image/*" capture="environment" hidden id="nk-ph"></label><div class="actions"><button class="btn ghost" data-x>${t('cancel')}</button><button class="btn ${danger?'danger':''}" data-ok>${t('save')}</button></div>`, (bg, close) => {
           let photo = null; bg.querySelector('#nk-ph').onchange = e => { photo = e.target.files[0]; bg.querySelector('#nk-lbl').textContent = '✓ '+(photo?photo.name:''); };
           bg.querySelector('[data-x]').onclick = () => close(null); bg.querySelector('[data-ok]').onclick = () => close({note: bg.querySelector('#nk-note').value, photo}); });
         if(!r) return null; let photoId = it.photoId||null, photoUrl = it.photoUrl||null;
-        if(r.photo){ photoId = uid(); photoUrl = null; await putMedia({id:photoId, blob:r.photo, type:'photo'}); if(!isPreview){ const path = `runs/${run.id}/${photoId}.${extOf(r.photo)}`; const up = await G.sb.storage.from('media').upload(path, r.photo, {contentType:r.photo.type||undefined}); if(!up.error){ photoUrl = PUBLIC_MEDIA(path); S.remoteUrl.set(photoId, photoUrl); } } }
+        if(r.photo){ photoId = uid(); photoUrl = null; await putMedia({id:photoId, blob:r.photo, type:'photo'}); if(!isPreview){ const path = `runs/${run.id}/${photoId}.${extOf(r.photo)}`; const up = await G.sb.storage.from('media').upload(path, r.photo, {contentType:r.photo.type||undefined}).catch(e => ({error:e})); if(!up.error){ photoUrl = PUBLIC_MEDIA(path); S.remoteUrl.set(photoId, photoUrl); } } }
         return {note:r.note, photoId, photoUrl}; };
-      if(okB){ okB.onclick = () => { pv(); run.items[s.id] = Object.assign({}, run.items[s.id]||{}, {ok:true, at:Date.now()}); refresh(); okB.classList.remove('pop'); void okB.offsetWidth; okB.classList.add('pop'); saveRun(); if(navigator.vibrate) try{navigator.vibrate(20);}catch(e){} const nx = sec.nextElementSibling; if(nx) setTimeout(()=>nx.scrollIntoView({behavior:'smooth'}), 250); };
-      nokB.onclick = async () => { pv(); const r = await noteDialog(t('not_ok'), true); if(!r) return; run.items[s.id] = Object.assign({}, run.items[s.id]||{}, r, {ok:false, at:Date.now()}); refresh(); saveRun(); }; }
-      if(noteB) noteB.onclick = async () => { pv(); const r = await noteDialog(t('add_note'), false); if(!r) return; run.items[s.id] = Object.assign({}, run.items[s.id]||{}, r, {at:(run.items[s.id]||{}).at||Date.now()}); refresh(); saveRun(); };
+      const answered = () => { refreshAll(); saveRun(); gateUpdate(); advanceFrom(sec); };
+      answers.set(s.id, {
+        ok: () => { pv(); run.items[s.id] = Object.assign({}, run.items[s.id]||{}, {ok:true, at:Date.now()}); if(navigator.vibrate) try{navigator.vibrate(20);}catch(e){} answered(); },
+        nok: async () => { pv(); const r = await noteDialog(t('not_ok'), true); if(!r) return; run.items[s.id] = Object.assign({}, run.items[s.id]||{}, r, {ok:false, at:Date.now()}); answered(); } });
     }
   }
   // happy end
   const endSec = el(`<section class="vstep vend" data-i="${steps.length}"><div class="vend-in">${brand.logo?`<div class="vend-logo big"><img src="${esc(brand.logo)}" alt=""></div>`:(brand.name?`<div class="vend-name">${esc(brand.name)}</div>`:'')}<div class="bigcheck">${IC.check}</div><h2 id="vend-h"></h2><p id="vend-p"></p>
+    ${useChk ? `<button class="btn ghost" id="vend-open" hidden>${t('end_goto_open')}</button>` : ''}
     ${useChk && !isPreview ? `<div class="vend-sum" id="vend-sum"></div><button class="btn big" id="finish2">${t('finish')}</button>` : `<div class="row" style="justify-content:center;gap:10px"><button class="btn ghost big" id="again2">${t('again')}</button>${S.user||isPreview?`<a class="btn big" href="${backHref}">${t('close')}</a>`:''}</div>`}
     ${useFb ? `<button class="btn ghost" id="fb-end" style="margin-top:14px">${IC.msg} ${t('fb_give')}</button>` : ''}
     ${!isPreview && !isStandalone() ? `<button class="vend-inst" id="inst-end">📲 <span>${t('install_app')}</span><small>${t('ig_short')}</small></button>` : ''}
@@ -224,20 +232,62 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
   vs.appendChild(endSec);
   const fbEnd = endSec.querySelector('#fb-end'); if(fbEnd) fbEnd.onclick = () => feedbackDialog(null, 0);
   const ag = endSec.querySelector('#again2'); if(ag) ag.onclick = () => { vs.scrollTo({top:0, behavior:'smooth'}); };
-  const updateEndSum = () => { const e2 = endSec.querySelector('#vend-sum'); if(!e2) return; const its = Object.values(run.items); const ok = its.filter(i=>i.ok).length, nok = its.filter(i=>i.ok===false).length, open = Math.max(0, chkSteps.length-ok-nok); e2.innerHTML = `<span class="ok">${ok} ${t('ok_count')}</span><span class="nok">${nok} ${t('nok_count')}</span><span>${open} ${t('open_count')}</span>`; };
+  // v12.48: the end tells the truth – all OK, finished with steps marked "not OK", or steps still open (before: always "all done")
+  const chkCounts = () => { const its = chkSteps.map(st => run.items[st.id]).filter(Boolean); const ok = its.filter(i => i.ok===true).length, nok = its.filter(i => i.ok===false).length; return {ok, nok, open: Math.max(0, chkSteps.length-ok-nok)}; };
+  const updateEndSum = () => { const {ok, nok, open} = chkCounts();
+    const e2 = endSec.querySelector('#vend-sum'); if(e2) e2.innerHTML = `<span class="ok">${ok} ${t('ok_count')}</span><span class="nok">${nok} ${t('nok_count')}</span><span>${open} ${t('open_count')}</span>`;
+    const state = useChk && chkSteps.length ? (open ? 'open' : nok ? 'nok' : 'ok') : 'plain'; endSec.dataset.state = state;
+    endSec.querySelector('#vend-h').textContent = state==='open' ? t(open===1 ? 'end_open_one' : 'end_open_many', {n:open}) : state==='nok' ? t(nok===1 ? 'end_nok_one' : 'end_nok_many', {n:nok}) : state==='ok' ? t('end_ok') : t('end_title');
+    endSec.querySelector('.bigcheck').innerHTML = state==='open' || state==='nok' ? IC.warn : IC.check;
+    const go1 = endSec.querySelector('#vend-open'); if(go1) go1.hidden = state!=='open'; };
+  { const go1 = endSec.querySelector('#vend-open'); if(go1) go1.onclick = () => { const first = chkSteps.find(st => !isDone(run.items[st.id])); const sec = first ? vs.querySelector(`.vstep[data-id="${first.id}"]`) : null; if(sec) sec.scrollIntoView({behavior:'smooth'}); }; }
+  // chapter cards: the chapter that is done (with its result) and the one that starts
+  const refreshChapCards = () => { chapCards.forEach((card, gi) => { const g = groups[gi]; const title = (cur.steps.find(x => x.id===g.id)||{}).title || g.title || `${t('chapter')} ${gi+1}`;
+    card.querySelector('.vc-eye').textContent = t('chap_of', {n: gi+1, total: groups.length}); card.querySelector('h2').innerHTML = titleHtml(title); card.querySelector('.vc-n').textContent = nOf(g.steps.length, 'step', 'steps'); card.querySelector('.vc-hint span').textContent = t('scroll_hint');
+    const prev = groups[gi-1]; const dn = card.querySelector('.vc-done'); const pchk = prev ? prev.steps.filter(st => chkSet.has(st.id)) : [];
+    if(prev && prev.id !== '_intro'){ const nk = pchk.filter(st => run.items[st.id] && run.items[st.id].ok===false).length; const allAns = pchk.every(st => isDone(run.items[st.id]));
+      dn.hidden = !!(useChk && pchk.length && !allAns); dn.className = 'vc-done' + (nk ? ' nok' : ''); dn.innerHTML = `${nk ? IC.warn : IC.check}<span>${esc(nk ? t('chap_done_nok', {n: gi, k: nk}) : t('chap_done', {n: gi}))}</span>`; }
+    else dn.hidden = true; }); };
+  // the fixed checklist bar (v12.48): OK / Not OK for the step on screen – before, the two buttons sat at the very bottom of each
+  // step's text and a worker could scroll past without answering
+  let curSec = null;
+  const bar = v.querySelector('#vw-act');
+  const updateBar = () => { if(!bar) return; const sid = curSec && curSec.dataset && curSec.dataset.id; const show = !!sid && chkSet.has(sid) && !v.querySelector('.vw-end'); bar.hidden = !show; v.classList.toggle('bar-on', show); if(!show) return;
+    const it = run.items[sid]; const idx = steps.findIndex(x => x.id===sid);
+    bar.querySelector('#va-n').textContent = `${t('step')} ${idx+1}/${steps.length}`;
+    bar.querySelector('#va-ok').classList.toggle('on', !!(it && it.ok===true)); bar.querySelector('#va-nok').classList.toggle('on', !!(it && it.ok===false));
+    bar.querySelector('#va-q').textContent = it && it.ok===true ? t('chk_done_q') : it && it.ok===false ? t('chk_nok_q') : t('chk_q');
+    bar.querySelector('#va-okl').textContent = okLbl(); bar.querySelector('#va-nok span').textContent = t('not_ok');
+    bar.classList.toggle('need', !isDone(it) && gateIdx === idx); };
+  if(bar){ bar.querySelector('#va-ok').onclick = () => { const a = curSec && answers.get(curSec.dataset.id); if(a) a.ok(); }; bar.querySelector('#va-nok').onclick = () => { const a = curSec && answers.get(curSec.dataset.id); if(a) a.nok(); }; }
+  // the gate (v12.48): with the checklist on, a worker cannot go past a step that needs an answer – everything after the first open
+  // step is hidden until it is answered (creators in the preview scroll freely). Before the run starts the worker may choose where to
+  // begin (chapter overview, chapter link): the gate then starts at that chapter; the chapters before it stay open and count as open.
+  const gateOn = () => useChk && !isPreview && !runDone;
+  function gateUpdate(){ const secs = [...vs.children];
+    gateIdx = gateOn() ? steps.findIndex((st, k) => k >= gateFrom && chkSet.has(st.id) && !isDone(run.items[st.id])) : -1;
+    if(gateIdx < 0){ secs.forEach(x => x.classList.remove('locked')); return; }
+    const gateSec = vs.querySelector(`.vstep[data-id="${steps[gateIdx].id}"]`); let after = false;
+    for(const x of secs){ x.classList.toggle('locked', after); if(x === gateSec) after = true; } }
+  const nudgeGate = () => { if(gateIdx < 0) return; const gs = vs.querySelector(`.vstep[data-id="${steps[gateIdx].id}"]`); if(gs) gs.scrollIntoView({behavior: run.startedAt ? 'smooth' : 'auto'}); if(!run.startedAt) return; /* a deep link before the start: quietly to the first open step */ toast(t('chk_locked', {n: gateIdx+1})); if(bar){ bar.classList.remove('shake'); void bar.offsetWidth; bar.classList.add('shake'); } };
+  const goSec = (sec, smooth) => { if(!sec) return; if(sec.classList.contains('locked')){ nudgeGate(); return; } sec.scrollIntoView({behavior: smooth ? 'smooth' : 'auto'}); };
+  const advanceFrom = sec => { let nx = sec.nextElementSibling; while(nx && nx.classList.contains('locked')) nx = null; if(nx) setTimeout(() => nx.scrollIntoView({behavior:'smooth'}), 260); };
+  const refreshAll = () => { updateBar(); updateSide(); updateEndSum(); refreshChapCards(); };
   // side list
   function updateSide(){
     const sl = v.querySelector('#sidelist'); let html=''; let n=0;
     if(groups.length > 1) html += `<button class="btn ghost sm" id="side-ov" style="width:100%;margin-bottom:10px">${IC.grid} ${t('chapter_overview')}</button>`;
     if(!chapters.length) html += `<h3>${t('all_steps')}</h3>`;
     for(const s of cur.steps){ if(s.kind==='chapter'){ html += `<h3>${titleHtml(s.title)}</h3>`; continue; } n++; const it = run.items[s.id]; const st = it && it.ok!=null ? (it.ok?'ok':'nok') : ''; html += `<div class="it ${st}" data-go="${s.id}"><span class="n tnum">${st ? (it.ok?'✓':'✗') : n}</span><span>${titleHtml(s.title)||t('step')+' '+n}</span>${it && (it.note||it.photoId||it.photoUrl) ? `<span class="n">${IC.note}</span>` : ''}</div>`; }
-    sl.innerHTML = html; $$('[data-go]', sl).forEach(d => d.onclick = () => { const sec = vs.querySelector(`[data-id="${d.dataset.go}"]`); if(sec) sec.scrollIntoView({behavior:'smooth'}); v.querySelector('#side').classList.remove('open'); });
+    sl.innerHTML = html; $$('[data-go]', sl).forEach(d => d.onclick = () => { const sec = vs.querySelector(`[data-id="${d.dataset.go}"]`); v.querySelector('#side').classList.remove('open'); goSec(sec, true); });
     const ov = sl.querySelector('#side-ov'); if(ov) ov.onclick = () => { v.querySelector('#side').classList.remove('open'); showOverview(true); };
   }
   // ---- chapter overview: entry screen when there is more than one chapter; also reachable from the top bar / side panel ----
   const urlFor = n => { const base = location.href.split('#')[0]; const k = isPreview ? '' : (shareKey || instr.shareKey || ''); return `${base}#/${isPreview?'preview':'v'}/${instr.id}${k?'/'+k:''}${n>0?'/'+n:''}${langArg?'/'+langArg.toLowerCase():''}`; };
   const setUrl = n => { try{ history.replaceState(null, '', urlFor(n)); }catch(e){} };
-  const gotoGroup = (gi, smooth) => { const g = groups[gi]; if(!g) return; chosenGroup = gi; const first = g.steps[0]; const sec = first ? vs.querySelector(`.vstep[data-id="${first.id}"]`) : null; if(sec) setTimeout(() => sec.scrollIntoView({behavior: smooth ? 'smooth' : 'auto'}), 40); if(groups.length > 1) setUrl(gi+1); };
+  const gotoGroup = (gi, smooth) => { const g = groups[gi]; if(!g) return; const first = g.steps[0];
+    if(!run.startedAt && gateOn() && first){ gateFrom = Math.max(0, steps.findIndex(x => x.id===first.id)); gateUpdate(); refreshAll(); } // the chosen start
+    const sec = chapCards.get(gi) || (first ? vs.querySelector(`.vstep[data-id="${first.id}"]`) : null); if(sec && sec.classList.contains('locked')){ setTimeout(nudgeGate, 60); return; } chosenGroup = gi; if(sec) setTimeout(() => sec.scrollIntoView({behavior: smooth ? 'smooth' : 'auto'}), 40); if(groups.length > 1) setUrl(gi+1); };
   // overall progress ring (checklist: confirmed steps; otherwise hidden)
   const ringHtml = items => { if(!useChk || !chkSteps.length) return ''; const done = chkSteps.filter(st => isDone(items[st.id])).length; const p = done/chkSteps.length; const R = 26, C = 2*Math.PI*R;
     return `<div class="ring" title="${t('progress')}"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="${R}" class="rb"/><circle cx="32" cy="32" r="${R}" class="rf" style="stroke-dasharray:${C};stroke-dashoffset:${C*(1-p)}"/></svg><span class="tnum">${Math.round(p*100)}<small>%</small></span></div>`; };
@@ -245,7 +295,8 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
     if(v.querySelector('.vw-chap')) return;
     const saved = LS.get(RUNKEY); const items = run.startedAt ? run.items : ((saved && saved.items && saved.version===instr.version) ? saved.items : {});
     const tiles = groups.map((g, gi) => { const title = g.id==='_intro' ? t('intro') : ((cur.steps.find(x=>x.id===g.id)||{}).title || g.title || `${t('chapter')} ${gi+1}`); const chk = g.steps.filter(st => chkSet.has(st.id)); const done = chk.filter(st => isDone(items[st.id])).length; const all = chk.length && done===chk.length;
-      return `<button class="ch-tile" data-g="${gi}" style="animation-delay:${Math.min(gi,10)*60}ms"><img alt="" data-poster="${g.steps[0]?g.steps[0].id:''}"><span class="cn tnum">${gi+1}</span>${all?`<span class="done">${IC.check}</span>`:''}<span class="txt"><b>${titleHtml(title)}</b><span>${nOf(g.steps.length,'step','steps')}${chk.length && useChk ? ` · ${done}/${chk.length} ✓` : ''}</span>${chk.length && useChk ? `<span class="bar"><i style="width:${Math.round(100*done/chk.length)}%"></i></span>` : ''}</span></button>`; }).join('');
+      const lockedG = !!run.startedAt && gateIdx >= 0 && g.steps[0] && steps.findIndex(x => x.id===g.steps[0].id) > gateIdx; // before the start every chapter can be chosen
+      return `<button class="ch-tile ${lockedG?'locked':''}" data-g="${gi}" style="animation-delay:${Math.min(gi,10)*60}ms"><img alt="" data-poster="${g.steps[0]?g.steps[0].id:''}"><span class="cn tnum">${gi+1}</span>${all?`<span class="done">${IC.check}</span>`:''}${lockedG?`<span class="lock">🔒</span>`:''}<span class="txt"><b>${titleHtml(title)}</b><span>${nOf(g.steps.length,'step','steps')}${chk.length && useChk ? ` · ${done}/${chk.length} ✓` : ''}</span>${chk.length && useChk ? `<span class="bar"><i style="width:${Math.round(100*done/chk.length)}%"></i></span>` : ''}</span></button>`; }).join('');
     const ov = el(`<div class="vw-chap"><div class="ch-head"><div class="ch-bar">${(isPreview || S.user) && !reopen ? `<a class="round" href="${backHref}" id="ov-back" aria-label="back">${IC.back}</a>` : `<span></span>`}<div class="brandline">${brand.logo?`<img src="${esc(brand.logo)}" alt="">`:''}<span>${esc(brand.name||'GIRI')}</span></div><div class="row" style="gap:6px"><button class="round" id="ov-lang" title="${t('language')}">${vlang?`<span class="flag">${FLAGS[vlang]||vlang}</span>`:IC.globe}</button>${reopen?`<button class="round" id="ov-close" aria-label="close">${IC.close}</button>`:''}</div></div>
       <div class="ch-titlerow"><div><h1>${titleHtml(cur.title)}</h1><div class="ch-sub">${groups.length} ${t('chapters')} · ${steps.length} ${t('steps')}${useChk?' · ☑ '+t('checklist_short'):''}</div><div class="ch-sub2">${t('pick_chapter')}</div></div>${ringHtml(items)}</div></div>
       <div class="ch-grid">${tiles}</div>
@@ -269,9 +320,9 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
       sec.querySelector('h2').innerHTML = titleHtml(s.title) || `${t('step')} ${i+1}`;
       const rich = sec.querySelector('.rich'); rich.hidden = !s.desc; rich.innerHTML = s.desc ? mdToHtml(s.desc) : '';
       const wb = sec.querySelector('.warnbox'); wb.hidden = !s.warn; wb.textContent = s.warn ? '⚠ '+s.warn : ''; });
-    endSec.querySelector('#vend-h').textContent = t('end_title'); endSec.querySelector('#vend-p').textContent = mdToPlain(cur.title) + (brand.logo&&brand.name ? ' · '+brand.name : '');
+    endSec.querySelector('#vend-p').textContent = mdToPlain(cur.title) + (brand.logo&&brand.name ? ' · '+brand.name : '');
     const f1 = v.querySelector('#finish'), f2 = endSec.querySelector('#finish2'); if(f1) f1.textContent = t('finish'); if(f2) f2.textContent = t('finish'); const ag2 = endSec.querySelector('#again2'); if(ag2) ag2.textContent = t('again');
-    v.querySelector('#side-h').textContent = t('chapters'); refreshers.forEach(f => f()); updateSide(); updateEndSum();
+    v.querySelector('#side-h').textContent = t('chapters'); const go1 = endSec.querySelector('#vend-open'); if(go1) go1.textContent = t('end_goto_open'); refreshAll();
     const sc = v.querySelector('.vw-start'); if(sc){ sc.querySelector('h1').textContent = t('vw_start_title'); sc.querySelector('p').textContent = t('vw_start_sub'); sc.querySelector('label').textContent = t('your_name'); sc.querySelector('#begin').textContent = t('begin'); const lb2 = sc.querySelector('#langbtn2'); if(lb2) lb2.innerHTML = vlang ? `<span class="flag">${FLAGS[vlang]||vlang}</span>` : IC.globe; }
     const hint = vs.querySelector('.vw-hint'); if(hint) hint.textContent = '↑ '+t('scroll_hint');
     const lb = v.querySelector('#langbtn'); lb.innerHTML = vlang ? `<span class="flag">${FLAGS[vlang]||vlang}</span>` : IC.globe; lb.classList.toggle('on', !!vlang);
@@ -290,7 +341,7 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
     if(l && !I18N[l.toLowerCase()]){ applyTexts(); await loadUiLang(l); if(vlang!==l) return; }
     G.LANG = l ? uiFor(l) : prevLang; applyTexts();
   }
-  const openLangMenu = () => modal(`<h2>${t('language')}</h2><div class="menu langmenu"><button data-l="" class="${!vlang?'cur':''}">${IC.globe} ${t('original')}</button>${LANGS.map(([k,name]) => `<button data-l="${k}" class="${vlang===k?'cur':''}"><span class="flag">${FLAGS[k]}</span> ${name}${hasTx(instr0,k)?' <small>✓</small>':''}</button>`).join('')}</div>`, (bg, close) => { $$('[data-l]', bg).forEach(b => b.onclick = () => { close(); switchLang(b.dataset.l); }); });
+  const openLangMenu = () => modal(`<h2>${t('language')}</h2><div class="menu langmenu"><button data-l="" class="${!vlang?'cur':''}">${IC.globe} ${t('original')}</button>${LANGS.map(([k,name]) => `<button data-l="${k}" class="${vlang===k?'cur':''}"><span class="flag">${FLAGS[k]}</span> ${name}</button>`).join('')}</div>`, (bg, close) => { $$('[data-l]', bg).forEach(b => b.onclick = () => { close(); switchLang(b.dataset.l); }); });
   v.querySelector('#langbtn').onclick = openLangMenu;
   applyTexts();
   if(vlang && (!fresh(vlang) || !I18N[vlang.toLowerCase()])) switchLang(vlang); // remembered language → translate live (cached after the first time)
@@ -302,7 +353,7 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
   if(groups.length > 1){ const tw = v.querySelector('.tt-wrap'); tw.classList.add('clickable'); tw.title = t('chapter_overview'); tw.onclick = () => showOverview(true); }
   v.querySelector('#sclose').onclick = () => v.querySelector('#side').classList.remove('open');
   // visibility → play
-  const io = new IntersectionObserver(entries => { entries.forEach(en => { const p = players.get(en.target.dataset.id); if(!p){ if(en.isIntersecting && en.target.classList.contains('vend')){ v.querySelector('#vcnt').textContent = '✓'; v.querySelector('#vch').textContent = brand.name||''; track.completed = true; track.seen = steps.length; } return; } if(en.isIntersecting && en.intersectionRatio > 0.6){ p.play(); const i = +en.target.dataset.i; curStepId = en.target.dataset.id; track.seen = Math.max(track.seen, i+1); if(groups.length > 1){ const gi = groupOf(curStepId); if(gi>=0 && gi!==chosenGroup){ chosenGroup = gi; if(!v.querySelector('.vw-chap')) setUrl(gi+1); } } v.querySelector('#vcnt').textContent = `${i+1} / ${steps.length}`; v.querySelector('#vch').textContent = mdToPlain(chapterOf(en.target.dataset.id)||'')||brand.name||''; } else p.stop(); }); }, {root:vs, threshold:[0.6]});
+  const io = new IntersectionObserver(entries => { entries.forEach(en => { if(en.isIntersecting && en.intersectionRatio > 0.6){ curSec = en.target; updateBar(); } const p = players.get(en.target.dataset.id); if(!p){ if(en.isIntersecting && en.target.classList.contains('vend')){ v.querySelector('#vcnt').textContent = '✓'; v.querySelector('#vch').textContent = brand.name||''; track.completed = true; track.seen = steps.length; } else if(en.isIntersecting && en.intersectionRatio > 0.6 && en.target.classList.contains('vchap')){ const gi = +en.target.dataset.g; if(gi !== chosenGroup){ chosenGroup = gi; if(!v.querySelector('.vw-chap')) setUrl(gi+1); } v.querySelector('#vcnt').textContent = t('chap_of', {n: gi+1, total: groups.length}); v.querySelector('#vch').textContent = mdToPlain((cur.steps.find(x => x.id===groups[gi].id)||{}).title || '') || brand.name || ''; } return; } if(en.isIntersecting && en.intersectionRatio > 0.6){ p.play(); const i = +en.target.dataset.i; curStepId = en.target.dataset.id; track.seen = Math.max(track.seen, i+1); if(groups.length > 1){ const gi = groupOf(curStepId); if(gi>=0 && gi!==chosenGroup){ chosenGroup = gi; if(!v.querySelector('.vw-chap')) setUrl(gi+1); } } v.querySelector('#vcnt').textContent = `${i+1} / ${steps.length}`; v.querySelector('#vch').textContent = mdToPlain(chapterOf(en.target.dataset.id)||'')||brand.name||''; } else p.stop(); }); }, {root:vs, threshold:[0.6]});
   $$('.vstep', vs).forEach(s => io.observe(s));
   const ioLazy = new IntersectionObserver(entries => { entries.forEach(en => { const l = lazy.get(en.target); if(!l) return; if(en.isIntersecting) l.ensureMedia(); else l.dropMedia(); }); }, {root:vs, rootMargin:'100% 0px 300% 0px', threshold:0});
   lazy.forEach((l, sec) => ioLazy.observe(sec));
@@ -326,16 +377,18 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
         const all = savedDone >= chkSteps.length;
         const c = await modal(`<h2>${all ? t('resume_all_title') : t('resume_title')}</h2><p class="muted" style="margin:0 0 14px">${esc(t('resume_sub',{n:savedDone, total:chkSteps.length, w:saved.worker||n, d:fmtDate(saved.at||saved.startedAt)}))}</p><div class="actions"><button class="btn ghost" data-restart>${t('restart')}</button><button class="btn" data-resume>${all ? t('finish') : t('resume')}</button></div>`, (bg, close) => { bg.querySelector('[data-restart]').onclick = () => close('restart'); bg.querySelector('[data-resume]').onclick = () => close('resume'); });
         if(c===null) return;
-        if(c==='resume'){ run.id = saved.id || run.id; run.startedAt = saved.startedAt || Date.now(); run.items = saved.items || {}; run.worker = n; refreshers.forEach(f => f()); start.remove(); if(all){ finishRun(); } else { saveRun(); scrollToOpen(); } return; }
+        if(c==='resume'){ run.id = saved.id || run.id; run.startedAt = saved.startedAt || Date.now(); run.items = saved.items || {}; run.worker = n; gateFrom = Math.max(0, Math.min(steps.length-1, +saved.from || 0)); gateUpdate(); refreshAll(); start.remove(); if(all){ finishRun(); } else { saveRun(); scrollToOpen(); } return; }
         LS.del(RUNKEY); }
       run.worker = n; run.startedAt = Date.now(); saveRun(); start.remove(); };
     const finishRun = async () => {
       if(!run.startedAt) run.startedAt = Date.now();
-      const its = Object.values(run.items); const ok = its.filter(i=>i.ok).length, nok = its.filter(i=>i.ok===false).length, open = Math.max(0, chkSteps.length-ok-nok);
+      const {ok, nok, open} = chkCounts();
+      if(open && !runDone && !(await confirmM(t(open===1 ? 'finish_open_q_one' : 'finish_open_q_many', {n:open}), t('finish')))) return;
       if(!runDone){ run.finishedAt = Date.now(); runDone = true; LS.del(RUNKEY); clearTimeout(debounces['pushrun']); const {error} = await G.sb.from('runs').upsert(runRow()); if(error){ toast(error.message); await DB.put('runs', run); } }
       if(v.querySelector('.vw-end')) return;
       const nokHtml = await Promise.all(steps.filter(s=>run.items[s.id] && run.items[s.id].ok===false).map(async (s,k) => { const it = run.items[s.id]; const u = it.photoUrl || (it.photoId ? await mediaUrl(it.photoId) : null); const cs = realSteps(cur).find(x=>x.id===s.id)||s; return `<div>✗ <b>${esc(cs.title)||t('step')}</b> – ${esc(it.note||'')}${u?`<img src="${u}" alt="">`:''}</div>`; }));
-      const end = el(`<div class="vw-end"><div class="card"><h1>${t('vw_end_title')}</h1><p class="sub">${esc(run.worker)} · ${fmtDate(run.startedAt)} · ${t('vw_end_sub')}</p><div class="sum"><div><b class="tnum" style="color:var(--mint)">${ok}</b><span>${t('ok_count')}</span></div><div><b class="tnum" style="color:#ff8a8e">${nok}</b><span>${t('nok_count')}</span></div><div><b class="tnum">${open}</b><span>${t('open_count')}</span></div></div><div class="nok-list">${nokHtml.join('')}</div><div class="actions" style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><a class="btn ghost" href="#/">${t('close')}</a><button class="btn mint" id="again">${t('again')}</button></div></div></div>`);
+      gateUpdate(); updateBar();
+      const end = el(`<div class="vw-end ${nok ? 'nok' : open ? 'open' : 'ok'}"><div class="card"><h1>${t(nok ? 'vw_end_title_nok' : open ? 'vw_end_title_open' : 'vw_end_title')}</h1><p class="sub">${esc(run.worker)} · ${fmtDate(run.startedAt)} · ${t('vw_end_sub')}</p><div class="sum"><div><b class="tnum" style="color:var(--mint)">${ok}</b><span>${t('ok_count')}</span></div><div><b class="tnum" style="color:#ff8a8e">${nok}</b><span>${t('nok_count')}</span></div><div><b class="tnum">${open}</b><span>${t('open_count')}</span></div></div><div class="nok-list">${nokHtml.join('')}</div><div class="actions" style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><a class="btn ghost" href="#/">${t('close')}</a><button class="btn mint" id="again">${t('again')}</button></div></div></div>`);
       v.appendChild(end); v.querySelector('#side').classList.remove('open');
       end.querySelector('#again').onclick = () => render();
     };
@@ -346,6 +399,7 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
     const autoFinish = () => { if(!inRun() || !allDone()) return; run.finishedAt = Date.now(); runDone = true; LS.del(RUNKEY); clearTimeout(debounces['pushrun']); pushRunBeacon(); };
     window.addEventListener('pagehide', autoFinish); document.addEventListener('visibilitychange', () => { if(document.visibilityState==='hidden') autoFinish(); }); onLeave = autoFinish;
   }
+  gateUpdate(); refreshAll();
   // entry: #/v/<id>/<n> jumps straight to chapter n; several chapters without a number → chapter overview first
   if(chapArg > 0 && chapArg <= groups.length) gotoGroup(chapArg-1, false);
   else if(groups.length > 1) showOverview(false);

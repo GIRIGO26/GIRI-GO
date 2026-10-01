@@ -8,13 +8,14 @@ import { confirmSteps } from '../core/workspace.js';
 import { barChart, runDetailsModal } from '../ui/charts.js';
 import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
+import { instrCrumbs, instrTabs } from '../ui/instrnav.js';
 import { debounce } from './editor.js';
 
 
 /* ---------- Results ---------- */
 async function renderResults(app, id){
   const instr = S.instrs.find(i=>i.id===id); if(!instr) return go('');
-  topbar(app, {back:'/', sub:t('stats_fb')});
+  topbar(app, {crumbs: instrCrumbs(instr)}); // v12.48: same trail as the editor; edit / preview / analytics are tabs of the instruction
   const steps = realSteps(instr);
   const [{data:rows, error}, {data:vrows}, {data:fbrows}] = await Promise.all([
     G.sb.from('runs').select('*').eq('instr_id', id).order('started_at', {ascending:false}),
@@ -37,7 +38,7 @@ async function renderResults(app, id){
   const dur = r => fmtDur(Math.max(0, Math.round(((r.finishedAt||lastAt(r))-r.startedAt)/1000)));
   const days = []; for(let k=29;k>=0;k--){ const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-k); days.push(d); } const dkey = d => d.toISOString().slice(0,10); const perDay = Object.fromEntries(days.map(d=>[dkey(d),0])); views.forEach(x => { const d = new Date(x.started_at||0); if(isNaN(d)) return; const k = dkey(d); if(perDay[k]!=null) perDay[k]++; });
   let tab = 'views'; try{ tab = sessionStorage.getItem('gg_rtab_'+id) || 'views'; }catch(e){}
-  const v = el(`<main class="page"><div class="dash-head"><div><h1>${esc(instr.title)}</h1><div class="sub">${t('stats_sub')}</div></div><button class="btn ghost" id="csv">${t('export_csv')}</button></div>
+  const v = el(`<main class="page"><div class="ed-head res-head"><div class="ed-top"><div><h1>${esc(instr.title)}</h1><div class="sub">${t('stats_sub')}</div></div></div><div class="ed-bar">${instrTabs(instr, 'results', {fbOpen})}<div class="ed-acts"><button class="btn ghost sm" id="csv">${t('export_csv')}</button></div></div></div>
     <div class="tabs" id="rtabs"><button data-tab="views" class="${tab==='views'?'on':''}">${t('views_tab')} <span class="tnum cnt">${vN}</span></button><button data-tab="runs" class="${tab==='runs'?'on':''}">${t('jobdone')} <span class="tnum cnt">${runs.length}</span></button><button data-tab="feedback" class="${tab==='feedback'?'on':''}">${t('feedback')} <span class="tnum cnt ${fbOpen?'hot':''}">${fbOpen||fbs.length}</span></button></div>
     <div id="tab-feedback" ${tab!=='feedback'?'hidden':''}><p class="muted" style="margin:0 0 12px">${t('fb_inbox_sub')}</p><div class="fblist" id="fblist">${fbs.length ? fbs.map(fbCard).join('') : `<div class="card empty">${t('fb_none')}</div>`}</div></div>
     <div id="tab-views" ${tab!=='views'?'hidden':''}>

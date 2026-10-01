@@ -1,4 +1,4 @@
-import { mirrorAll, mirrorList, mirrorMerge, mirrorRaw, netErr } from './offline.js';
+import { mirrorAll, mirrorList, mirrorMerge, mirrorRaw, netErr, online } from './offline.js';
 import { t } from './i18n.js';
 import { fixLegacyHosts } from './config.js';
 import { toast } from './helpers.js';
@@ -44,7 +44,9 @@ const loadInstrs = async () => {
   const t0 = performance.now(); const sig0 = S.instrs.map(i => i.id+':'+(i.updatedAt||0)).join(',');
   // v12.47: the copies from the device store never replace an in-memory object that is at least as new – the editor and the camera
   // hold references, and a swap while offline made steps recorded since disappear from the list until the next full sync
-  const offlineFallback = async error => { const mem = new Map(S.instrs.map(i => [i.id, i])); const local = (await mirrorList()).map(r => { const m = mem.get(r.id); return m && (m.updatedAt||0) >= (r.updatedAt||0) ? m : r; }); S.instrs = local.sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0)); if(!netErr(error)) toast(error.message); else toast(t('offline_copy')); };
+  const offlineFallback = async error => { const mem = new Map(S.instrs.map(i => [i.id, i])); const local = (await mirrorList()).map(r => { const m = mem.get(r.id); return m && (m.updatedAt||0) >= (r.updatedAt||0) ? m : r; }); { const ids = new Set(local.map(r => r.id)); S.instrs.forEach(m => { if(!ids.has(m.id) && m.ws === S.user.ws) local.push(m); }); } /* v12.48: an instruction created a moment ago (not in the device store yet) stays */ S.instrs = local.sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0)); if(!netErr(error)) toast(error.message); else toast(t('offline_copy')); };
+  // v12.48: offline → the device copy at once. Before, the request ran into the auth token refresh, which retries for up to 30 s
+  if(!online()) return offlineFallback(new Error('offline'));
   let heads = null, error = null;
   // v12.37.1: page through the heads – PostgREST returns at most 1000 rows per request, large imports were cut off at 1000
   try{ heads = []; for(let from = 0; ; from += 1000){ const {data, error:e} = await G.sb.from('instructions').select('id, updated_at').eq('ws', S.user.ws).is('deleted_at', null).order('updated_at', {ascending:false}).order('id').range(from, from+999); if(e) throw e; heads.push(...(data||[])); if(!data || data.length < 1000) break; } }catch(e){ error = e; }

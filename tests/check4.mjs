@@ -10,7 +10,7 @@ page.on('console', m => { if(m.type()==='error' && !m.text().includes('ERR_TUNNE
 await page.goto(BASE+'/index3.html'); await page.waitForTimeout(2500);
 await page.screenshot({path:OUT+'/e1-projects.png'});
 // new project via card, then project page
-await page.click('#dnav [data-fadd]'); await page.waitForTimeout(300); await page.fill('#pm-in', 'Testprojekt'); await page.click('[data-ok]'); await page.waitForTimeout(900);
+await page.click('#dnav [data-fadd]'); await page.waitForTimeout(300); await page.fill('#nf-name', 'Testprojekt'); await page.click('.modal-bg [data-ok]'); await page.waitForTimeout(900);
 console.log('hash after new project:', await page.evaluate(()=>location.hash));
 await page.screenshot({path:OUT+'/e2-project-empty.png'});
 await page.click('#new'); await page.waitForTimeout(300); await page.fill('#ni-t', 'Anleitung im Projekt'); await page.click('.modal [data-ok]'); await page.waitForTimeout(800);
@@ -50,10 +50,11 @@ const vid = await mp.evaluate(()=>window.__tables.instructions[0].id);
 await mp.goto(BASE+'/index3.html#/v/'+vid); await mp.waitForTimeout(1500);
 { const b = await mp.$('#ov-start'); if(b){ await b.click(); await mp.waitForTimeout(400); } }
 await mp.fill('#wname', 'Anna'); await mp.click('#begin'); await mp.waitForTimeout(500);
-await mp.click('[data-ok]'); await mp.waitForTimeout(1200);
+await mp.click('#va-ok'); await mp.waitForTimeout(1200); // v12.48: the fixed answer bar
 console.log('runs in db:', JSON.stringify(await mp.evaluate(()=>window.__tables.runs.map(r=>({w:r.worker, fin:r.finished_at, n:Object.keys(r.items).length})))));
 await mp.click('#langbtn'); await mp.waitForTimeout(300); await mp.click('[data-l="PL"]'); await mp.waitForTimeout(1200); await mp.screenshot({path:OUT+'/e14-viewer-pl.png'});
-await mp.evaluate(()=>{ const vs=document.querySelector('#vs'); vs.scrollTo(0, vs.scrollHeight); }); await mp.waitForTimeout(800); await mp.click('#finish2'); await mp.waitForTimeout(1000);
+// v12.48: the end stays hidden behind the open steps – finish early from the side panel, which asks first (4 steps open)
+await mp.click('#menu'); await mp.waitForTimeout(400); await mp.click('#finish'); await mp.waitForTimeout(400); console.log('finish question:', await mp.$eval('.modal-bg', e => e.textContent.replace(/\s+/g,' ').trim().slice(0, 80))); await mp.click('.modal-bg [data-ok]'); await mp.waitForTimeout(1000);
 console.log('runs after finish:', JSON.stringify(await mp.evaluate(()=>window.__tables.runs.map(r=>({w:r.worker, fin:!!r.finished_at, n:Object.keys(r.items).length})))));
 await mp.screenshot({path:OUT+'/e15-finished.png'});
 await mp.evaluate(()=>{ localStorage.setItem('gg_vlang',''); });

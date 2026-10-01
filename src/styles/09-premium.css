@@ -366,3 +366,127 @@ table.roles td.muted{font-size:12.5px}
 .l-trust{display:flex;gap:12px;align-items:flex-start;margin-top:14px;padding:12px 14px;border-radius:14px;background:var(--surface-2);color:var(--ink-2);font-size:12.5px;line-height:1.45}
 .l-trust svg{flex:0 0 auto;color:var(--mint-ink,#06513D);margin-top:1px}
 .l-trust b{display:block;color:var(--ink);font-size:13px;margin-bottom:2px}
+
+/* ---------- v12.48: orientation – breadcrumb in the top bar, instruction tabs, sticky editor head, profile + app menu ---------- */
+.brand a.logo{cursor:pointer}
+.brand .crumbs{display:flex;align-items:center;gap:8px;min-width:0;font-size:14px;font-weight:600;color:rgba(255,255,255,.88)}
+.brand .crumbs .sep{width:1px;height:22px;background:rgba(255,255,255,.22);flex:0 0 auto;margin-right:4px}
+.brand .crumbs .crumb{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;min-width:0;color:rgba(255,255,255,.66);text-decoration:none;flex:0 1 auto}
+.brand .crumbs a.crumb:hover{color:#fff;text-decoration:underline;text-underline-offset:3px}
+.brand .crumbs .crumb.cur{color:#fff;font-weight:700;max-width:380px}
+.brand .crumbs .cr-sep{opacity:.4;flex:0 0 auto}
+.crumbbar{display:none}
+.topbar .tb-menu{width:40px;height:40px;padding:0 !important;justify-content:center;border-radius:50% !important}
+.topbar .tb-menu svg{width:20px;height:20px}
+.avatar.img{padding:0;overflow:hidden;background:#2A2B30}
+.avatar.img img{width:100%;height:100%;object-fit:cover;display:block}
+.prof .avatar.big{width:64px;height:64px;font-size:22px}
+.avatar-edit{position:relative;cursor:pointer;flex:0 0 auto;display:inline-flex}
+.avatar-edit .cam{position:absolute;right:-4px;bottom:-4px;width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;box-shadow:0 0 0 3px var(--surface)}
+.avatar-edit .cam svg{width:14px;height:14px}
+.menu-row{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;border-radius:12px;background:var(--surface-2);font-weight:600;text-align:left;color:var(--ink)}
+.menu-row:hover{background:var(--surface-3)}
+.menu-row b{margin-left:auto;color:var(--ink-3);font-size:12px}
+@media(max-width:760px){
+  .brand .crumbs .crumb:not(.cur),.brand .crumbs .cr-sep{display:none}
+  .brand .crumbs .crumb.cur{max-width:none}
+  .topbar .tb-lang{display:none !important}
+  .crumbbar{display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:none;white-space:nowrap;padding:8px 16px;font-size:12.5px;font-weight:600;color:var(--ink-3);background:var(--surface);border-bottom:1px solid var(--line)}
+  .crumbbar::-webkit-scrollbar{display:none}
+  .crumbbar .crumb{color:var(--ink-3);text-decoration:none}
+  .crumbbar .crumb.cur{color:var(--ink);font-weight:700}
+  .crumbbar .cr-sep{opacity:.5}
+}
+@media(max-width:400px){.brand{gap:8px}.brand .logo{width:60px}.topbar{gap:6px}.brand .crumbs{font-size:12.5px;gap:6px}.brand .crumbs .sep{display:none}}
+/* the three views of one instruction */
+.itabs{display:inline-flex;gap:4px;padding:4px;border-radius:14px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line);max-width:100%;overflow-x:auto;scrollbar-width:none}
+.itabs::-webkit-scrollbar{display:none}
+.itab{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:10px;font-weight:700;font-size:14px;color:var(--ink-2);text-decoration:none;white-space:nowrap}
+.itab svg{width:16px;height:16px;flex:0 0 auto}
+.itab:hover{background:var(--surface);color:var(--ink)}
+.itab.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-1),0 0 0 1px var(--line)}
+.itab .nbadge{margin-left:2px}
+/* editor / analytics head: title + meta, then tabs + actions; on the PC it stays on screen while the page scrolls */
+.ed-head{flex-direction:column;align-items:stretch;gap:10px}
+.ed-top{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap}
+.ed-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ed-bar .ed-acts{margin-left:auto}
+.ed-meta .chip{cursor:pointer;border:0;font:inherit;font-size:12px;font-weight:700}
+.ed-meta .chip:hover{filter:brightness(.97);box-shadow:0 0 0 2px var(--line-2)}
+.ed-when{white-space:nowrap}
+.res-head .ed-top h1{font-size:24px;letter-spacing:-.02em}
+.res-head .sub{color:var(--ink-3);font-size:13.5px;margin-top:2px}
+@media(min-width:901px){
+  .ed-head{position:sticky;top:calc(60px + env(safe-area-inset-top,0px));z-index:15;background:var(--bg);margin:-14px -16px 14px;padding:12px 16px;border-bottom:1px solid transparent;transition:box-shadow .2s,border-color .2s}
+  .ed-head.stuck{border-bottom-color:var(--line);box-shadow:0 12px 24px -20px rgba(16,24,40,.45)}
+  .page .steps-panel{top:calc(var(--edh,0px) + 72px);max-height:calc(100vh - var(--edh,0px) - 96px)}
+  .ed-main{top:calc(var(--edh,0px) + 72px) !important;max-height:calc(100vh - var(--edh,0px) - 92px) !important}
+}
+@media(max-width:640px){
+  .ed-bar{flex-direction:column;align-items:stretch}
+  .ed-bar .itabs{display:flex;width:100%}
+  .ed-bar .itab{flex:1;justify-content:center;padding:9px 6px;font-size:13px}
+  .ed-bar .ed-acts{margin-left:0}
+}
+@media(max-width:900px){
+  .ed-head,.ed-top,.ed-bar,.title-wrap{min-width:0;max-width:100%}
+  .ed-head input.title{field-sizing:fixed;width:100%;min-width:0}
+  .ed-meta{flex-wrap:wrap;row-gap:2px}
+  .ed-meta>*{white-space:nowrap}
+}
+@media(max-width:640px){
+  .ed-bar .ed-acts{display:flex;width:100%}
+  .ed-head .ed-when{display:none}
+}
+
+/* ---------- v12.48: instruction overview – messages first, then title + actions, then filters; folders and teams fold ---------- */
+.dash #inst-slot:empty{display:none}
+.dash #inst-slot{margin-bottom:12px}
+.dash #inst-slot>*{margin-bottom:10px}
+.dn-sec{margin-top:14px}
+.dn-sec .dn-h{margin:0 2px 6px 4px}
+.dn-tg{display:inline-flex;align-items:center;gap:6px;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;padding:4px 6px 4px 2px;border-radius:8px}
+.dn-tg:hover{color:var(--ink)}
+.dn-tg svg{width:14px;height:14px;transition:transform .18s var(--ease)}
+.dn-sec.coll .dn-tg svg{transform:rotate(-90deg)}
+.dn-sec.coll .dn-body{display:none}
+.dn-info{width:22px;height:22px;border-radius:50%;background:var(--surface-2);color:var(--ink-3);font-weight:800;font-size:12px;display:inline-grid;place-items:center;text-transform:none;letter-spacing:0}
+.dn-info:hover{background:var(--blue);color:#fff}
+.dn-sec .dn-add{margin-left:auto}
+.dn-sec .dn-info+.dn-add{margin-left:auto}
+.dn-sec .dn-h .dn-info:last-child{margin-left:auto}
+.afilters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-4px 0 12px}
+.afilters:empty{display:none}
+.afilters .tlbl{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-right:2px}
+.afc{display:inline-flex;align-items:center;gap:6px;padding:6px 8px 6px 10px;border-radius:999px;background:var(--blue-lightest,#F0F7FF);color:var(--blue);font-weight:700;font-size:13px;box-shadow:inset 0 0 0 1px rgba(0,78,173,.18)}
+.afc svg{width:14px;height:14px;flex:0 0 auto}
+.afc span{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.afc:hover{background:var(--blue);color:#fff}
+.offmark{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--mint-ink,#06513D);background:var(--green-lightest,#F1FDFA);padding:2px 8px;border-radius:999px}
+.offmark svg{width:12px;height:12px}
+.nf-teams{display:grid;gap:4px;margin:6px 0 0 26px;max-height:220px;overflow:auto}
+/* admin: teams and access tables fold and search (v12.48) */
+details.team>summary{list-style:none;display:flex;align-items:center;gap:10px;cursor:pointer}
+details.team>summary::-webkit-details-marker{display:none}
+details.team .tsum{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+details.team .tsum svg{width:16px;height:16px;flex:0 0 auto;color:var(--ink-3)}
+details.team .tsum b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+details.team .tsum .muted{font-size:12.5px;white-space:nowrap}
+details.team .chev,.acc-card .chev{display:inline-flex;color:var(--ink-3);transition:transform .18s var(--ease);margin-left:auto}
+details.team[open] .chev,.acc-card[open] .chev{transform:rotate(180deg)}
+.acc-card>summary{list-style:none;display:flex;align-items:center;gap:8px;cursor:pointer}
+.acc-card>summary::-webkit-details-marker{display:none}
+.adm-search{margin:10px 0 8px;max-width:420px}
+/* v12.48: sign-in page opened from the invitation mail */
+.l-join{display:flex;gap:10px;align-items:flex-start;margin:0 0 14px;padding:12px 14px;border-radius:14px;background:color-mix(in srgb, var(--accent,#004EAD) 9%, var(--surface,#fff));border:1px solid color-mix(in srgb, var(--accent,#004EAD) 25%, transparent);font-size:13px;line-height:1.45;color:var(--ink-2)}
+.l-join svg{flex:0 0 auto;width:20px;height:20px;color:var(--accent,#004EAD);margin-top:1px}
+.l-join b{display:block;color:var(--ink);font-size:14px;margin-bottom:2px}
+/* v12.48: open invitations in the admin panel */
+.inv-list{display:flex;flex-direction:column;gap:6px}
+.inv-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.inv-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+.inv-main b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px}
+.inv-main small{font-size:12px}
+.inv-row .btn.sm{flex:0 0 auto}
+.inv-row .btn.sm svg{width:15px;height:15px}
+@media (max-width:560px){ .inv-row{flex-wrap:wrap} .inv-main{flex-basis:100%} }

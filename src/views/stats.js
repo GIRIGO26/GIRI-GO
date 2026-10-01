@@ -12,7 +12,7 @@ import { saveFile } from './results.js';
 
 /* ---------- Global statistics (workspace) ---------- */
 async function renderGlobalStats(app){
-  topbar(app, {back:'/', sub:t('global_stats')});
+  topbar(app, {crumbs: [{label: t('instructions'), href: ''}, {label: t('global_stats')}]});
   const since = new Date(Date.now()-30*864e5); since.setHours(0,0,0,0);
   const [{data:vrows}, {data:rrows}, {data:srows}] = await Promise.all([
     G.sb.from('views').select('instr_id,started_at,duration_s,completed,reload,steps_seen,steps_total,device').eq('ws', S.user.ws).gte('started_at', since.toISOString()).order('started_at', {ascending:false}).limit(5000),

@@ -1,12 +1,22 @@
-<!-- Supabase → Authentication → Email Templates → Magic Link: kompletten Body durch diesen ersetzen.
-     Subject: GIRI Go – Dein Code: {{ .Token }} -->
-<div style="font-family:Montserrat,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#000">
-  <div style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#004EAD;font-weight:800;margin-bottom:12px">GIRI Go</div>
-  <h2 style="font-size:22px;margin:0 0 6px">Dein Anmelde-Code</h2>
-  <p style="font-size:14px;color:#525252;margin:0 0 14px">Eine Stunde gültig – in GIRI Go eingeben:</p>
-  <p style="font-size:38px;font-weight:800;letter-spacing:.22em;margin:0 0 22px;background:#F2F3F6;border-radius:12px;padding:16px 18px;text-align:center">{{ .Token }}</p>
-  <p style="font-size:14px;line-height:1.5;margin:0 0 10px;color:#525252">Am PC oder im Browser geht es auch per Klick:</p>
-  <p style="margin:0 0 22px"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#004EAD;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:10px">Im Browser anmelden</a></p>
-  <p style="font-size:13px;line-height:1.5;color:#525252;margin:0 0 18px;border-left:3px solid #03D39B;padding-left:10px"><b>GIRI Go als App auf dem Home-Bildschirm?</b> Dann dort den Code oben eingeben – der Button öffnet nur den Browser, nicht die App.</p>
-  <p style="font-size:12px;color:#8A8A8A;margin:0">Nicht angefordert? Einfach ignorieren – Code und Link funktionieren nur einmal.</p>
+<!-- v12.48 – Sign-in code mail (German + English in one mail).
+     Paste into Supabase → Authentication → Emails → Templates, BOTH templates:
+       • "Magic Link"        Subject: GIRI – Dein Code / Your code: {{ .Token }}
+       • "Confirm sign up"   Subject: GIRI – Dein Code / Your code: {{ .Token }}
+     (New people – e.g. everyone who was invited – get "Confirm sign up" as long as "Confirm email" is switched on.)
+     The validity in the text (60 minutes) must match Authentication → Sign In / Providers → Email → "Email OTP Expiration" = 3600 seconds. -->
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111">
+  <div style="background:#000;color:#fff;border-radius:12px 12px 0 0;padding:14px 20px;font-weight:800;font-size:18px;letter-spacing:.02em">GIRI</div>
+  <div style="border:1px solid #E6E8EE;border-top:0;border-radius:0 0 12px 12px;padding:20px">
+    <h2 style="font-size:21px;margin:0 0 6px">Dein Anmelde-Code</h2>
+    <p style="font-size:14px;color:#525252;margin:0 0 14px;line-height:1.5">Auf der GIRI-Anmeldeseite oder in der GIRI-App eingeben. <b>Gültig 60 Minuten, nur einmal verwendbar.</b></p>
+    <p style="font-size:38px;font-weight:800;letter-spacing:.22em;margin:0 0 18px;background:#F2F3F6;border-radius:12px;padding:16px 18px;text-align:center">{{ .Token }}</p>
+    <p style="font-size:14px;line-height:1.5;margin:0 0 10px;color:#525252">Am PC oder im Browser geht es auch per Klick:</p>
+    <p style="margin:0 0 16px"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#004EAD;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Im Browser anmelden</a></p>
+    <p style="font-size:13px;line-height:1.5;color:#525252;margin:0 0 16px;border-left:3px solid #03D39B;padding-left:10px"><b>GIRI als App auf dem Home-Bildschirm?</b> Dann dort den Code eingeben – der Button öffnet nur den Browser, nicht die App. Code abgelaufen? Einfach neu anmelden, du bekommst sofort einen neuen.</p>
+    <hr style="border:0;border-top:1px solid #E6E8EE;margin:18px 0">
+    <h3 style="font-size:16px;margin:0 0 6px">Your sign-in code</h3>
+    <p style="font-size:13.5px;color:#525252;margin:0 0 10px;line-height:1.5">Enter the code above on the GIRI sign-in page or in the GIRI app. <b>Valid for 60 minutes, single use.</b> On a computer you can also <a href="{{ .ConfirmationURL }}" style="color:#004EAD;font-weight:700">sign in in the browser</a>. Code expired? Simply sign in again to get a new one.</p>
+    <p style="font-size:12px;color:#8A8A8A;margin:16px 0 0;line-height:1.5">Nicht angefordert? Einfach ignorieren – ohne den Code passiert nichts. · Not requested? Simply ignore this e-mail – nothing happens without the code.</p>
+  </div>
+  <p style="margin:12px 0 0;text-align:center;font-size:11px;color:#9AA0A6">GIRI · AR-Experts GmbH · go.ar-giri.de</p>
 </div>

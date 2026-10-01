@@ -16,7 +16,7 @@ import { runUploads } from '../core/uploads.js';
 import { mediaUrl } from '../core/state.js';
 
 async function renderTrash(app){
-  topbar(app, {back:'/', sub: t('trash')});
+  topbar(app, {crumbs: [{label: t('instructions'), href: ''}, {label: t('trash')}]});
   const v = el(`<main class="page"><div class="dash-head"><div><h1>${t('trash')}</h1><div class="sub">${t('trash_sub', {d: TRASH_DAYS})}</div></div></div><div class="list" id="tlist"><div class="loading"><div class="spin"></div></div></div></main>`);
   app.appendChild(v);
   let rows = []; try{ rows = await loadTrash(); }catch(e){ toast(e.message||String(e)); }
