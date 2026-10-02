@@ -490,3 +490,16 @@ details.team[open] .chev,.acc-card[open] .chev{transform:rotate(180deg)}
 .inv-row .btn.sm{flex:0 0 auto}
 .inv-row .btn.sm svg{width:15px;height:15px}
 @media (max-width:560px){ .inv-row{flex-wrap:wrap} .inv-main{flex-basis:100%} }
+
+/* v12.48 – touch: nothing a thumb has to hit is smaller than ~44 px (UX sweep, tests/ux_sweep.mjs). Small visuals stay small;
+   the tappable area grows invisibly. The top-bar buttons no longer shrink when the title is long. */
+.topbar .tb-btn,.topbar .tbmenu{flex:0 0 auto}
+@media(hover:none) and (pointer:coarse){summary{min-height:44px;display:flex;align-items:center}.crumb{padding:10px 0}.imp-go{min-height:44px}}
+@media(hover:none) and (pointer:coarse){
+  .beta,.lch,.imore,.pen-btn,.ed-meta .chip,.mini,.sclose,.brand a.logo,.itab,.btn[aria-label],.tb-btn[data-back],.tbmenu{position:relative}
+  .beta::after,.lch::after,.imore::after,.pen-btn::after,.ed-meta .chip::after,.mini::after,.sclose::after,.brand a.logo::after,.itab::after,.tb-btn[data-back]::after,.tbmenu::after{content:'';position:absolute;left:50%;top:50%;width:max(100%,44px);height:max(100%,44px);transform:translate(-50%,-50%)}
+  select,input[type=text],input[type=email],input[type=search],input:not([type]){min-height:44px}
+  input[type=checkbox],input[type=radio]{width:22px;height:22px}
+  .ititle{min-height:44px}
+}
+@media(hover:none) and (pointer:coarse){.mem button,[data-mrm],.cap-top .cnt{min-height:40px;min-width:40px}}

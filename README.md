@@ -440,6 +440,13 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Installations-Hinweis**: nach „Später“/× bleibt eine schmale Zeile „📲 GIRI Go als App installieren · So geht’s“ auf der Startseite, solange die App nicht installiert ist (PC und Telefon).
 - Tests `animtest`, `libtest`, `check4` angepasst. 38 Tests grün.
 
+## v12.48.1 – UX-Durchlauf über Geräte
+
+- Neuer Test `tests/ux_sweep.mjs`: 9 Seiten × iPhone SE / 13 Pro / Android / iPad / Desktop (DE + EN) – misst seitliches Scrollen, abgeschnittene Texte, Tippflächen, rohe Übersetzungsschlüssel, defekte Bilder
+- Tippflächen auf Touch-Geräten ≈ 44 px (unsichtbar vergrößert, Optik unverändert); Kopfleisten-Buttons schrumpfen nicht mehr bei langem Titel; Auswahlfelder/Eingaben mind. 44 px hoch
+- `supabase/tests/security.sql`: Erwartung „anonym sieht keine Workspace-Zeilen“ = 0
+- Review-Dokument: Go-live-Testplan (Rollen, Geräte, Erstnutzer)
+
 ## v12.48.0 – Review vom 1. Oktober: Sicherheit, Orientierung, Checkliste, Offline, Einladungen
 Grundlage: Review von Felix, Ewald und Björn (Checkliste mit Status im Doc „GIRI — Review follow-up“).
 

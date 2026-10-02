@@ -110,7 +110,7 @@ begin
 
   begin perform pg_temp.as_anon(); select count(*) into n from public.workspaces; raise exception using errcode = 'P0999', message = n::text;
   exception when others then got := case when sqlstate = 'P0999' then sqlerrm else sqlstate end; end;
-  test := 'anonymous cannot read workspace rows'; expect := '42501'; ok := got = expect; return next;
+  test := 'anonymous sees no workspace rows (column grant ws/brand stays, RLS shows none)'; expect := '0'; ok := got = expect; return next;
 
   -- storage
   begin perform pg_temp.as_anon(); select count(*) into n from storage.objects where bucket_id = 'media'; raise exception using errcode = 'P0999', message = n::text;
