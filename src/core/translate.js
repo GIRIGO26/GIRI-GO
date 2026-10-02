@@ -1,3 +1,4 @@
+import { rememberBase } from './merge.js';
 import { mirrorAll, mirrorList, mirrorMerge, mirrorRaw, netErr, online } from './offline.js';
 import { t } from './i18n.js';
 import { fixLegacyHosts } from './config.js';
@@ -35,7 +36,7 @@ function withLang(instr, lang){ // shallow clone with translated texts (original
 
 const rememberRemote = instr => { for(const s of instr.steps||[]){ if(s.mediaUrl) S.remoteUrl.set(s.mediaId, s.mediaUrl); } };
 
-const rowToInstr = r => { const i = r.data || {}; i.id = r.id; i.ws = r.ws; i.status = r.status; i.title = r.title; i.updatedAt = new Date(r.updated_at).getTime(); i._base = i.updatedAt; rememberRemote(i); return i; };
+const rowToInstr = r => { const i = r.data || {}; i.id = r.id; i.ws = r.ws; i.status = r.status; i.title = r.title; i.updatedAt = new Date(r.updated_at).getTime(); i._base = i.updatedAt; rememberRemote(i); rememberBase(i); return i; };
 
 // delta sync: ask the server only for id + updated_at (a few bytes per instruction) and fetch full rows just for what changed
 // since the local mirror – instead of the complete table (posters, translations, history …) on every page load

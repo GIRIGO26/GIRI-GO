@@ -20,6 +20,7 @@ Browser (SPA, Vite-Build, PWA mit Service Worker)
             ├── pdf-analyze      → Google Vertex AI, Gemini, Region europe-west3 (PDF → Schrittvorschläge; Service-Account im Vault)
             ├── feedback-notify  → Resend (Mail an Ersteller/Freigeber bei Werker-Feedback)
             ├── invite-notify    → Resend (Einladungs-Mail; nur Admins, nur offene Einladungen, Limits über mail_log) – seit v12.48
+            ├── master-admin     → nur Plattform-Admins: Demo (1–5 Admins, 1 Team), Person/Workspace löschen, Einladung zurückziehen – seit v12.48.2
             ├── signup-notify    → Resend (Mail an die Plattform-Admins bei jeder Registrierung)
             ├── hubspot-sync     → HubSpot CRM (Nutzer-Kontakte, nur Name/Mail/Firma)
             ├── giri-import      → GIRI-Classic-Server des Kunden (Import bestehender Anleitungen, Token des Nutzers)

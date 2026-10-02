@@ -32,6 +32,10 @@ const go = h => { location.hash = h; };
 
 // another device changed the instruction that is open here: refresh right away when nothing is being typed, otherwise show a banner
 function remoteChanged(row){
+  if(row && row.deleted_at){ // v12.48.1: someone moved the open instruction to the trash → say so (instead of "changed elsewhere")
+    if($('#rt-trash')) return; $('#rt-note') && $('#rt-note').remove();
+    const n = el(`<div class="rt-banner" id="rt-trash">${IC.trash||''}<span>${t('remote_trashed')}</span><button class="btn sm">${t('to_overview')}</button></div>`); n.querySelector('button').onclick = () => { n.remove(); go(''); }; document.body.appendChild(n); return;
+  }
   const cur = S.instrs.find(i => i.id===row.id); const remoteAt = row.updated_at ? Date.parse(row.updated_at) : 0;
   if(cur && remoteAt && remoteAt <= (cur.updatedAt||0)) return;
   promptRefresh();
@@ -132,4 +136,4 @@ try{ G.perf.on = localStorage.getItem('gg_perf') === '1'; }catch(e){}
 let verTaps = [];
 document.addEventListener('click', e => { const v = e.target.closest && e.target.closest('.topbar .ver, .app-ver'); if(!v) return; const now = Date.now(); verTaps = verTaps.filter(x => now-x < 3000); verTaps.push(now); if(verTaps.length >= 5){ verTaps = []; perfToggle(); } });
 
-export { remoteChanged, refreshIfStale, go, ensureRealtime, render, perfToggle };
+export { remoteChanged, promptRefresh, refreshIfStale, go, ensureRealtime, render, perfToggle };

@@ -440,6 +440,13 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Installations-Hinweis**: nach „Später“/× bleibt eine schmale Zeile „📲 GIRI Go als App installieren · So geht’s“ auf der Startseite, solange die App nicht installiert ist (PC und Telefon).
 - Tests `animtest`, `libtest`, `check4` angepasst. 38 Tests grün.
 
+## v12.48.2 – Zwei an einer Anleitung, Demo für bis zu 5 Admins, Löschen im Master-Panel
+
+- **Zusammenführen statt Überschreiben** (`src/core/merge.js`): speichern zwei Personen dieselbe Anleitung, werden die Änderungen gegen den gemeinsamen Ausgangsstand verglichen. Verschiedene Schritte oder Felder (Titel, Text, neue/gelöschte/verschobene Schritte) werden automatisch zusammengeführt („Zusammengeführt mit den Änderungen von …“). Nur wenn beide dieselbe Stelle geändert haben, fragt ein Dialog „Fassung von X / Meine Fassung“ – und auch dann bleiben alle anderen Änderungen erhalten. Der Ausgangsstand liegt auch im Gerätespeicher, damit funktioniert es nach Offline-Arbeit und Neuladen.
+- Wird eine offene Anleitung woanders in den Papierkorb gelegt, sagt ein Hinweis das (statt „auf anderem Gerät geändert“).
+- **Master-Panel** (neue Edge Function `master-admin`, nur Plattform-Admins, mit Protokoll in `mail_log`): Demo für 1–5 Personen (alle Admin, ein gemeinsames Team, Einladungsmails), Person löschen (Anmeldung + Profil, Anleitungen bleiben), offene Einladungen erneut senden / zurückziehen, Workspace löschen (mit eingetippter Kennung; Personen, Anleitungen, Durchläufe, Medien). Plattform-Admins und Workspaces mit Plattform-Admin sind geschützt.
+- Tests: `collab` (zwei Browser an einer gemeinsamen Test-Datenbank, `/__db` im Test-Server), `mergeunit`, `mastertest` erweitert (54 Tests).
+
 ## v12.48.1 – UX-Durchlauf über Geräte
 
 - Neuer Test `tests/ux_sweep.mjs`: 9 Seiten × iPhone SE / 13 Pro / Android / iPad / Desktop (DE + EN) – misst seitliches Scrollen, abgeschnittene Texte, Tippflächen, rohe Übersetzungsschlüssel, defekte Bilder

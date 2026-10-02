@@ -3,19 +3,20 @@ import { G, S, pendingIds } from './state.js';
 import { DB, LS } from './storage.js';
 import { t } from './i18n.js';
 import { $, el } from './helpers.js';
+import { baseJson, seedBase } from './merge.js';
 
 const online = () => navigator.onLine !== false;
 const netErr = e => !online() || /Failed to fetch|NetworkError|Load failed|network|timeout/i.test(String((e && e.message) || e || ''));
 
 // ---- instruction mirror (IndexedDB store "instr": {id, ws, row, dirty, at}) ----
-const mirrorPut = async (i, dirty) => { try{ const prev = await DB.get('instr', i.id); await DB.put('instr', {id:i.id, ws:i.ws, row: JSON.parse(JSON.stringify(i)), dirty: dirty!=null ? dirty : !!(prev && prev.dirty), at:Date.now()}); }catch(e){} };
+const mirrorPut = async (i, dirty) => { try{ const prev = await DB.get('instr', i.id); await DB.put('instr', {id:i.id, ws:i.ws, row: JSON.parse(JSON.stringify(i)), base: baseJson(i) || (prev && prev.row && prev.row._base === i._base ? prev.base : null) || null, dirty: dirty!=null ? dirty : !!(prev && prev.dirty), at:Date.now()}); }catch(e){} };
 // changed = Map of rows that came fresh from the server (only those are written; without it every row is written)
 // v12.48: a row that is still unsent here (dirty) stays dirty even when the server row changed meanwhile – before, it was written back
 // as clean and the local change was never sent ("changes not saved" after a connection loss); the save then meets the server
 // version through the normal conflict check
 const mirrorAll = async (rows, changed, have) => { try{ have = have || await mirrorRaw(); const keep = new Set(rows.map(r => r.id)); const dirty = new Set(have.filter(m => m.dirty).map(m => m.id)); for(const m of have){ if(!keep.has(m.id) && !m.dirty) await DB.del('instr', m.id); } for(const r of rows){ if(changed && !changed.has(r.id)) continue; await mirrorPut(r, dirty.has(r.id)); } }catch(e){} };
 // what is stored locally for this workspace – dirty copies win over what the server said
-const mirrorRaw = async () => { try{ return (await DB.all('instr')).filter(m => m.ws===S.user.ws); }catch(e){ return []; } }; // read once per load, hand it around
+const mirrorRaw = async () => { try{ const all = (await DB.all('instr')).filter(m => m.ws===S.user.ws); all.forEach(m => { if(m.base && m.row) seedBase(m.id, m.row._base, m.base); }); return all; }catch(e){ return []; } }; // read once per load, hand it around
 const mirrorList = async have => (have || await mirrorRaw()).map(m => m.row);
 const mirrorMerge = async (rows, have, mem) => { try{ const dirty = (have || await mirrorRaw()).filter(m => m.dirty); if(!dirty.length) return rows; const out = rows.slice(); for(const d of dirty){ const m = mem && mem.get(d.id); const row = m && (m.updatedAt||0) >= (d.row.updatedAt||0) ? m : d.row; const k = out.findIndex(r => r.id===d.id); if(k>=0) out[k] = row; else out.push(row); } return out; }catch(e){ return rows; } }; // v12.47: an in-memory object that is as new as its unsent copy stays (references in editor/camera)
 const dirtyCount = async () => { try{ return (await DB.all('instr')).filter(m => m.ws===(S.user&&S.user.ws) && m.dirty).length; }catch(e){ return 0; } };

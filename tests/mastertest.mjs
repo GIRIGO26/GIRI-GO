@@ -26,9 +26,18 @@ console.log('after save:', await d.evaluate(() => { const w = window.__tables.wo
 await d.click('#p-move'); await d.waitForTimeout(300); await d.fill('#mv-mail', 'anna@ar-giri.com'); await d.click('.modal-bg [data-ok]'); await d.waitForTimeout(800);
 console.log('anna moved:', await d.evaluate(() => window.__tables.profiles.find(p => p.email==='anna@ar-giri.com').ws), '| toast:', await d.$eval('#toast', e => e.textContent));
 // demo account
-await d.click('#m-demo'); await d.waitForTimeout(300); await d.fill('#dm-mail', 'test@interessent.de'); await d.fill('#dm-name', 'Interessent AG'); await d.click('.modal-bg [data-ok]'); await d.waitForTimeout(800);
-console.log('demo created:', await d.evaluate(() => { const w = window.__tables.workspaces.find(x => x.plan==='demo'); return w ? w.ws+'/'+w.invites[0].email+'/'+w.invites[0].role : 'none'; }), '| link question:', !!(await d.$('.modal-bg [data-ok]')));
-await d.click('.modal-bg [data-x]'); await d.waitForTimeout(300);
+await d.click('#m-demo'); await d.waitForTimeout(300); await d.fill('#dm-mails', 'test@interessent.de\nzwei@interessent.de\ndrei@interessent.de'); await d.fill('#dm-name', 'Interessent AG'); await d.click('.modal-bg [data-ok]'); await d.waitForTimeout(1500);
+console.log('demo created (v12.48.1: up to 5 admins, one team):', await d.evaluate(() => { const w = window.__tables.workspaces.find(x => x.plan==='demo'); return w ? w.invites.map(i => i.email.split('@')[0]+':'+i.role).join(',')+' | team '+w.teams[0].name+' with '+w.teams[0].members.length : 'none'; }), '| invitation mails:', await d.evaluate(() => (window.__invites||[]).length), '| toast:', await d.$eval('#toast', e => e.textContent));
+// a 6th address is refused, an address that already has an account too
+await d.click('#m-demo'); await d.waitForTimeout(300); await d.fill('#dm-mails', 'a@x.de b@x.de c@x.de d@x.de e@x.de f@x.de'); await d.click('.modal-bg [data-ok]'); await d.waitForTimeout(800); console.log('6 addresses →', await d.$eval('#toast', e => e.textContent));
+await d.click('#m-demo'); await d.waitForTimeout(300); await d.fill('#dm-mails', 'anna@ar-giri.com'); await d.click('.modal-bg [data-ok]'); await d.waitForTimeout(800); console.log('existing account →', await d.$eval('#toast', e => e.textContent));
+// open invitations of the demo: withdraw one
+await d.fill('#m-q', 'interessent'); await d.waitForTimeout(200); if(!(await d.$('#m-detail #m-inv .inv-row'))){ await d.click('#m-table [data-open]'); await d.waitForTimeout(800); }
+console.log('open invitations listed:', await d.$$eval('#m-inv .inv-row', x => x.length)); await d.click('#m-inv [data-iwd="drei@interessent.de"]'); await d.waitForTimeout(800);
+console.log('after withdraw:', await d.$$eval('#m-inv .inv-row', x => x.length), '| toast:', await d.$eval('#toast', e => e.textContent));
+// delete a person (header button) and a platform admin (refused)
+await d.click('#m-deluser'); await d.waitForTimeout(300); await d.fill('#du-mail', 'bjoern@ar-giri.com'); await d.click('.modal-bg [data-ok]'); await d.waitForTimeout(400); const cf = await d.$('.modal-bg [data-ok]'); if(cf) await cf.click(); await d.waitForTimeout(800); console.log('delete platform admin →', await d.$eval('#toast', e => e.textContent));
+await d.fill('#m-q', ''); await d.waitForTimeout(200);
 await d.screenshot({path:OUT+'/shots/master.png', fullPage:true});
 // merge the demo into the customer
 await d.fill('#m-q', 'interessent'); await d.waitForTimeout(200); if(!(await d.$('#m-detail #p-merge'))){ await d.click('#m-table [data-open]'); await d.waitForTimeout(600); } await d.click('#p-merge'); await d.waitForTimeout(300); await d.selectOption('#mg-into', 'kunde-de-ab12c'); await d.click('.modal-bg [data-ok]'); await d.waitForTimeout(300); await d.click('.modal-bg [data-ok]'); await d.waitForTimeout(800);

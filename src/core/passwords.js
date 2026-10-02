@@ -5,6 +5,7 @@ import { G, S } from './state.js';
 import { DB, uid } from './storage.js';
 import { rowToInstr } from './translate.js';
 import { instrTeams } from './workspace.js';
+import { rememberBase, merge3, applyMerged } from './merge.js';
 
 /* ---------- Link passwords (per project / per team; default off) ---------- */
 async function sha256Hex(str){ const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)); return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); }
@@ -30,11 +31,13 @@ const fetchInstr = async id => { if(!G.sb) return null; const {data} = await G.s
 // v12.39: two editors on one instruction – every save is conditional on the server still holding the version this copy was loaded
 // from (i._base = server updated_at at load / last save). A save that finds a newer row asks: take the server version, or overwrite.
 let conflictOpen = null;
-const conflictDialog = async (mine, theirs) => {
+// merged = true: everything else was combined already, the question is only about the spots both changed
+const conflictDialog = async (mine, theirs, merged) => {
   if(conflictOpen) return conflictOpen; // one dialog at a time (autosave may fire again meanwhile)
   const by = (theirs.history && theirs.history.length ? theirs.history[theirs.history.length-1].by : '') || theirs.lastBy || '';
-  conflictOpen = modal(`<h2>${esc(t('conflict_title'))}</h2><p class="muted" style="margin:0 0 14px">${esc(t('conflict_sub', {t: mine.title, w: by || t('conflict_someone'), d: new Date(theirs.updatedAt).toLocaleTimeString()}))}</p>
-    <div class="row wrap"><button class="btn" data-ok="theirs">${esc(t('conflict_theirs'))}</button><button class="btn ghost" data-ok="mine">${esc(t('conflict_mine'))}</button></div>`,
+  const w = by || t('conflict_someone');
+  conflictOpen = modal(`<h2>${esc(t(merged ? 'conflict_same_title' : 'conflict_title'))}</h2><p class="muted" style="margin:0 0 14px">${esc(t(merged ? 'conflict_same_sub' : 'conflict_sub', {t: mine.title, w, n: merged || 0, d: new Date(theirs.updatedAt).toLocaleTimeString()}))}</p>
+    <div class="row wrap"><button class="btn" data-ok="theirs">${esc(merged ? t('conflict_same_theirs', {w}) : t('conflict_theirs'))}</button><button class="btn ghost" data-ok="mine">${esc(t(merged ? 'conflict_same_mine' : 'conflict_mine'))}</button></div>`,
     (bg, close) => { bg.querySelectorAll('[data-ok]').forEach(b => b.onclick = () => close(b.dataset.ok)); });
   const r = await conflictOpen; conflictOpen = null; return r || 'theirs';
 };
@@ -48,13 +51,26 @@ const upsertInstrRow = async (i, force) => {
       if(!hit || !hit.length){ // the server moved on since this copy was loaded
         const {data: srv} = await G.sb.from('instructions').select('*').eq('id', id).maybeSingle();
         if(srv && !ownWrites.has(Date.parse(srv.updated_at))){
-          const theirs = rowToInstr(srv); G.saving--; const choice = await conflictDialog(i, theirs); G.saving++;
+          const theirs = rowToInstr(srv);
+          // v12.48.1: changes to different steps / fields are combined; only the same field changed on both sides asks
+          let mg = merge3(i, theirs);
+          if(mg){
+            let quiet = !mg.conflicts.length;
+            if(!quiet){ G.saving--; const choice = await conflictDialog(i, theirs, mg.conflicts.length); G.saving++; mg = merge3(i, theirs, choice); }
+            applyMerged(i, mg.merged); i.updatedAt = Math.max(Date.now(), Date.parse(srv.updated_at) + 1); ownWrites.add(i.updatedAt);
+            const {id: _i, ws: _w, status: st2, title: ti2, updatedAt: up2, _base: _b, ...rest2} = i;
+            const row2 = {id, ws, status: st2, title: ti2, updated_at: new Date(up2).toISOString(), data: Object.assign({}, rest2)};
+            const {data: hit2, error: e3} = await G.sb.from('instructions').update(row2).eq('id', id).eq('updated_at', srv.updated_at).select('id'); if(e3) throw e3;
+            if(hit2 && hit2.length){ i._base = up2; rememberBase(i); await mirrorPut(i, false); G.mergeReload = true; if(quiet) toast(t('conflict_merged', {w: theirs.lastBy || t('conflict_someone')})); else G.conflictReload = true; return true; }
+            return false; // the server moved on again meanwhile → stays dirty, the next save merges once more
+          }
+          G.saving--; const choice = await conflictDialog(i, theirs); G.saving++;
           if(choice==='theirs'){ Object.keys(i).forEach(k => { delete i[k]; }); Object.assign(i, theirs); await mirrorPut(i, false); G.conflictReload = true; toast(t('conflict_loaded')); return true; }
         }
         const {error: e2} = await G.sb.from('instructions').upsert(row); if(e2) throw e2; // overwrite (or the row vanished / was our own write)
       }
     } else { const {error} = await G.sb.from('instructions').upsert(row); if(error) throw error; }
-    i._base = updatedAt; return true;
+    i._base = updatedAt; rememberBase(i); return true;
   }
   catch(e){
     // v12.45: the database refused (no right for this change – approvals, publishing, editing another team's instruction):
@@ -76,6 +92,7 @@ const saveInstr = async (i, opts) => {
   await mirrorPut(i, true);
   if(!online()){ schedulePill(); return; } // v12.48: offline → stays in the device queue, sent when the network is back (no 30 s wait for a token refresh)
   const ok = await upsertInstrRow(i);
+  if(ok && G.mergeReload){ G.mergeReload = false; try{ const {promptRefresh} = await import('../app/router.js'); if(promptRefresh) promptRefresh(); }catch(e){} }
   if(ok){ await mirrorPut(i, false); if(G.conflictReload){ G.conflictReload = false; try{ const {render} = await import('../app/router.js'); render(); }catch(e){} } } else { toast(t('saved_offline')); }
   schedulePill();
 };

@@ -12,13 +12,21 @@ import { inviteMsg, sendInvite } from '../core/invite.js';
 const fmtD = v => v ? new Date(v).toLocaleDateString('de-DE') : '–';
 const ago = v => { if(!v) return '–'; const d = Math.floor((Date.now() - new Date(v)) / 864e5); return d <= 0 ? t('today') : d === 1 ? t('yesterday') : t('days_ago', {n:d}); };
 const planChip = w => { const days = w.plan_until ? Math.ceil((new Date(w.plan_until) - Date.now()) / 864e5) : null; const cls = w.plan === 'suspended' ? 'draft' : (days != null && days <= 0) ? 'review' : w.plan === 'active' ? 'published' : 'review'; return `<span class="chip dot ${cls}">${esc(w.plan)}${days != null && w.plan !== 'active' ? ` · ${days <= 0 ? t('plan_over') : days + ' d'}` : ''}</span>`; };
+// v12.48.1: actions across workspaces, logins and files run in the edge function master-admin (it checks the platform admin itself)
+const ERR = {platform_admin_only:'master_e_only', is_platform_admin:'master_e_pa', has_platform_admin:'master_e_ws_pa', not_found:'master_e_nf', confirm_mismatch:'master_e_confirm', emails_1_to_5:'master_e_n', bad_email:'master_e_bad', already_member:'master_e_taken'};
+const fn = async (action, body) => {
+  const {data, error} = await G.sb.functions.invoke('master-admin', {body: Object.assign({action}, body || {})});
+  let d = data; if(error){ try{ d = await error.context.json(); }catch(e){ d = {error: error.message}; } }
+  if(d && d.error){ const k = ERR[d.error]; throw new Error(k ? t(k, {e: (d.emails || []).join(', ')}) : d.error); }
+  return d;
+};
 const rpc = async (fn, args) => { const {data, error} = await G.sb.rpc(fn, args || {}); if(error) throw new Error(error.message || String(error)); return data; };
 
 async function renderMaster(app){
   topbar(app, {crumbs: [{label: t('instructions'), href: ''}, {label: t('master')}]});
   if(!S.user || !S.user.isMaster){ app.appendChild(el(`<main class="page page-narrow"><div class="card empty"><h2>${t('master')}</h2><div>${t('master_only')}</div></div></main>`)); return; }
   const v = el(`<main class="page"><div class="dash-head"><div><h1>${t('master')}</h1><div class="sub">${t('master_sub')}</div></div>
-      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" id="m-demo">${IC.plus} ${t('master_demo')}</button><button class="btn ghost sm" id="m-admin">${IC.users} ${t('master_add_admin')}</button></div></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" id="m-demo">${IC.plus} ${t('master_demo')}</button><button class="btn ghost sm" id="m-admin">${IC.users} ${t('master_add_admin')}</button><button class="btn ghost sm" id="m-deluser">${IC.trash} ${t('master_del_user')}</button></div></div>
     <div class="card side-info" style="margin-bottom:12px"><div class="row" style="gap:10px;align-items:center;flex-wrap:wrap"><label class="searchwrap" style="flex:1;min-width:220px">${IC.search}<input id="m-q" type="search" placeholder="${t('master_search')}"></label><span class="muted tnum" id="m-n"></span></div></div>
     <div class="tbl-wrap card side-info" style="padding:0"><table class="res" id="m-table"><thead><tr><th>${t('workspace')}</th><th>${t('plan')}</th><th>${t('users')}</th><th>${t('instructions')}</th><th>${t('master_last')}</th><th>${t('master_owner')}</th><th></th></tr></thead><tbody></tbody></table></div>
     <div id="m-detail"></div></main>`);
@@ -49,12 +57,19 @@ async function renderMaster(app){
       </div>
       <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" id="p-save">${t('save')}</button><button class="btn ghost sm" id="p-move">${IC.users} ${t('master_move')}</button>${others.length ? `<button class="btn ghost sm" id="p-merge">${IC.folder} ${t('master_merge')}</button>` : ''}</div>
       <h4 style="margin:18px 0 6px">${t('users')} <span class="muted tnum" id="u-n"></span></h4>
-      <div class="tbl-wrap"><table class="res" id="u-table"><thead><tr><th>${t('name')}</th><th>${t('email')}</th><th>${t('role')}</th><th>${t('master_login')}</th><th>${t('instructions')}</th><th></th></tr></thead><tbody><tr><td colspan="6" class="muted">…</td></tr></tbody></table></div></div>`);
+      <div class="tbl-wrap"><table class="res" id="u-table"><thead><tr><th>${t('name')}</th><th>${t('email')}</th><th>${t('role')}</th><th>${t('master_login')}</th><th>${t('instructions')}</th><th></th></tr></thead><tbody><tr><td colspan="6" class="muted">…</td></tr></tbody></table></div>
+      <div id="m-inv"></div>
+      <div class="row" style="margin-top:18px;padding-top:12px;border-top:1px solid var(--line);justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span class="muted" style="font-size:12.5px">${t('master_del_ws_hint')}</span><button class="btn ghost sm danger" id="p-del">${IC.trash} ${t('master_del_ws')}</button></div></div>`);
     box.appendChild(d); d.scrollIntoView({block:'nearest', behavior:'smooth'});
     d.querySelector('#p-save').onclick = async () => { const b = d.querySelector('#p-save'); b.disabled = true; try{
         const un = d.querySelector('#p-until').value; const seats = +d.querySelector('#p-seats').value || null;
         await rpc('master_set_plan', {p_ws:w.ws, p_plan:d.querySelector('#p-plan').value, p_until: un ? new Date(un + 'T23:59:59').toISOString() : null, p_seats:seats, p_note:d.querySelector('#p-note').value.trim() || null, p_open_domain:d.querySelector('#p-open').checked, p_name:d.querySelector('#p-name').value.trim() || null});
         toast(t('saved')); await load(); detail(); }catch(e){ toast(e.message); } b.disabled = false; };
+    d.querySelector('#p-del').onclick = async () => {
+      const r = await modal(`<h2>${t('master_del_ws')}</h2><p class="muted" style="margin:0 0 12px">${t('master_del_ws_sub', {w: w.ws, u: w.users, i: w.instructions})}</p><div class="field"><label for="dw-c">${t('master_del_ws_type', {w: w.ws})}</label><input id="dw-c" autocomplete="off" placeholder="${esc(w.ws)}"></div><div class="actions"><button class="btn ghost" data-x>${t('cancel')}</button><button class="btn danger" data-ok>${t('master_del_ws')}</button></div>`, (bg, close) => { bg.querySelector('[data-x]').onclick = () => close(null); bg.querySelector('[data-ok]').onclick = () => close(bg.querySelector('#dw-c').value.trim()); });
+      if(r == null) return; if(r !== w.ws){ toast(t('master_e_confirm')); return; }
+      try{ const res = await fn('delete_workspace', {ws: w.ws, confirm: r}); toast(t('master_del_ws_done', {u: res.users, i: res.instructions, f: res.files})); open = null; await load(); detail(); }catch(e){ toast(e.message); } };
+    loadInvites(w, d);
     d.querySelector('#p-move').onclick = async () => {
       const r = await modal(`<h2>${t('master_move')}</h2><p class="muted" style="margin:0 0 12px">${t('master_move_sub', {w: w.name || w.ws})}</p><div class="field"><label for="mv-mail">${t('email')}</label><input id="mv-mail" type="email" placeholder="${t('email_ph')}"></div><label class="toggle"><input type="checkbox" id="mv-with" checked> <span>${t('master_move_with')}</span></label><div class="actions"><button class="btn ghost" data-x>${t('cancel')}</button><button class="btn" data-ok>${t('master_move')}</button></div>`, (bg, close) => { bg.querySelector('[data-x]').onclick = () => close(null); bg.querySelector('[data-ok]').onclick = () => close({email:bg.querySelector('#mv-mail').value.trim().toLowerCase(), with:bg.querySelector('#mv-with').checked}); });
       if(!r || !r.email) return; try{ const res = await rpc('master_move_user', {p_email:r.email, p_ws:w.ws, p_with_instructions:r.with}); toast(res && res.moved ? t('master_moved', {n:res.instructions || 0}) : t('master_move_same')); await load(); detail(); }catch(e){ toast(e.message); } };
@@ -63,15 +78,38 @@ async function renderMaster(app){
       if(!r) return; if(!(await confirmM(t('master_merge_q', {a: w.name || w.ws, b: r}), t('master_merge')))) return;
       try{ const res = await rpc('master_merge_workspace', {p_from:w.ws, p_into:r}); toast(t('master_merged', {n:res.instructions || 0, u:res.users || 0})); open = r; await load(); detail(); }catch(e){ toast(e.message); } };
     try{ const users = await rpc('master_users', {p_ws:w.ws}); d.querySelector('#u-n').textContent = users.length;
-      d.querySelector('#u-table tbody').innerHTML = users.map(u => `<tr><td><b>${esc(u.name || '')}</b></td><td>${esc(u.email)}</td><td>${esc(u.role)}${u.is_admin ? ' <span class="chip dot published" style="font-size:11px">Admin</span>' : ''}</td><td class="muted">${u.last_login ? fmtD(u.last_login) : t('master_never')}</td><td class="tnum">${u.instructions}</td><td><button class="btn ghost sm" data-link="${esc(u.email)}" title="${t('master_link_sub')}">${IC.mail} ${t('master_link')}</button></td></tr>`).join('') || `<tr><td colspan="6" class="muted">${t('no_result')}</td></tr>`;
-      $$('[data-link]', d).forEach(b => b.onclick = () => sendLink(b.dataset.link, b)); }catch(e){ d.querySelector('#u-table tbody').innerHTML = `<tr><td colspan="6" class="muted">${esc(e.message)}</td></tr>`; }
+      d.querySelector('#u-table tbody').innerHTML = users.map(u => `<tr><td><b>${esc(u.name || '')}</b></td><td>${esc(u.email)}</td><td>${esc(u.role)}${u.is_admin ? ' <span class="chip dot published" style="font-size:11px">Admin</span>' : ''}</td><td class="muted">${u.last_login ? fmtD(u.last_login) : t('master_never')}</td><td class="tnum">${u.instructions}</td><td style="white-space:nowrap"><button class="btn ghost sm" data-link="${esc(u.email)}" title="${t('master_link_sub')}">${IC.mail} ${t('master_link')}</button> ${u.email === (S.user && S.user.email) ? '' : `<button class="btn ghost sm" data-udel="${esc(u.email)}" title="${t('master_del_user')}" aria-label="${t('master_del_user')}">${IC.trash}</button>`}</td></tr>`).join('') || `<tr><td colspan="6" class="muted">${t('no_result')}</td></tr>`;
+      $$('[data-link]', d).forEach(b => b.onclick = () => sendLink(b.dataset.link, b));
+      $$('[data-udel]', d).forEach(b => b.onclick = () => delUser(b.dataset.udel)); }catch(e){ d.querySelector('#u-table tbody').innerHTML = `<tr><td colspan="6" class="muted">${esc(e.message)}</td></tr>`; }
   }
+  // open invitations of a workspace: send again or withdraw (so a test address is free again)
+  async function loadInvites(w, d){
+    const box = d.querySelector('#m-inv'); let inv = [];
+    try{ const {data} = await G.sb.from('workspaces').select('invites').eq('ws', w.ws).maybeSingle(); inv = (data && data.invites) || []; }catch(e){}
+    if(!inv.length){ box.innerHTML = ''; return; }
+    box.innerHTML = `<h4 style="margin:18px 0 6px">${t('master_invites')} <span class="muted tnum">${inv.length}</span></h4><div class="inv-list">${inv.map(i => `<div class="inv-row"><span><b>${esc(i.email)}</b> <span class="muted">· ${esc(i.role || '')}${i.at ? ' · ' + fmtD(i.at) : ''}</span></span><span class="row" style="gap:6px"><button class="btn ghost sm" data-ire="${esc(i.email)}">${IC.mail} ${t('master_resend')}</button><button class="btn ghost sm" data-iwd="${esc(i.email)}">${t('master_withdraw')}</button></span></div>`).join('')}</div>`;
+    $$('[data-ire]', box).forEach(b => b.onclick = async () => { b.disabled = true; const res = await sendInvite(b.dataset.ire, {ws: w.ws}); toast(inviteMsg(res, b.dataset.ire, t)); b.disabled = false; });
+    $$('[data-iwd]', box).forEach(b => b.onclick = async () => { try{ await fn('withdraw_invite', {ws: w.ws, email: b.dataset.iwd}); toast(t('master_withdrawn', {e: b.dataset.iwd})); loadInvites(w, d); }catch(e){ toast(e.message); } });
+  }
+  // delete a person everywhere (login + profile); their instructions stay with the company
+  async function delUser(email){
+    if(!email) return; if(!(await confirmM(t('master_del_user_q', {e: email}), t('master_del_user')))) return;
+    try{ await fn('delete_user', {email}); toast(t('master_deleted_user', {e: email})); await load(); detail(); }catch(e){ toast(e.message); }
+  }
+  v.querySelector('#m-deluser').onclick = async () => {
+    const r = await modal(`<h2>${t('master_del_user')}</h2><p class="muted" style="margin:0 0 12px">${t('master_del_user_sub')}</p><div class="field"><label for="du-mail">${t('email')}</label><input id="du-mail" type="email" placeholder="${t('email_ph')}"></div><div class="actions"><button class="btn ghost" data-x>${t('cancel')}</button><button class="btn danger" data-ok>${t('master_del_user')}</button></div>`, (bg, close) => { bg.querySelector('[data-x]').onclick = () => close(null); bg.querySelector('[data-ok]').onclick = () => close(bg.querySelector('#du-mail').value.trim().toLowerCase()); });
+    if(r) delUser(r); };
   // a login code/link for someone (also the way to hand a demo account over)
   const sendLink = async (email, b) => { if(b) b.disabled = true; const {error} = await G.sb.auth.signInWithOtp({email, options:{shouldCreateUser:true, emailRedirectTo: location.href.split('#')[0]}}); if(b) b.disabled = false; toast(error ? error.message : t('inv_code_sent', {e:email})); };
+  // v12.48.1: a demo account for up to 5 people – all of them admins of it (never platform admins), all in one team
   v.querySelector('#m-demo').onclick = async () => {
-    const r = await modal(`<h2>${t('master_demo')}</h2><p class="muted" style="margin:0 0 12px">${t('master_demo_sub')}</p><div class="field"><label for="dm-mail">${t('email')}</label><input id="dm-mail" type="email" placeholder="${t('email_ph')}"></div><div class="field"><label for="dm-name">${t('master_name')}</label><input id="dm-name" placeholder="${t('company_ph')}"></div><div class="field" style="max-width:160px"><label for="dm-days">${t('master_days')}</label><input id="dm-days" type="number" min="1" max="365" value="30"></div><div class="actions"><button class="btn ghost" data-x>${t('cancel')}</button><button class="btn" data-ok>${t('master_demo')}</button></div>`, (bg, close) => { bg.querySelector('[data-x]').onclick = () => close(null); bg.querySelector('[data-ok]').onclick = () => close({email:bg.querySelector('#dm-mail').value.trim().toLowerCase(), name:bg.querySelector('#dm-name').value.trim(), days:+bg.querySelector('#dm-days').value || 30}); });
-    if(!r || !r.email) return;
-    try{ const ws = await rpc('master_create_demo', {p_email:r.email, p_name:r.name, p_days:r.days}); toast(t('master_demo_done', {w:ws})); await load(); open = ws; detail(); if(await confirmM(t('master_demo_link_q', {e:r.email}), t('inv_send'))){ const res = await sendInvite(r.email, {ws}); toast(inviteMsg(res, r.email, t)); } }catch(e){ toast(e.message); } }; // v12.48: the invitation mail into the demo workspace
+    const r = await modal(`<h2>${t('master_demo')}</h2><p class="muted" style="margin:0 0 12px">${t('master_demo_sub')}</p><div class="field"><label for="dm-name">${t('master_name')}</label><input id="dm-name" placeholder="${t('company_ph')}"></div><div class="field"><label for="dm-mails">${t('master_demo_mails')}</label><textarea id="dm-mails" rows="5" placeholder="anna@firma.de&#10;ben@firma.de"></textarea></div><div class="two"><div class="field"><label for="dm-team">${t('master_demo_team')}</label><input id="dm-team" placeholder="${t('master_demo_team_ph')}"></div><div class="field"><label for="dm-days">${t('master_days')}</label><input id="dm-days" type="number" min="1" max="365" value="30"></div></div><label class="toggle"><input type="checkbox" id="dm-send" checked> <span>${t('master_demo_send')}</span></label><div class="actions"><button class="btn ghost" data-x>${t('cancel')}</button><button class="btn" data-ok>${t('master_demo')}</button></div>`, (bg, close) => { bg.querySelector('[data-x]').onclick = () => close(null); bg.querySelector('[data-ok]').onclick = () => close({emails: bg.querySelector('#dm-mails').value.split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean), name: bg.querySelector('#dm-name').value.trim(), team: bg.querySelector('#dm-team').value.trim(), days: +bg.querySelector('#dm-days').value || 30, send: bg.querySelector('#dm-send').checked}); });
+    if(!r || !r.emails.length) return;
+    try{
+      const res = await fn('create_demo', {emails: r.emails, name: r.name, team: r.team, days: r.days});
+      let sent = 0; if(r.send){ for(const e of res.emails){ const x = await sendInvite(e, {ws: res.ws}); if(x && x.ok) sent++; } }
+      toast(t('master_demo_done2', {w: res.ws, n: res.emails.length, s: sent})); await load(); open = res.ws; detail();
+    }catch(e){ toast(e.message); } };
   v.querySelector('#m-admin').onclick = async () => {
     const r = await modal(`<h2>${t('master_add_admin')}</h2><p class="muted" style="margin:0 0 12px">${t('master_add_admin_sub')}</p><div class="field"><label for="ma-mail">${t('email')}</label><input id="ma-mail" type="email"></div><div class="actions"><button class="btn ghost" data-x>${t('cancel')}</button><button class="btn" data-ok>${t('add')}</button></div>`, (bg, close) => { bg.querySelector('[data-x]').onclick = () => close(null); bg.querySelector('[data-ok]').onclick = () => close(bg.querySelector('#ma-mail').value.trim().toLowerCase()); });
     if(!r) return; try{ await rpc('master_add_admin', {p_email:r}); toast(t('saved')); }catch(e){ toast(e.message); } };
