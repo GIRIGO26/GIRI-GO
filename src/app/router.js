@@ -49,7 +49,7 @@ function promptRefresh(){
 async function refreshIfStale(){
   if(!G.sb || !S.user) return; const h = location.hash.replace(/^#\/?/, ''); const [view, id] = h.split('/');
   if(!view || ['p','trash','results','stats','admin'].includes(view)){ let changed = true; try{ changed = await loadInstrs(); }catch(e){} if(changed !== false) render(); return; } // v12.48: no redraw (flicker) when nothing changed
-  if((view==='edit'||view==='rec') && id){ try{ const {data} = await G.sb.from('instructions').select('id, updated_at').eq('id', id).maybeSingle(); if(data) remoteChanged(data); }catch(e){} }
+  if((view==='edit'||view==='settings'||view==='rec') && id){ try{ const {data} = await G.sb.from('instructions').select('id, updated_at').eq('id', id).maybeSingle(); if(data) remoteChanged(data); }catch(e){} }
 }
 function ensureRealtime(){
   if(!G.sb || !S.user || G.rtChannel) return;
@@ -58,7 +58,7 @@ function ensureRealtime(){
     if(payload.new && payload.new.updated_at && ownWrites.has(Date.parse(payload.new.updated_at))) return;
     const h = location.hash.replace(/^#\/?/, ''); const [view, id] = h.split('/');
     if(!view || ['p','trash','results','stats','admin'].includes(view)){ debounce('rt', render, 300); }
-    else if((view==='edit'||view==='rec') && payload.new && payload.new.id===id){ debounce('rt', () => remoteChanged(payload.new), 500); }
+    else if((view==='edit'||view==='settings'||view==='rec') && payload.new && payload.new.id===id){ debounce('rt', () => remoteChanged(payload.new), 500); }
   }).subscribe();
 }
 
@@ -71,7 +71,7 @@ function bgSync(view, id){
   loadInstrs().then(changed => {
     if(!changed) return; const h = location.hash.replace(/^#\/?/, ''); const [v2, id2] = h.split('/'); if(v2 !== view || id2 !== id) return;
     if(!view || ['p','trash','results','stats','admin'].includes(view)) render();
-    else if((view==='edit'||view==='rec') && id){ const after = (S.instrs.find(i => i.id===id)||{}).updatedAt||0; if(after > before) promptRefresh(); } // newer on the server than what is open here
+    else if((view==='edit'||view==='settings'||view==='rec') && id){ const after = (S.instrs.find(i => i.id===id)||{}).updatedAt||0; if(after > before) promptRefresh(); } // newer on the server than what is open here
   }).catch(() => {}).finally(() => { G.bgSyncing = false; });
 }
 const perfChip = () => { const P = G.perf; if(!P.on || !P.last) return; let c = $('#perf-chip'); if(!c){ c = el(`<button id="perf-chip" class="perf-chip" title="Mess-Anzeige (Version 5× tippen = aus)"></button>`); document.body.appendChild(c); c.onclick = () => { c.classList.toggle('open'); }; }
@@ -118,6 +118,7 @@ async function render(){
   const out = (() => {
     if(view === 'rec' && id) return renderCapture(app, id, extra, extra2);
     if(view === 'edit' && id) return renderEditor(app, id, extra, extra2);
+    if(view === 'settings' && id) return renderEditor(app, id, null, null, 'settings'); // v12.49: settings are a sub-page of the instruction
     if(view === 'preview' && id) return renderViewer(app, id, true, extra, extra2, extra3);
     if(view === 'results' && id) return renderResults(app, id);
     if(view === 'p' && id) return renderDashboard(app, id);

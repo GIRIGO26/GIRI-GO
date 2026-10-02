@@ -6,10 +6,10 @@ await d.goto(BASE+'/index3.html'); await d.waitForTimeout(2200); await d.evaluat
 const vid = await d.evaluate(()=>window.__tables.instructions[0].id);
 await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1500);
 console.log('head buttons:', await d.$$eval('.ed-acts > button', x => x.filter(b => !b.hidden).map(b => b.id)));
-await d.click('#more'); await d.waitForTimeout(200); await d.click('.modal-bg [data-m="settings"]'); await d.waitForTimeout(500);
+await d.click('.itab[data-itab="settings"]'); await d.waitForTimeout(1000);
 console.log('settings order:', await d.$$eval('#tab-settings label.toggle, #tab-settings .chkmodes', x => x.slice(0, 6).map(e => e.className+':'+((e.querySelector('input')||{}).id||''))));
-console.log('access details closed:', await d.$eval('details.acc', e => !e.open), 'summary:', await d.$eval('details.acc summary', e => e.textContent.trim()));
-console.log('tx how:', await d.$eval('#txcard', e => /PDF herunterladen|Download PDF/.test(e.textContent) && !!e.querySelector('[data-pdforig]')));
+console.log('location & access section (v12.49):', await d.$eval('#set-place', e => e.querySelector('h3').textContent.trim() + ' · ' + e.querySelectorAll('[data-itm]').length + ' team(s)'));
+console.log('no PDF block in the settings (v12.49, it is in ⋯):', !(await d.$('#txcard, [data-pdforig]')), '| ⋯ has it:', await (async () => { await d.click('#more'); await d.waitForTimeout(200); const has = !!(await d.$('.modal-bg [data-m="pdf"]')); await d.keyboard.press('Escape'); await d.waitForTimeout(200); const bg = await d.$('.modal-bg'); if(bg) await d.mouse.click(5, 5); await d.waitForTimeout(200); return has; })());
 await d.screenshot({path:OUT+'/shots/r19-settings.png', fullPage:true});
 // viewer: no note button, feedback present, chk buttons only on confirm steps
 const m = await (await browser.newContext({viewport:{width:390,height:844}, isMobile:true, hasTouch:true, deviceScaleFactor:2})).newPage(); m.on('pageerror', e => errs.push('M '+e.message));

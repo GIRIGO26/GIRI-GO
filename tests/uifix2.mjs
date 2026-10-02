@@ -34,7 +34,7 @@ console.log('version before:', await d.$eval('#vchip', e => e.textContent));
 // CTA: draft → "zur Prüfung" (prompt) → review → "freigeben & veröffentlichen" (confirm) – the header label must show the new version at once
 await d.click('#cta'); await d.waitForTimeout(300); { const ok = await d.$('.modal-bg [data-ok]'); if(ok){ await ok.click(); await d.waitForTimeout(600); } }
 console.log('after submit – chip:', await d.$eval('#stchip', e => e.textContent), '| cta:', await d.$eval('#cta', e => e.hidden ? 'hidden' : e.textContent));
-await d.click('#cta'); await d.waitForTimeout(300); { const ok = await d.$('.modal-bg [data-ok]'); if(ok){ await ok.click(); await d.waitForTimeout(800); } }
+await d.click('#cta'); await d.waitForTimeout(300); { const ok = await d.$('.modal-bg #ap-both'); if(ok){ await ok.click(); await d.waitForTimeout(800); } } // v12.49: "Approve" opens the approval dialog
 console.log('version after publish:', await d.$eval('#vchip', e => e.textContent), '| status chip:', await d.$eval('#stchip', e => e.textContent));
 // ---- worker end screens, light theme ----
 // (the brand is cached per page as soon as the dashboard loads → set the light theme before the page starts)

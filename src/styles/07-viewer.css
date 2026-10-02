@@ -258,3 +258,10 @@ body:has(.viewer.bar-on) .toast{bottom:calc(104px + env(safe-area-inset-bottom,0
 .ch-tile .lock{position:absolute;top:14px;right:12px;font-size:18px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6))}
 .vw-end.nok .card h1,.vw-end.open .card h1{color:#F5A524}
 .viewer.light .vw-end.nok .card h1,.viewer.light .vw-end.open .card h1{color:#B45309}
+
+/* v12.49 – every piece of information once: step number + chapter only in the top bar; the answer bar is just the two buttons */
+.vstep .vtext .num:empty{display:none}
+.vw-top #vcnt:empty{display:none}
+.vw-act .va-b{flex:1 1 auto;display:flex;gap:10px;max-width:640px;margin:0 auto}
+.vw-act .btn{flex:1 1 0;min-width:0}
+.vw-act .btn.done{min-width:0}

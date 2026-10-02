@@ -12,7 +12,7 @@ await shot(d, 'dash-projects');
 await d.evaluate(()=>sessionStorage.setItem('gg_dash','all')); await d.goto(BASE+'/index3.html#/p/none'); await d.waitForTimeout(400); await d.goto(BASE+'/index3.html#/'); await d.waitForTimeout(900); await shot(d, 'dash-all');
 await d.goto(BASE+'/index3.html#/p/f1'); await d.waitForTimeout(900); await shot(d, 'project');
 await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1500); { const tb = await d.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await d.waitForTimeout(600); await shot(d, 'editor', {fullPage:true});
-await d.click('#more'); await d.waitForTimeout(200); await d.click('.modal-bg [data-m="settings"]'); await d.waitForTimeout(400); await shot(d, 'editor-settings', {fullPage:true});
+await d.click('.itab[data-itab="settings"]'); await d.waitForTimeout(1000); await shot(d, 'editor-settings', {fullPage:true});
 await d.goto(BASE+'/index3.html#/results/'+vid); await d.waitForTimeout(1200); await shot(d, 'results', {fullPage:true});
 await d.goto(BASE+'/index3.html#/stats'); await d.waitForTimeout(1200); await shot(d, 'stats', {fullPage:true});
 await d.goto(BASE+'/index3.html#/admin'); await d.waitForTimeout(1200); await shot(d, 'admin', {fullPage:true});

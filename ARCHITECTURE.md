@@ -83,6 +83,7 @@ Schema-Änderungen = SQL-Migration im Supabase-Projekt (MCP/CLI) **und** derselb
   prüft die Version und rettet hängende Installationen (`sw.js`); seit v12.48 übernimmt er eine neue Version erst, wenn alle ihre Dateien im
   Cache liegen (`installShell`), sonst bliebe offline eine leere Seite.
 - **Orientierung** (v12.48): `ui/topbar.js` zeichnet den Pfad (Anleitungen › Ordner › Anleitung) und den Zurück-Pfeil eine Ebene hoch; `ui/instrnav.js` die Reiter einer Anleitung (Bearbeiten · Vorschau · Auswertung). Avatar = Profil, ≡ = App-Menü.
+- **Unterseiten einer Anleitung** (v12.49): `#/edit/<id>` (Schritte), `#/settings/<id>` (Ablage & Zugriff, Checkliste, Feedback), `#/results/<id>` (Auswertung) – gleicher Kopf, Vorschau als Button ganz rechts (`previewBtn`); Freigabe als Dialog in `views/editor.js` (`approvalDialog`). **Eine Seite scrollt:** `ui/flowsticky.js` hält Seitenspalten (Schrittliste, Schritt-Spalte, Navigator) mit der Seite in Bewegung statt eigener Scrollbereiche.
 - **Werker-Ansicht** (`views/viewer.js`): Abschnitte mit Scroll-Snap; bei Checkliste eine feste Antwortleiste und eine Sperre (`gateUpdate`): alles nach dem ersten offenen Pflichtschritt ist ausgeblendet; vor dem Start gewählte Kapitel verschieben den Beginn der Sperre. Ende-Bildschirm nach Zählung (alles OK / nicht OK / offen).
 - **Gleichzeitiges Bearbeiten**: optimistisches Sperren – jede Kopie kennt das `updated_at`, von dem sie stammt (`_base`);
   `update … where updated_at = _base`, sonst Konfliktdialog (`core/passwords.js → upsertInstrRow`, Test `locktest`).

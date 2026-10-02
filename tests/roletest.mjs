@@ -16,13 +16,16 @@ const open = async (role) => {
   await d.keyboard.press('Escape'); await d.waitForTimeout(200);
   await d.goto(BASE+'/index3.html#/edit/'+id); await d.waitForTimeout(1500);
   const openedEditor = await d.evaluate(() => !!document.querySelector('#ititle'));
-  const ed = await d.evaluate(() => ({ opened: !!document.querySelector('#ititle'), titleEditable: !document.querySelector('#ititle').disabled, share: (() => { const m = document.querySelector('#more'); if(!m) return false; m.click(); const has = !!document.querySelector('.modal-bg [data-m="share"]'); const bg = document.querySelector('.modal-bg'); if(bg) bg.remove(); return has; })(), okTech: !!document.querySelector('[data-ok="tech"]'), okDsgvo: !!document.querySelector('[data-ok="dsgvo"]'), addStep: !!document.querySelector('.add-step, [data-addstep], .srow.add') }));
+  const ed = await d.evaluate(() => ({ opened: !!document.querySelector('#ititle'), titleEditable: !document.querySelector('#ititle').disabled, share: (() => { const m = document.querySelector('#more'); if(!m) return false; m.click(); const has = !!document.querySelector('.modal-bg [data-m="share"]'); const bg = document.querySelector('.modal-bg'); if(bg) bg.remove(); return has; })(), addStep: !!document.querySelector('.add-step, [data-addstep], .srow.add'), cta: (() => { const c = document.querySelector('#cta'); return c && !c.hidden ? c.textContent.trim() : '-'; })() }));
+  // v12.49: the approvals are a dialog (status chip) – per right: approve / reject, otherwise who it waits for
+  await d.click('#stchip'); await d.waitForTimeout(400);
+  Object.assign(ed, await d.evaluate(() => ({ okTech: !!document.querySelector('.modal [data-aok="tech"]'), okDsgvo: !!document.querySelector('.modal [data-aok="dsgvo"]'), waits: [...document.querySelectorAll('.modal .appr small')].map(x => x.textContent.includes('Wartet') ? 'W' : 'o').join('') })));
   await ctx.close();
   return {dash, menu, ed};
 };
 for(const role of ['viewer','editor','tech_approver','compliance_approver','approver','creator','team_admin']){
   const r = await open(role);
-  console.log(role.padEnd(20), '| new:', r.dash.newBtn, 'folder+:', r.dash.addFolder, 'todo:', r.dash.todo, '| menu:', r.menu, '| editor:', r.ed.opened, 'edit:', r.ed.titleEditable, 'share:', r.ed.share, 'tech:', r.ed.okTech, 'dsgvo:', r.ed.okDsgvo);
+  console.log(role.padEnd(20), '| new:', r.dash.newBtn, 'folder+:', r.dash.addFolder, 'todo:', r.dash.todo, '| menu:', r.menu, '| editor:', r.ed.opened, 'edit:', r.ed.titleEditable, 'share:', r.ed.share, 'tech:', r.ed.okTech, 'dsgvo:', r.ed.okDsgvo, 'waits:', r.ed.waits, 'cta:', r.ed.cta);
 }
 console.log(errs.join('\n')||'NO ERRORS');
 await browser.close();

@@ -17,9 +17,13 @@ await d.goto(BASE+'/index3.html#/edit/'+id); await d.waitForTimeout(1500);
 console.log('editor crumbs:', await crumbs(), '| tabs:', await d.$$eval('.ed-head .itab', xs => xs.map(x => (x.classList.contains('on') ? '*' : '') + x.textContent.trim()).join(' | ')));
 console.log('editor head actions:', await d.$$eval('.ed-head .ed-acts > *', xs => xs.filter(x => !x.hidden).map(x => x.id || x.className).join(',')), '| meta:', await d.$eval('.ed-meta', e => e.textContent.replace(/\s+/g,' ').trim()));
 await d.screenshot({path:OUT+'/shots/orient-editor.png'});
-// status chip → approvals
-await d.click('#stchip'); await d.waitForTimeout(500); console.log('status chip opens approvals:', await d.$eval('#tab-settings', e => !e.hidden));
-await d.click('[data-sback]'); await d.waitForTimeout(300);
+// status chip → the approval dialog (v12.49: a dialog, not a panel on a hidden page)
+await d.click('#stchip'); await d.waitForTimeout(500); console.log('status chip opens approvals:', await d.$eval('.modal h2', e => e.textContent.trim()).catch(() => 'none'));
+await d.click('.modal [data-x]'); await d.waitForTimeout(300);
+// settings are a sub-page of their own (v12.49)
+await d.click('.itab[data-itab="settings"]'); await d.waitForTimeout(1200);
+console.log('settings tab:', await d.evaluate(() => location.hash.replace(/[a-z0-9]{10,}/, '<id>')), '| active:', await d.$eval('.itab.on', e => e.textContent.trim()), '| sections:', await d.$$eval('#tab-settings .set-sec', xs => xs.map(x => x.id).join(',')));
+await d.click('.itab[data-itab="edit"]'); await d.waitForTimeout(1000);
 // analytics tab and back to the instruction
 await d.click('.itab[data-itab="results"]'); await d.waitForTimeout(1200);
 console.log('analytics:', await d.evaluate(() => location.hash), '| crumbs:', await crumbs(), '| active tab:', await d.$eval('.itab.on', e => e.textContent.trim()));
@@ -27,7 +31,8 @@ await d.screenshot({path:OUT+'/shots/orient-results.png'});
 await d.click('.itab[data-itab="edit"]'); await d.waitForTimeout(1200); console.log('back to the instruction via tab:', await d.evaluate(() => location.hash));
 await d.goto(BASE+'/index3.html#/results/'+id); await d.waitForTimeout(1200);
 await d.click('.topbar [data-back]'); await d.waitForTimeout(1000); console.log('back arrow from analytics goes one level up to:', await d.evaluate(() => location.hash));
-// preview: its back arrow leads to the editor tab
+// preview: a button at the far right of the head; its back arrow leads to the editor tab
+await d.goto(BASE+'/index3.html#/edit/'+id); await d.waitForTimeout(1200); console.log('preview button is the last action:', await d.$$eval('.ed-head .ed-acts > *', xs => { const vis = xs.filter(x => !x.hidden); vis.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left); return vis.at(-1).id; }));
 await d.goto(BASE+'/index3.html#/preview/'+id); await d.waitForTimeout(1500); console.log('preview back link:', await d.$eval('#vback, #ov-back', e => e.getAttribute('href')));
 // menus: avatar → profile, ≡ → app menu (no "new folder" any more; branding under administration)
 await d.goto(BASE+'/index3.html'); await d.waitForTimeout(1500);

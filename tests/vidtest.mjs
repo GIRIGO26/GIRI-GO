@@ -8,7 +8,7 @@ const vid = await d.evaluate(()=>window.__tables.instructions[0].id);
 await d.goto(BASE+'/index3.html#/edit/'+vid); await d.waitForTimeout(1500);
 await d.setInputFiles('.addstep input[type=file]', TESTS+'/test.webm'); await d.waitForTimeout(6000);
 console.log('video stage:', !!(await d.$('#trimbar')), '| add-step buttons:', await d.$$eval('.addstep .as-b > *', x => x.map(b => b.textContent.trim()).join(' · ')));
-console.log('actions under the picture:', await d.$$eval('.mact .mact-g', x => x.map(g => g.querySelector('.mact-l').textContent+': '+[...g.querySelectorAll('button,label')].map(b => b.textContent.trim()).join('/')).join(' | ')));
+console.log('actions under the picture (v12.49: only this step, no "insert after"):', await d.$$eval('.mact button, .mact label', x => x.map(b => b.textContent.trim()).join(' / ')));
 // place two symbols at different moments
 await d.click('#symdock [data-tab="status"]'); await d.waitForTimeout(200); await d.click('[data-tool="check"]'); await d.waitForTimeout(300);
 const stepId = await d.evaluate(() => { const st = window.__tables.instructions[0].data.steps.filter(s=>!s.kind).find(s=>s.type==='video'); return st.id; });
@@ -37,7 +37,7 @@ const mk = await d.$('#marks .mark'); const mb = await mk.boundingBox(); const t
 await d.mouse.move(mb.x + mb.width/2, mb.y + 10); await d.mouse.down(); await d.mouse.move(mb.x + mb.width/2 + tb.width*0.3, mb.y + 10, {steps:8}); await d.mouse.up(); await d.waitForTimeout(400);
 console.log('after mark drag:', await ann(), '| selected pill:', !!(await d.$('.ann-pill.on')));
 // empty step after this one
-await d.click('#after-empty'); await d.waitForTimeout(600);
+await d.click('.addstep [data-empty]'); await d.waitForTimeout(600); // v12.49: new steps come from the card at the end of the list
 console.log('steps now:', await d.evaluate(() => window.__tables.instructions[0].data.steps.filter(s=>!s.kind).map(s => s.type).join(',')), '| stage shows no-picture panel:', !!(await d.$('.noshot-stage')), '| title focused:', await d.evaluate(() => document.activeElement && document.activeElement.id));
 await d.screenshot({path:OUT+'/vid-empty.png'});
 // text formatting over several lines: bold marks every selected line, a second click removes it, the list prefix stays outside

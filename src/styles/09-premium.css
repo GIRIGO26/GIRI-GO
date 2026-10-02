@@ -503,3 +503,34 @@ details.team[open] .chev,.acc-card[open] .chev{transform:rotate(180deg)}
   .ititle{min-height:44px}
 }
 @media(hover:none) and (pointer:coarse){.mem button,[data-mrm],.cap-top .cnt{min-height:40px;min-width:40px}}
+
+/* ---- v12.49: one head for every sub-page of an instruction: tabs edit · settings · analytics, preview at the far right ---- */
+.ed-acts .ipv{order:99}
+.ed-acts #more{order:98}
+.res-head .ititle-static{font-size:22px;font-weight:800;letter-spacing:-.02em;margin:0;padding:6px 0;line-height:1.2}
+@media(max-width:640px){
+  .res-head .ititle-static{font-size:18px}
+  .ed-acts .ipv{flex:0 0 auto;width:44px;height:44px;padding:0;justify-content:center;border-radius:14px}
+  .ed-acts .ipv span{display:none}
+}
+@media(max-width:420px){ .ed-bar .itab svg{display:none} .ed-bar .itab{padding:9px 4px;font-size:12.5px} }
+/* settings sub-page: location & access, checklist, feedback – one column, no approvals panel, no PDF block */
+.settings.set2{max-width:760px}
+.set-sec h3{display:flex;align-items:center;gap:8px;margin:0 0 12px}
+.set-sec h3 svg{width:18px;height:18px}
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.set-row:first-of-type{border-top:0;padding-top:0}
+.set-row.col{flex-direction:column;align-items:stretch}
+.set-l{display:flex;flex-direction:column;gap:2px;min-width:0}
+.set-l small{color:var(--ink-3);font-size:13px;line-height:1.4}
+#iaccess{display:flex;flex-direction:column;gap:2px}
+/* approval dialog */
+.modal .approve-box .appr{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.modal .approve-box .appr small{display:block;color:var(--ink-3);font-size:12.5px;margin-top:2px;line-height:1.4}
+.modal .approve-box .appr.ok b{color:var(--green,#0a7c55)}
+/* v12.49: one page, one scroll – side columns no longer scroll on their own (src/ui/flowsticky.js sets their `top`) */
+@media(min-width:901px){
+  .page .steps-panel,.steps-panel{max-height:none !important;overflow:visible !important}
+  .ed-main{max-height:none !important;overflow:visible !important}
+  .dnav{max-height:none;overflow:visible;overscroll-behavior:auto}
+}

@@ -26,13 +26,19 @@ function mad(A, B, w, h, px, py, qx, qy){ let s = 0, n = 0; for(let y=-HALF; y<=
 
 /* track the anchor of `a` from a.t to tEnd in the video at `src`; onProgress(0..1). Resolves {track, lostAt|null} or null when the video cannot be read. */
 async function trackAnn(src, a, tEnd, onProgress){
-  const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.crossOrigin = 'anonymous'; v.src = src;
+  // v12.49: the video sits (invisibly) in the page and is started once – iPhones only decode frames of a video that is in the
+  // document and has played; before, Safari could hand over black frames and the "track" silently stayed in place
+  const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.setAttribute('muted', ''); v.preload = 'auto'; v.crossOrigin = 'anonymous';
+  v.style.cssText = 'position:fixed;left:-10px;top:-10px;width:2px;height:2px;opacity:0;pointer-events:none'; document.body.appendChild(v); v.src = src;
+  const cleanup = () => { try{ v.pause(); v.removeAttribute('src'); v.load(); v.remove(); }catch(e){} };
   await new Promise((res, rej) => { v.addEventListener('loadeddata', res, {once:true}); v.addEventListener('error', rej, {once:true}); setTimeout(res, 4000); }).catch(() => null);
-  if(!v.videoWidth) return null;
+  if(!v.videoWidth){ cleanup(); return null; }
+  try{ await v.play(); }catch(e){} try{ v.pause(); }catch(e){}
   const w = W, h = Math.max(16, Math.round(W*v.videoHeight/v.videoWidth)); const c = document.createElement('canvas'); c.width = w; c.height = h; const ctx = c.getContext('2d', {willReadFrequently:true});
   const t0 = a.t||0; const an = anchorOf(a); let px = Math.round(an.x*w), py = Math.round(an.y*h); const ox = px, oy = py;
   const n = Math.min(MAX_FRAMES, Math.max(0, Math.floor((tEnd - t0)/DT)));
-  await seek(v, t0); let prev; try{ prev = grey(ctx, v, w, h); }catch(e){ return null; } // tainted canvas (no CORS) → null
+  await seek(v, t0); let prev; try{ prev = grey(ctx, v, w, h); }catch(e){ cleanup(); return null; } // tainted canvas (no CORS) → null
+  { let lo = 255, hi = 0; for(let i = 0; i < prev.length; i += 7){ const g = prev[i]; if(g < lo) lo = g; if(g > hi) hi = g; } if(hi - lo < 4){ cleanup(); return null; } } // a flat (black) frame: this device does not hand out video frames
   const pts = [[0,0]]; let lostAt = null; let ref = prev;
   for(let k=1; k<=n; k++){
     await seek(v, t0 + k*DT); const cur = grey(ctx, v, w, h);
@@ -42,7 +48,7 @@ async function trackAnn(src, a, tEnd, onProgress){
     px = bx; py = by; ref = cur; pts.push([(px-ox)/w, (py-oy)/h]);
     if(onProgress) onProgress(k/n);
   }
-  try{ v.removeAttribute('src'); v.load(); }catch(e){}
+  cleanup();
   return {track:{t0, dt:DT, pts}, lostAt};
 }
 

@@ -3,7 +3,7 @@ import { trackAnn, trackEnd, trackedAt } from '../annotations/track.js';
 import { trashStep, restoreStep, purgeStep, purgeOldSteps } from '../core/trash.js';
 import { COLORS, NO3D, SWATCHES, annBounds, annCenter, annHandles, drawAll, hasRot, isoUrl, onImgReady, preloadImg, rotP } from '../annotations/draw.js';
 import { symbolPanel, symbolSheet } from '../annotations/library.js';
-import { go } from '../app/router.js';
+import { go, render } from '../app/router.js';
 import { needsShot, realSteps } from '../core/auth.js';
 import { $$, confirmM, el, esc, fitRect, fmtSec, modal, promptM, toast } from '../core/helpers.js';
 import { fmtD, fmtDate, t } from '../core/i18n.js';
@@ -13,20 +13,21 @@ import { G, S, mediaUrl } from '../core/state.js';
 import { DB, uid } from '../core/storage.js';
 import { FLAGS, LANGS, srcHash, translateInstr, withLang } from '../core/translate.js';
 import { can } from '../core/roles.js';
-import { canSee, confirmSteps, folderTeams, saveWs } from '../core/workspace.js';
+import { canSee, confirmSteps, folderName, folderTeams, saveWs } from '../core/workspace.js';
 import { attachDropImport, importFiles, replaceStepMedia } from '../media/import.js';
 import { exportPDF } from '../pdf/export.js';
 import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
-import { instrCrumbs, instrTabs } from '../ui/instrnav.js';
-import { duplicateWithProgress, grabFrame, nOf, posterCache, stepPoster, stepPosterSync } from './dashboard.js';
+import { instrCrumbs, instrTabs, previewBtn } from '../ui/instrnav.js';
+import { flowSticky } from '../ui/flowsticky.js';
+import { duplicateWithProgress, grabFrame, moveToFolderDlg, nOf, posterCache, stepPoster, stepPosterSync } from './dashboard.js';
 import { preloadInstr, touchEditorCache } from '../media/preload.js';
 import { exportPDFAsk, shareModal } from './share.js';
 import { emojiPicker, symbolFromFile, symbolPicker } from './symbols.js';
 
 
 /* ---------- Editor ---------- */
-async function renderEditor(app, id, selStepId, fbId){
+async function renderEditor(app, id, selStepId, fbId, mode){
   const instr = S.instrs.find(i=>i.id===id); if(!instr || !canSee(instr)) return go('');
   if(!Array.isArray(instr.steps)) instr.steps = []; instr.steps.forEach(st => { if(st && st.kind!=='chapter' && !Array.isArray(st.ann)) st.ann = []; }); if(!instr.approvals) instr.approvals = {tech:null, dsgvo:null}; if(!Array.isArray(instr.history)) instr.history = [];
   if(selStepId === 'fb'){ fbId = fbId || null; selStepId = null; } else fbId = null;
@@ -34,11 +35,12 @@ async function renderEditor(app, id, selStepId, fbId){
   // v12.39: capabilities from the team roles – editing, technical approval and privacy approval are separate rights
   const canEdit = can(instr, 'edit'), canTech = can(instr, 'approve_tech'), canDsgvo = can(instr, 'approve_dsgvo'), canLinks = can(instr, 'links');
   const myRole = canEdit ? 'editor' : 'viewer'; const canApprove = canTech && canDsgvo; const canApproveKey = k => k==='tech' ? canTech : canDsgvo;
-  let tab = 'steps'; try{ tab = sessionStorage.getItem('gg_tab_'+id) || 'steps'; }catch(e){}
+  // v12.49: three sub-pages of one instruction, each its own address: #/edit (steps) · #/settings · #/results (analytics); preview is a button
+  const tab = mode === 'settings' && canEdit ? 'settings' : 'steps';
   const v = el(`<main class="page">
     <div class="ed-head"><div class="ed-top"><div class="title-wrap"><input class="title" id="ititle" value="${esc(instr.title)}" placeholder="${t('title')}" ${myRole==='viewer'?'disabled':''}><button class="pen-btn" id="rename" title="${t('rename')}">${IC.edit}</button></div>
       <div class="ed-meta"><button type="button" class="chip dot ${instr.status}" id="stchip" title="${t('status_details')}">${t(instr.status==='review'?'in_review':instr.status)}</button><span class="muted tnum" id="vchip">v${instr.version}</span><span class="muted" id="ed-n"></span><span class="muted ed-when" id="ed-when"></span></div></div>
-      <div class="ed-bar">${instrTabs(instr, 'edit')}<div class="ed-acts"><button class="btn mint sm" id="rec">${IC.cam} <span>${t('record')}</span></button><button class="btn sm" id="cta" hidden></button><button class="btn ghost icon" id="more" title="${t('more')}">${IC.more}</button></div></div></div>
+      <div class="ed-bar">${instrTabs(instr, tab==='settings' ? 'settings' : 'edit')}<div class="ed-acts"><button class="btn mint sm" id="rec" ${tab==='settings' ? 'hidden' : ''}>${IC.cam} <span>${t('record')}</span></button><button class="btn sm" id="cta" hidden></button><button class="btn ghost icon" id="more" title="${t('more')}">${IC.more}</button>${previewBtn(instr)}</div></div></div>
     <div class="fb-banner" id="fb-banner" hidden><span>${IC.msg} <b id="fb-n"></b></span><a class="btn sm" href="#/results/${instr.id}" id="fb-open">${t('fb_view')}</a></div>
     <div class="editor" id="tab-steps" data-pane="${selStepId ? 'step' : 'list'}" ${tab!=='steps'?'hidden':''}>
       <aside class="card steps-panel">
@@ -49,37 +51,42 @@ async function renderEditor(app, id, selStepId, fbId){
         <div class="card props" id="props"></div>
       </section>
     </div>
-    <div class="settings" id="tab-settings" ${tab!=='settings'?'hidden':''}><button class="sback always" data-sback>${IC.back} ${t('back_steps')}</button>
-      <div class="card side-info"><h3>${t('tab_settings')}</h3>
+    <div class="settings set2" id="tab-settings" ${tab!=='settings'?'hidden':''}>
+      <section class="card side-info set-sec" id="set-place"><h3>${IC.folder} ${t('set_place')}</h3>
+        <div class="set-row"><div class="set-l"><b>${t('folder')}</b><small id="set-fname">${esc(instr.folder ? (folderName(instr.folder) || t('no_folder')) : t('no_folder'))}</small></div>${myRole!=='viewer' ? `<button class="btn ghost sm" id="set-fmove">${IC.folder} ${t('set_change')}</button>` : ''}</div>
+        <div class="set-row col"><div class="set-l"><b>${t('set_access')}</b><small>${t('instr_access_sub')}</small></div><div id="iaccess">${(S.wsRow.teams||[]).length ? (S.wsRow.teams||[]).map(tm => `<label class="opt" style="margin-bottom:6px"><input type="checkbox" data-itm="${tm.id}" ${(instr.teams||[]).includes(tm.id)?'checked':''} ${myRole==='viewer'?'disabled':''}> ${esc(tm.name)}${folderTeams(instr.folder).includes(tm.id)?` <span class="muted" style="font-weight:500">(${t('via_project')})</span>`:''}</label>`).join('') : `<p class="muted" style="margin:0">${t('no_teams_short')}</p>`}</div></div>
+      </section>
+      <section class="card side-info set-sec" id="set-chk">
         <label class="toggle"><input type="checkbox" id="chk" ${instr.checklist?'checked':''}> <span>${t('checklist')}<br><span class="muted" style="font-weight:500">${t('checklist_sub')}</span></span></label>
         <div class="chkmodes" id="chkmodes" ${instr.checklist?'':'hidden'}>${[['all','cm_all','cm_all_sub'],['chapter','cm_chapter','cm_chapter_sub'],['custom','cm_custom','cm_custom_sub']].map(([k,l,sub])=>`<label><input type="radio" name="cm" value="${k}" ${(instr.checkMode||'all')===k?'checked':''}> <span>${t(l)}<br><span class="muted" style="font-weight:500">${t(sub)}</span></span></label>`).join('')}</div>
-        <label class="toggle" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)"><input type="checkbox" id="fbk" ${instr.feedback!==false?'checked':''}> <span>${t('fb_allow')}<br><span class="muted" style="font-weight:500">${t('fb_allow_sub')}</span></span></label>
+      </section>
+      <section class="card side-info set-sec" id="set-fb">
+        <label class="toggle"><input type="checkbox" id="fbk" ${instr.feedback!==false?'checked':''}> <span>${t('fb_allow')}<br><span class="muted" style="font-weight:500">${t('fb_allow_sub')}</span></span></label>
         <div class="fb-sub" id="fb-sub" ${instr.feedback===false?'hidden':''}><div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><span class="muted" style="font-size:13px">${t('fb_where')}</span><a class="btn ghost sm" href="#/results/${instr.id}" id="fb-open2">${IC.msg} ${t('fb_open_btn')}</a></div>
           <label class="toggle" style="margin-top:12px"><input type="checkbox" id="fbn" ${instr.fbNotify!==false?'checked':''}> <span>${t('fb_notify')}<br><span class="muted" style="font-weight:500">${t('fb_notify_sub', {n: esc(instr.createdBy||'')})}</span></span></label>
           <label class="toggle" style="margin-top:10px"><input type="checkbox" id="fbnr" ${instr.fbNotifyReviewers?'checked':''}> <span>${t('fb_notify_rev')}<br><span class="muted" style="font-weight:500">${t('fb_notify_rev_sub')}</span></span></label></div>
-      </div>
-      <details class="card side-info acc"><summary><h3>${t('instr_access')}</h3><span class="muted">${(instr.teams||[]).length ? nOf((instr.teams||[]).length, 'team', 'teams') : t('like_project')}</span></summary><p class="muted" style="margin:10px 0">${t('instr_access_sub')}</p><div id="iaccess">${(S.wsRow.teams||[]).length ? (S.wsRow.teams||[]).map(tm => `<label class="opt" style="margin-bottom:6px"><input type="checkbox" data-itm="${tm.id}" ${(instr.teams||[]).includes(tm.id)?'checked':''} ${myRole==='viewer'?'disabled':''}> ${esc(tm.name)}${folderTeams(instr.folder).includes(tm.id)?` <span class="muted" style="font-weight:500">(${t('via_project')})</span>`:''}</label>`).join('') : `<p class="muted" style="margin:0">${t('no_teams_short')}</p>`}</div></details>
-      <div class="card side-info" id="txcard"></div>
-      <div class="card side-info" id="appr"></div>
+      </section>
     </div></main>`);
   app.appendChild(v);
   // v12.48: the head (title, tabs, record / submit / approve) stays on screen on the PC – the side panels start below it
   { const eh = v.querySelector('.ed-head'); const setH = () => v.style.setProperty('--edh', eh.offsetHeight + 'px'); setH(); const ro = new ResizeObserver(setH); ro.observe(eh);
     const onSc = () => eh.classList.toggle('stuck', window.scrollY > 4); window.addEventListener('scroll', onSc, {passive:true}); onSc();
     G.activeCleanup = () => { ro.disconnect(); window.removeEventListener('scroll', onSc); }; }
-  // v12.43: no tab row – the steps are the editor; approval & settings, link/QR, PDF and statistics live in the ⋯ menu, preview is a button
-  const showTab = k => { tab = k; try{ sessionStorage.setItem('gg_tab_'+id, tab); }catch(e){} v.querySelector('#tab-steps').hidden = tab!=='steps'; v.querySelector('#tab-settings').hidden = tab!=='settings'; if(tab==='steps') setTimeout(()=>window.dispatchEvent(new Event('resize')), 30); else window.scrollTo({top:0}); };
-  { const sb = v.querySelector('[data-sback]'); if(sb) sb.onclick = () => showTab('steps'); }
+  // v12.49: one scroll for the whole page (PC) – the step list and the step column move with the page instead of scrolling on their own
+  const headTop = () => (parseFloat(v.style.getPropertyValue('--edh')) || 0) + 72;
+  const fsList = flowSticky(v.querySelector('.steps-panel'), headTop, {media:'(min-width:901px)'});
+  const fsMain = flowSticky(v.querySelector('.ed-main'), headTop, {media:'(min-width:901px)'});
+  { const c1 = G.activeCleanup; G.activeCleanup = () => { fsList.destroy(); fsMain.destroy(); if(c1) c1(); }; }
   v.querySelector('#rec').onclick = () => go('rec/'+instr.id);
-  v.querySelector('#stchip').onclick = () => { showTab('settings'); setTimeout(() => { const a = v.querySelector('#appr'); if(a) a.scrollIntoView({behavior:'smooth', block:'start'}); }, 60); }; // v12.48: the status chip leads to the approvals
+  v.querySelector('#stchip').onclick = () => approvalDialog(); // v12.49: status chip → the approval dialog (once, not a panel plus a button)
+  { const fm = v.querySelector('#set-fmove'); if(fm) fm.onclick = () => moveToFolderDlg(instr, () => render()); } // the crumbs (folder › instruction) follow
   let fbOpenN = 0;
-  v.querySelector('#more').onclick = () => modal(`<div class="menu"><div class="menu-h">${esc(instr.title)}</div><button data-m="undo" ${undo.length?'':'disabled'}>${IC.undo} ${t('undo')}</button><button data-m="redo" ${redo.length?'':'disabled'}>${IC.redo} ${t('redo')}</button><div class="menu-sep"></div>${canLinks ? `<button data-m="share">${IC.share} ${t('share')}</button>` : ''}<button data-m="pdf">${IC.pdf} ${t('pdf')}</button><div class="menu-sep"></div>${canEdit ? `<button data-m="dup">${IC.copy} ${t('duplicate')}</button>` : ''}<button data-m="settings">${IC.gear} ${t('tab_settings')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='undo') doUndo(); else if(m==='redo') doRedo(); else if(m==='dup') duplicateWithProgress(instr); else if(m==='share') shareModal(instr); else if(m==='pdf') exportPDFAsk(instr); else if(m==='results') go('results/'+instr.id); else if(m==='settings') showTab('settings'); }); });
+  v.querySelector('#more').onclick = () => modal(`<div class="menu"><div class="menu-h">${esc(instr.title)}</div><button data-m="undo" ${undo.length?'':'disabled'}>${IC.undo} ${t('undo')}</button><button data-m="redo" ${redo.length?'':'disabled'}>${IC.redo} ${t('redo')}</button><div class="menu-sep"></div>${canLinks ? `<button data-m="share">${IC.share} ${t('share')}</button>` : ''}<button data-m="pdf">${IC.pdf} ${t('pdf_dl')}</button><div class="menu-sep"></div>${canEdit ? `<button data-m="dup">${IC.copy} ${t('duplicate')}</button>` : ''}<button data-m="approvals">${IC.check} ${t('approvals_hist')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='undo') doUndo(); else if(m==='redo') doRedo(); else if(m==='dup') duplicateWithProgress(instr); else if(m==='share') shareModal(instr); else if(m==='pdf') exportPDFAsk(instr); else if(m==='results') go('results/'+instr.id); else if(m==='approvals') approvalDialog(); }); });
   const setChip = () => { const c = v.querySelector('#stchip'); c.className = 'chip dot '+instr.status; c.textContent = t(instr.status==='review'?'in_review':instr.status); const vc = v.querySelector('#vchip'); if(vc) vc.textContent = 'v'+instr.version; updateCTA(); };
   function updateCTA(){ const b = v.querySelector('#cta'); b.hidden = true; b.className = 'btn sm'; const narrow = matchMedia('(max-width:560px)').matches;
     if(instr.status==='draft' && realSteps(instr).length && myRole!=='viewer'){ b.hidden = false; b.textContent = t(narrow ? 'submit_review_short' : 'submit_review'); b.onclick = submitForReview; }
-    else if(instr.status==='review' && canApprove){ b.hidden = false; b.textContent = t(narrow ? 'approve_publish_short' : 'approve_publish'); b.onclick = approveAll; } }
+    else if(instr.status==='review' && ((canTech && !instr.approvals.tech) || (canDsgvo && !instr.approvals.dsgvo))){ b.hidden = false; b.textContent = t('approve_publish_short'); b.onclick = approvalDialog; } }
   async function submitForReview(){ const note = await promptM(t('publish_note'), G.LANG==='de'?'z. B. Schritt 4 Drehmoment korrigiert':'e.g. corrected torque in step 4', instr.version===0 ? (G.LANG==='de'?'Erstversion':'Initial version') : ''); if(note===null) return; instr.pendingNote = note; instr.status='review'; await saveInstr(instr); setChip(); renderApprovals(); toast(t('in_review')); }
-  async function approveAll(){ if(!(await confirmM(t('approve_all_q'), t('approve')))) return; const now = Date.now(); if(!instr.approvals.tech) instr.approvals.tech = {by:S.user.name, at:now}; if(!instr.approvals.dsgvo) instr.approvals.dsgvo = {by:S.user.name, at:now}; instr.status='published'; instr.version++; if(!instr.shareKey) instr.shareKey = newShareKey(); instr.history.push({version:instr.version, at:now, by:instr.createdBy, note:instr.pendingNote||'', tech:instr.approvals.tech, dsgvo:instr.approvals.dsgvo}); instr.pendingNote=''; await saveInstr(instr); setChip(); renderApprovals(); toast(t('published')+' · v'+instr.version); }
   const undo = [], redo = []; let lastSnap = JSON.stringify(instr.steps);
   const snapshot = () => { const cur = JSON.stringify(instr.steps); if(cur !== lastSnap){ undo.push(lastSnap); redo.length = 0; if(undo.length > 40) undo.shift(); lastSnap = cur; } updateUndo(); };
   const updateUndo = () => { const b = v.querySelector('#undo'); if(b) b.disabled = !undo.length; };
@@ -148,7 +155,7 @@ async function renderEditor(app, id, selStepId, fbId){
     const list = v.querySelector('#slist'); const row = list.querySelector(`.srow[data-id="${sel}"]`);
     if(!row){ renderList(); renderStage(); return; }
     list.querySelectorAll('.srow.sel').forEach(r => r.classList.remove('sel')); row.classList.add('sel'); openedFor = sel;
-    renderStage();
+    renderStage(); fsMain.reset(); // the picture of the newly picked step is in view
   }
   const localMedia = new Set(); // media ids that are on this device (recorded here or cached by the preloader) – a dot on the row
   function renderList(){
@@ -294,7 +301,7 @@ async function renderEditor(app, id, selStepId, fbId){
     // v12.41: one symbol library – docked under the picture on the PC (#symdock), behind the blue button on the phone (#tools-open)
     stage.innerHTML = noShot ? `${stepbar}<div class="row desk" style="justify-content:space-between;margin-bottom:10px"><b>${t('step')} ${n} ${t('of')} ${realSteps(instr).length}</b><button class="btn ghost sm del" id="del" title="${t('delete_step')}">${IC.trash} ${t('delete')}</button></div>
       <div class="noshot-stage ${s.textOnly?'textonly':''}"><div class="ns-ico">${s.textOnly ? IC.text : IC.cam}</div><div class="ns-h">${s.textOnly ? t('text_step') : t('noshot')}</div><div class="ns-title">${titleHtml(s.title)||`${t('step')} ${n}`}</div>${s.shot ? `<div class="ns-shot">🎬 ${esc(s.shot)}</div>` : ''}<p class="muted">${s.textOnly ? t('text_step_sub') : t('noshot_sub')}</p>
-        <div class="ns-acts"><button class="btn ${s.textOnly?'ghost':'mint'}" id="retake">${IC.cam} ${s.textOnly ? t('record') : t('noshot_rec')}</button><label class="btn ghost" style="cursor:pointer">${IC.upload} ${t('pick_files_short')}<input type="file" accept="video/*,image/*" hidden id="repl-file"></label><button class="btn ghost" id="after" hidden></button></div></div>` : `${stepbar}<div class="row desk" style="justify-content:space-between;margin-bottom:10px"><b>${t('step')} ${n} ${t('of')} ${realSteps(instr).length}</b><button class="btn ghost sm del" id="del" title="${t('delete_step')}">${IC.trash} ${t('delete')}</button></div>
+        <div class="ns-acts"><button class="btn ${s.textOnly?'ghost':'mint'}" id="retake">${IC.cam} ${s.textOnly ? t('record') : t('noshot_rec')}</button><label class="btn ghost" style="cursor:pointer">${IC.upload} ${t('pick_files_short')}<input type="file" accept="video/*,image/*" hidden id="repl-file"></label></div></div>` : `${stepbar}<div class="row desk" style="justify-content:space-between;margin-bottom:10px"><b>${t('step')} ${n} ${t('of')} ${realSteps(instr).length}</b><button class="btn ghost sm del" id="del" title="${t('delete_step')}">${IC.trash} ${t('delete')}</button></div>
       ${s.placeholder ? `<div class="ph-banner"><span>${IC.pdf}</span><div>${t('ph_banner')}</div><button class="btn mint sm" id="ph-rec">${IC.cam} ${t('noshot_rec')}</button><button class="btn ghost sm" id="ph-keep">${t('ph_keep')}</button></div>` : ''}
       <div class="media-box loading" id="mbox"><div class="vbg" id="mbg"></div>${isV?`<video id="med" src="${url}" ${(stepPosterSync(s)||s.posterUrl) ? `poster="${esc(stepPosterSync(s)||s.posterUrl)}"` : ''} muted playsinline autoplay loop preload="auto"></video>`:`<img id="med" src="${url}" alt="">`}<canvas class="ann sel-mode" id="acv"></canvas><div class="pausetag" id="ptag" hidden></div></div>
       <div class="ann-list" id="annlist"></div><div class="ann3d" id="ann3d" hidden></div>
@@ -302,8 +309,7 @@ async function renderEditor(app, id, selStepId, fbId){
         <div class="trim-labels"><span>${IC.scissors} ${t('trim_hint')}</span><span class="tnum"><b id="tcur">0,0</b> / <span id="tsv">${fmtSec(s.trimStart||0)}</span>–<span id="tev">${fmtSec(s.trimEnd||s.duration)}</span> s <span id="annt" class="muted"></span></span></div></div>`:''}
       <button class="tools-cta" id="tools-open"><span class="tc-ico">${IC.plus}</span><span><b>${t('mark_img')}</b><small>${t('mark_img_sub')}</small></span></button>
       <div class="symdock" id="symdock"></div>
-      <div class="mact"><div class="mact-g"><span class="mact-l">${t('mact_this')}</span><button class="btn ghost sm" id="retake">${IC.cam} ${t('retake')}</button><label class="btn ghost sm" style="cursor:pointer">${IC.upload} ${t('replace_file')}<input type="file" accept="video/*,image/*" hidden id="repl-file"></label></div>
-        <div class="mact-g"><span class="mact-l">${t('mact_after')}</span><button class="btn ghost sm" id="after">${IC.cam} ${t('record')}</button><label class="btn ghost sm" style="cursor:pointer">${IC.upload} ${t('pick_files_short')}<input type="file" accept="video/*,image/*" multiple hidden id="after-file"></label><button class="btn ghost sm" id="after-empty">${IC.note} ${t('empty_step')}</button></div></div>`;
+      <div class="mact"><div class="mact-g"><button class="btn ghost sm" id="retake">${IC.cam} ${t('retake')}</button><label class="btn ghost sm" style="cursor:pointer">${IC.upload} ${t('replace_file')}<input type="file" accept="video/*,image/*" hidden id="repl-file"></label></div></div>`; // v12.49: only this step's media – "insert after" is gone (new steps: the card at the end of the list, then drag)
     props.innerHTML = `${s.shot && !noShot ? `<div class="shot-hint" title="${t('shot_hint')}">🎬 <span>${esc(s.shot)}</span><button data-shotx title="${t('delete')}">×</button></div>` : ''}<div class="field"><label for="stitle">${t('title')}</label><input id="stitle" value="${esc(s.title)}" placeholder="${t('step_title_ph')}"><div class="fmtbar sm"><button data-tf="b" title="${t('fmt_bold')}"><b>B</b></button><button data-tf="link" title="${t('fmt_link')}">🔗 ${t('fmt_link')}</button><button data-tf="keep" title="${t('fmt_keep')}">🔒 ${t('fmt_keep')}</button></div></div>
       <div class="field"><label for="sdesc">${t('desc')}</label><textarea id="sdesc" placeholder="${t('desc_ph')}">${esc(s.desc)}</textarea><div class="fmtbar"><button data-f="b" title="${t('fmt_bold')}"><b>B</b></button><button data-f="ul" title="${t('fmt_ul')}">•&thinsp;${t('fmt_ul')}</button><button data-f="ol" title="${t('fmt_ol')}">1.&thinsp;${t('fmt_ol')}</button><button data-f="link" title="${t('fmt_link')}">🔗 ${t('fmt_link')}</button><button data-f="keep" title="${t('fmt_keep')}">🔒 ${t('fmt_keep')}</button></div><div class="rich rich-prev" id="sprev" hidden></div><div class="fmt-hint">${esc(t('fmt_hint'))}</div></div>
       <div class="field warnf ${s.warn || warnOpen ? '' : 'closed'}"><label for="swarn">${t('warn')}</label><input id="swarn" value="${esc(s.warn||'')}" placeholder="⚠"><button class="lnk" type="button" data-addwarn>⚠ ${t('add_warn')}</button></div>
@@ -335,10 +341,8 @@ async function renderEditor(app, id, selStepId, fbId){
     props.querySelector('#swarn').oninput = e => { s.warn = e.target.value; debounce('sw', touch); };
     props.querySelector('[data-addwarn]').onclick = () => { warnOpen = true; props.querySelector('.warnf').classList.remove('closed'); props.querySelector('#swarn').focus(); };
     stage.querySelector('#del').onclick = () => delStep(s);
-    { stage.querySelector('[data-mmore]').onclick = () => modal(`<div class="menu"><div class="menu-h">${t('mact_this')}</div><button data-m="retake">${IC.cam} ${noShot ? t('noshot_rec') : t('retake')}</button><button data-m="file">${IC.upload} ${t('replace_file')}</button><div class="menu-h" style="margin-top:8px">${t('mact_after')}</div><button data-m="after">${IC.cam} ${t('record')}</button><button data-m="afile">${IC.upload} ${t('pick_files_short')}</button><button data-m="aempty">${IC.note} ${t('empty_step')}</button><div class="menu-sep"></div><button data-m="del" class="del">${IC.trash} ${t('delete_step')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='retake') go(`rec/${instr.id}/replace/${s.id}`); else if(m==='after') go(`rec/${instr.id}/after/${s.id}`); else if(m==='file'){ const fi = stage.querySelector('#repl-file'); if(fi) fi.click(); } else if(m==='afile'){ const fi = stage.querySelector('#after-file'); if(fi) fi.click(); } else if(m==='aempty') addEmptyStep(s); else delStep(s); }); }); }
+    { stage.querySelector('[data-mmore]').onclick = () => modal(`<div class="menu"><button data-m="retake">${IC.cam} ${noShot ? t('noshot_rec') : t('retake')}</button><button data-m="file">${IC.upload} ${t('replace_file')}</button><div class="menu-sep"></div><button data-m="del" class="del">${IC.trash} ${t('delete_step')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='retake') go(`rec/${instr.id}/replace/${s.id}`); else if(m==='file'){ const fi = stage.querySelector('#repl-file'); if(fi) fi.click(); } else delStep(s); }); }); }
     stage.querySelector('#retake').onclick = () => go(`rec/${instr.id}/replace/${s.id}`);
-    stage.querySelector('#after').onclick = () => go(`rec/${instr.id}/after/${s.id}`);
-    { const ae = stage.querySelector('#after-empty'); if(ae) ae.onclick = () => addEmptyStep(s); const af = stage.querySelector('#after-file'); if(af) af.onchange = e => { const fs = [...e.target.files]; e.target.value = ''; doImport(fs); }; }
     stage.querySelector('#repl-file').onchange = async e => { const f = e.target.files[0]; if(!f) return; try{ await replaceStepMedia(instr, s, f); await touch(); posterCache.clear(); renderList(); renderStage(); toast(t('saved')); }catch(err){ toast(t('error_prefix')+': '+err.message); } e.target.value=''; };
     if(noShot) return; // nothing to play or annotate yet
     { const pr = stage.querySelector('#ph-rec'); if(pr) pr.onclick = () => go(`rec/${instr.id}/replace/${s.id}`); const pk = stage.querySelector('#ph-keep'); if(pk) pk.onclick = async () => { delete s.placeholder; await touch(); toast(t('ph_kept')); renderList(); renderStage(); }; }
@@ -452,7 +456,12 @@ async function renderEditor(app, id, selStepId, fbId){
             $$('[data-anim]', p3).forEach(b => b.onclick = () => { if(b.dataset.anim) a.anim = b.dataset.anim; else delete a.anim; p3.dataset.sig = ''; draw(); touch(); });
             $$('[data-trk]', p3).forEach(b => b.onclick = async () => {
               if(b.dataset.trk==='off'){ delete a.track; p3.dataset.sig = ''; draw(); touch(); return; }
-              if(b.disabled) return; b.disabled = true; med.pause(); const src = med.currentSrc || med.src; const end = s.trimEnd || s.duration || (a.t||0)+10;
+              if(b.disabled) return;
+              // v12.49: on a phone the frame-by-frame analysis is slow and often fails (iPhone) → recommend the PC, allow a try
+              if(isPhone() && matchMedia('(pointer:coarse)').matches && !G.trkPhoneOk){
+                const r = await modal(`<h2>${t('trk_phone_t')}</h2><p class="muted" style="margin:0 0 14px;line-height:1.5">${t('trk_phone_sub')}</p><div class="actions"><button class="btn ghost" data-try>${t('trk_phone_try')}</button><button class="btn" data-ok>${t('trk_phone_ok')}</button></div>`, (bg, close) => { bg.querySelector('[data-ok]').onclick = () => close('pc'); bg.querySelector('[data-try]').onclick = () => close('try'); });
+                if(r !== 'try') return; G.trkPhoneOk = true; }
+              b.disabled = true; med.pause(); const src = med.currentSrc || med.src; const end = s.trimEnd || s.duration || (a.t||0)+10;
               try{ const r = await trackAnn(src, a, end, p => { b.textContent = t('trk_running', {p:Math.round(p*100)}); });
                 if(!r){ toast(t('trk_fail')); b.disabled = false; b.textContent = t('trk_follow'); return; }
                 if(r.track.pts.length < 2){ toast(t('trk_lost', {t:fmtSec(a.t||0)})); b.disabled = false; b.textContent = t('trk_follow'); return; }
@@ -555,38 +564,46 @@ async function renderEditor(app, id, selStepId, fbId){
     setTimeout(draw, 50);
   }
 
-  /* --- translations --- */
-  function renderTx(){
-    const c = v.querySelector('#txcard'); const h = srcHash(instr); const tx = instr.translations||{};
-    c.innerHTML = `<h3>${IC.pdf} ${t('pdf_dl')}</h3><p class="muted" style="margin:0 0 10px">${t('pdf_dl_sub')}</p><div class="langs"><div class="lang orig"><button data-pdforig title="${t('pdf_dl_orig')}"><b>${IC.pdf}</b> ${t('pdf_dl_orig')}</button></div>${LANGS.filter(([k])=>k!=='DE').map(([k,name]) => { const st = tx[k] ? (tx[k].hash===h ? 'ok' : 'stale') : ''; return `<div class="lang ${st}"><button data-txpdf="${k}" title="${st==='ok'?t('pdf_dl_ready'):(st==='stale'?t('tx_stale'):t('pdf_dl_tx'))}"><b>${FLAGS[k]||k}</b> ${name}${st==='ok'?' ✓':(st==='stale'?' ↻':'')}</button>${st?`<button data-txdel="${k}" title="${t('tx_remove')}">×</button>`:''}</div>`; }).join('')}</div><p class="muted" style="margin:10px 0 0;font-size:12.5px">${t('pdf_dl_note')}</p>`;
-    c.querySelector('[data-pdforig]').onclick = () => exportPDF(instr);
-    $$('[data-txpdf]', c).forEach(b => b.onclick = async () => { const k = b.dataset.txpdf; if(!(tx[k] && tx[k].hash===h)){ b.disabled = true; b.textContent = t('tx_running'); try{ await translateInstr(instr, k); }catch(e){ toast('DeepL: '+e.message); renderTx(); return; } renderTx(); } exportPDF(withLang(instr, k)); });
-    $$('[data-txdel]', c).forEach(b => b.onclick = async () => { delete instr.translations[b.dataset.txdel]; await saveInstr(instr); renderTx(); });
+  /* --- approvals (v12.49): one dialog, opened from the status chip, the "Approve" button or the ⋯ menu. Each approval shows what this
+     person may do: approve / reject for their own right, otherwise who it waits for – nothing appears twice on the page any more. --- */
+  function renderApprovals(){ updateCTA(); }
+  async function approvalDialog(){
+    const ap = instr.approvals; const st = instr.status;
+    const note = st==='draft' ? t('status_note_draft') : st==='review' ? t('status_note_review') : t('status_note_pub');
+    const row = k => { const mine = canApproveKey(k);
+      const right = ap[k] ? `<small>${t('approved_by')} ${esc(ap[k].by)} · ${fmtDate(ap[k].at)}</small>`
+        : st==='review' ? (mine ? `<small>${t('appr_yours')}</small>` : `<small>${t(k==='tech' ? 'appr_wait_tech' : 'appr_wait_dsgvo')}</small>`)
+        : `<small>${t('pending')}${st==='draft' ? ' · ' + t('appr_after_submit') : ''}</small>`;
+      const acts = st==='review' && !ap[k] && mine ? `<div class="row"><button class="btn ghost sm" data-rej="${k}">${t('reject')}</button><button class="btn mint sm" data-aok="${k}">${IC.check} ${t('approve')}</button></div>` : '';
+      return `<div class="appr ${ap[k]?'ok':''}" data-appr="${k}"><div><b>${ap[k] ? '✓ ' : ''}${t(k)}</b>${right}</div>${acts}</div>`; };
+    const both = st==='review' && canApprove && !ap.tech && !ap.dsgvo;
+    const html = `<h2>${t('approvals')}</h2><div class="flow"><span class="${st==='draft'?'cur':'done'}">1 · ${t('draft')}</span><span class="${st==='review'?'cur':(st==='published'?'done':'')}">2 · ${t('in_review')}</span><span class="${st==='published'?'cur':''}">3 · ${t('published')}</span></div><div class="notice ${st==='published'?'':'blue'}" style="margin-bottom:10px">${note}</div>
+      <div class="approve-box">${['tech','dsgvo'].map(row).join('')}</div>
+      <div class="row wrap" style="margin-top:12px;gap:8px">${both ? `<button class="btn" id="ap-both">${IC.check} ${t('approve_publish')}</button>` : ''}${st==='draft' && myRole!=='viewer' && realSteps(instr).length ? `<button class="btn" id="ap-submit">${t('submit_review')}</button>` : ''}${st==='review' && myRole!=='viewer' ? `<button class="btn ghost sm" id="ap-todraft">${t('back_to_draft')}</button>` : ''}${st==='published' ? `<span class="muted">${t('locked_hint')}</span>` : ''}</div>
+      ${instr.history.length ? `<h3 style="margin-top:16px">${t('history')}</h3><div class="hist">${[...instr.history].reverse().map(h=>`<div><b>v${h.version}</b> · ${fmtDate(h.at)} · ${esc(h.by)} — ${esc(h.note)}</div>`).join('')}</div>` : ''}
+      <div class="actions"><button class="btn ghost" data-x>${t('close')}</button></div>`;
+    const r = await modal(html, (bg, close) => {
+      bg.querySelector('[data-x]').onclick = () => close(null);
+      const b1 = bg.querySelector('#ap-both'); if(b1) b1.onclick = () => close({act:'both'});
+      const b2 = bg.querySelector('#ap-submit'); if(b2) b2.onclick = () => close({act:'submit'});
+      const b3 = bg.querySelector('#ap-todraft'); if(b3) b3.onclick = () => close({act:'todraft'});
+      $$('[data-aok]', bg).forEach(b => b.onclick = () => close({act:'ok', k:b.dataset.aok}));
+      $$('[data-rej]', bg).forEach(b => b.onclick = () => close({act:'rej', k:b.dataset.rej}));
+    });
+    if(!r) return;
+    if(r.act==='submit') return submitForReview();
+    if(r.act==='both'){ const now = Date.now(); instr.approvals.tech = {by:S.user.name, at:now}; instr.approvals.dsgvo = {by:S.user.name, at:now}; publishNow(); await saveInstr(instr); setChip(); return; }
+    if(r.act==='todraft'){ instr.status='draft'; instr.approvals={tech:null,dsgvo:null}; await saveInstr(instr); setChip(); return; }
+    if(r.act==='ok'){ instr.approvals[r.k] = {by:S.user.name, at:Date.now()}; if(instr.approvals.tech && instr.approvals.dsgvo) publishNow(); else toast(t('appr_given', {a: t(r.k)})); await saveInstr(instr); setChip(); return; }
+    if(r.act==='rej'){ const why = await promptM(t('reject_reason'), t('reason_ph')); if(why===null) return; instr.status='draft'; instr.approvals={tech:null,dsgvo:null}; instr.history.push({version:instr.version, at:Date.now(), by:S.user.name, note:`${t('reject')} (${t(r.k)}): ${why}`}); await saveInstr(instr); setChip(); }
   }
-  /* --- approvals --- */
-  function renderApprovals(){
-    const a = v.querySelector('#appr'); const ap = instr.approvals;
-    const note = instr.status==='draft' ? t('status_note_draft') : instr.status==='review' ? t('status_note_review') : t('status_note_pub');
-    a.innerHTML = `<h3>${t('approvals')}</h3><div class="flow"><span class="${instr.status==='draft'?'cur':'done'}">1 · ${t('draft')}</span><span class="${instr.status==='review'?'cur':(instr.status==='published'?'done':'')}">2 · ${t('in_review')}</span><span class="${instr.status==='published'?'cur':''}">3 · ${t('published')}</span></div><div class="notice ${instr.status==='published'?'':'blue'}" style="margin-bottom:10px">${note}</div>
-      <div class="approve-box">
-        ${['tech','dsgvo'].map(k => `<div class="appr ${ap[k]?'ok':''}"><div><b>${t(k)}</b><small>${ap[k]?`${t('approved_by')} ${esc(ap[k].by)} · ${fmtDate(ap[k].at)}`:t('pending')}</small></div>
-          ${instr.status==='review' && !ap[k] ? (canApproveKey(k) ? `<div class="row"><button class="btn ghost sm" data-rej="${k}">${t('reject')}</button><button class="btn mint sm" data-ok="${k}">${t('approve')}</button></div>` : `<span class="muted">${t('only_reviewer')}</span>`) : ''}</div>`).join('')}
-      </div>
-      <div class="row" style="margin-top:12px">${instr.status==='draft' && myRole!=='viewer' && realSteps(instr).length ? `<button class="btn" id="submit">${t('submit_review')}</button>`:''}${instr.status==='review' && myRole!=='viewer' ? `<button class="btn ghost sm" id="todraft">${t('back_to_draft')}</button>`:''}${instr.status==='published' ? `<span class="muted">${t('locked_hint')}</span>`:''}</div>
-      ${instr.history.length ? `<h3 style="margin-top:14px">${t('history')}</h3><div class="hist">${[...instr.history].reverse().map(h=>`<div><b>v${h.version}</b> · ${fmtDate(h.at)} · ${esc(h.by)} — ${esc(h.note)}</div>`).join('')}</div>`:''}`;
-    const sb2 = a.querySelector('#submit'); if(sb2) sb2.onclick = submitForReview;
-    const td = a.querySelector('#todraft'); if(td) td.onclick = async () => { instr.status='draft'; instr.approvals={tech:null,dsgvo:null}; await saveInstr(instr); setChip(); renderApprovals(); };
-    $$('[data-ok]', a).forEach(b => b.onclick = async () => { instr.approvals[b.dataset.ok] = {by:S.user.name, at:Date.now()};
-      if(instr.approvals.tech && instr.approvals.dsgvo){ instr.status='published'; instr.publishedAt = Date.now(); instr.version++; if(!instr.shareKey) instr.shareKey = newShareKey(); instr.history.push({version:instr.version, at:Date.now(), by:instr.createdBy, note:instr.pendingNote||'', tech:instr.approvals.tech, dsgvo:instr.approvals.dsgvo}); instr.pendingNote=''; setChip(); toast(t('published')+' · v'+instr.version); }
-      await saveInstr(instr); renderApprovals(); });
-    $$('[data-rej]', a).forEach(b => b.onclick = async () => { const r = await promptM(t('reject_reason'), t('reason_ph')); if(r===null) return; instr.status='draft'; instr.approvals={tech:null,dsgvo:null}; instr.history.push({version:instr.version, at:Date.now(), by:S.user.name, note:`${t('reject')} (${t(b.dataset.rej)}): ${r}`}); await saveInstr(instr); setChip(); renderApprovals(); });
-  }
+  function publishNow(){ instr.status='published'; instr.publishedAt = Date.now(); instr.version++; if(!instr.shareKey) instr.shareKey = newShareKey(); instr.history.push({version:instr.version, at:Date.now(), by:instr.createdBy, note:instr.pendingNote||'', tech:instr.approvals.tech, dsgvo:instr.approvals.dsgvo}); instr.pendingNote=''; toast(t('published')+' · v'+instr.version); }
   // import: file picker (phone: photo library, multiple) and drag & drop anywhere on the page (PC)
   const afterHint = () => { const st = instr.steps.find(x=>x.id===sel); return st ? t('import_after',{n: realSteps(instr).indexOf(st)+1}) : t('import_end'); };
   async function doImport(files){ if(myRole==='viewer') return; const added = await importFiles(instr, files, sel); if(!added.length) return; snapshot(); setChip(); renderApprovals(); sel = added[0].id; renderList(); renderStage(); setTimeout(() => focusRow(sel), 50); }
   const impFile = v.querySelector('#imp-file'); if(impFile) impFile.onchange = e => { const fs = [...e.target.files]; e.target.value = ''; doImport(fs); };
   const detachDrop = attachDropImport(doImport, afterHint);
-  renderList(); renderStage(); renderApprovals(); renderTx(); updateCTA();
+  renderList(); renderStage(); updateCTA();
   // v12.46: the clips of this instruction come onto the device in the background (PC: all of them, phone: the next three) – switching
   // steps is then instant; the list shows a small dot per step that is on the device
   { touchEditorCache(instr.id); const markLocal = mid => { localMedia.add(mid); (instr.steps||[]).filter(x => x && x.mediaId===mid).forEach(st => { const r = v.querySelector(`.srow[data-id="${st.id}"]`); if(r) r.classList.add('local'); }); };

@@ -41,6 +41,7 @@ import { can, canAny, canApproveAny, canIn, normRole, roleIcon } from '../core/r
 import { posterDialog } from '../pdf/poster.js';
 import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
+import { flowSticky } from '../ui/flowsticky.js';
 import { brandModal } from './branding.js';
 import { exportPDFAsk, shareModal } from './share.js';
 
@@ -277,7 +278,8 @@ async function renderDashboard(app, pid){
     const fi = root.querySelector('[data-fq]'); if(fi){ let tm = 0; fi.oninput = () => { fq = fi.value.trim().toLowerCase(); clearTimeout(tm); tm = setTimeout(() => { const fl = root.querySelector('[data-flist]'); if(fl){ fl.innerHTML = folderRows(); $$('a[data-f]', fl).forEach(a => a.addEventListener('click', () => { if(close) close(); })); const na2 = fl.querySelector('[data-navall]'); if(na2) na2.onclick = () => { navAll = true; redrawNav(root, close); }; } const hb = root.querySelector('#fhide'); if(hb) hb.outerHTML = hideBtn(); const hb2 = root.querySelector('#fhide'); if(hb2) hb2.onclick = fh ? fh.onclick : null; }, 80); }; }
   };
   const redrawNav = (root, close) => { const st = root.scrollTop; root.innerHTML = navHtml(); wireNav(root, close); root.scrollTop = st; const fi = root.querySelector('[data-fq]'); if(fi && fq){ fi.focus(); fi.setSelectionRange(fq.length, fq.length); } };
-  const nav = v.querySelector('#dnav'); if(nav) wireNav(nav);
+  const nav = v.querySelector('#dnav'); if(nav){ wireNav(nav); // v12.49: the navigator moves with the page (no scroll box of its own)
+    const fs = flowSticky(nav, () => 74, {media:'(min-width:901px)'}); const c0 = G.activeCleanup; G.activeCleanup = () => { fs.destroy(); if(c0) c0(); }; }
   const sc = v.querySelector('#scope'); if(sc) sc.onclick = () => modal(`<div class="dnav sheet" id="dnav-sheet"></div>`, (bg, close) => { const root = bg.querySelector('#dnav-sheet'); root.innerHTML = navHtml(); wireNav(root, close); });
   if(f && f.id!=='none'){
     const rows = () => visible.filter(i => i.folder===f.id);

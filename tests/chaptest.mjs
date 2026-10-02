@@ -52,9 +52,9 @@ console.log('local run cleared after auto-finish:', await m.evaluate(()=>!localS
 // 6) editor: settings radios + per-step checkbox + access card
 await m.evaluate(()=>{ sessionStorage.setItem('gg_dash','all'); });
 await m.goto(BASE+'/index3.html#/edit/'+vid); await m.waitForTimeout(1500);
-await m.click('#more'); await m.waitForTimeout(200); await m.click('.modal-bg [data-m="settings"]'); await m.waitForTimeout(300);
+await m.click('.itab[data-itab="settings"]'); await m.waitForTimeout(1000);
 console.log('radios:', await m.$$eval('input[name="cm"]', r => r.map(x => x.value+(x.checked?'*':''))), 'access teams:', await m.$$eval('[data-itm]', r => r.length));
-await m.click('details.acc summary'); await m.waitForTimeout(200); await m.click('[data-itm]'); await m.waitForTimeout(300); console.log('instr.teams:', JSON.stringify(await m.evaluate(()=>window.__tables.instructions[0].data.teams)));
+await m.click('[data-itm]'); await m.waitForTimeout(300); console.log('instr.teams:', JSON.stringify(await m.evaluate(()=>window.__tables.instructions[0].data.teams)));
 { const tb = await m.$('[data-tab=\"steps\"]'); if(tb && await tb.isVisible()) await tb.click(); } await m.waitForTimeout(500);
 console.log('sconf checkbox present (custom):', !!(await m.$('#sconf')), 'row marks:', await m.$$eval('.srow small', s => s.filter(x => x.textContent.includes('☑')).length));
 await m.screenshot({path:OUT+'/c4-editor-settings.png', fullPage:true});

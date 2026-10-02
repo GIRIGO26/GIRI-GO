@@ -440,6 +440,16 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Installations-Hinweis**: nach „Später“/× bleibt eine schmale Zeile „📲 GIRI Go als App installieren · So geht’s“ auf der Startseite, solange die App nicht installiert ist (PC und Telefon).
 - Tests `animtest`, `libtest`, `check4` angepasst. 38 Tests grün.
 
+## v12.49.0 – Runde vom 2. Oktober abends: Viewer aufgeräumt, Editor-Kopf neu, eine Seite scrollt
+
+- **Werker-Ansicht:** jede Information nur einmal – Schrittzahl und Kapitel stehen nur noch oben in der Leiste (vorher dreimal: oben, unter dem Bild, in der Antwortleiste). Die Antwortleiste hat nur noch die zwei Buttons „Nicht OK“ / „Erledigt“ in voller Breite. Auf der Kapitelkarte wiederholt die obere Leiste das Kapitel nicht.
+- **Übersetzung der Oberfläche:** die Edge Function `translate` nimmt höchstens 600 Texte pro Aufruf, die App hat ~1100 – alles danach blieb deutsch (z. B. „Foto / Video wählen“, „Schritt erledigt?“ auf Spanisch). Jetzt in Teilen zu 500; fehlt trotzdem etwas, gilt Englisch statt Deutsch; alte halbe Übersetzungen auf den Geräten werden verworfen.
+- **Editor-Kopf:** drei Unterseiten als Tabs – Bearbeiten · Einstellungen (`#/settings/<id>`) · Auswertung; die Vorschau ist ein Button ganz rechts. Einstellungen = Ablage & Zugriff (Ordner ändern, Teams), Checkliste, Feedback. „PDF herunterladen“ nur noch im ⋯-Menü (fragt die Sprache). Freigabe = ein Dialog (Status-Chip, Button „Freigeben“, ⋯ → „Freigabe & Verlauf“): je Freigabe „Freigeben / Ablehnen“, wenn man das Recht hat, sonst „Wartet auf eine Person mit dem Recht …“; nichts mehr doppelt. Die Auswertung hat denselben Kopf.
+- **Unter dem Schritt** nur noch „Neu aufnehmen“ und „Datei ersetzen“ („Danach einfügen“ entfernt – neue Schritte über die Karte am Listenende).
+- **Eine Seite, ein Scrollbalken** (`src/ui/flowsticky.js`): Schrittliste, Schritt-Spalte und der Navigator der Startseite haben keinen eigenen Scrollbereich mehr. Passt eine Spalte ins Fenster, bleibt sie stehen; ist sie länger, läuft sie mit der Seite und hält an ihrem Ende. Nach Wahl eines Schritts ist sein Bild immer im Blick.
+- **Mitlaufen (Tracking) am Handy:** vorher ein Hinweis „am PC einrichten“ mit „Trotzdem hier versuchen“. Die Bildauswertung lädt das Video jetzt sichtbar-unsichtbar in die Seite und startet es einmal (iPhone liefert sonst schwarze Bilder) und meldet einen Fehler statt still nicht mitzulaufen.
+- Test `ux49` (Viewer, Spanisch, Editor-Kopf, Freigabe je Recht, Einstellungen, Scrollen, Tracking-Hinweis); angepasst: orient, chaptest, r19test, vidtest, fbtest, trashtest, roletest, uifix2 (55 Tests).
+
 ## v12.48.2 – Zwei an einer Anleitung, Demo für bis zu 5 Admins, Löschen im Master-Panel
 
 - **Zusammenführen statt Überschreiben** (`src/core/merge.js`): speichern zwei Personen dieselbe Anleitung, werden die Änderungen gegen den gemeinsamen Ausgangsstand verglichen. Verschiedene Schritte oder Felder (Titel, Text, neue/gelöschte/verschobene Schritte) werden automatisch zusammengeführt („Zusammengeführt mit den Änderungen von …“). Nur wenn beide dieselbe Stelle geändert haben, fragt ein Dialog „Fassung von X / Meine Fassung“ – und auch dann bleiben alle anderen Änderungen erhalten. Der Ausgangsstand liegt auch im Gerätespeicher, damit funktioniert es nach Offline-Arbeit und Neuladen.

@@ -34,7 +34,7 @@ const d2 = await ctx2.newPage(); d2.on('pageerror', e => errs.push('D2 '+e.messa
 await d2.goto(BASE+'/index3.html'); await d2.waitForTimeout(2200); await d2.evaluate(()=>localStorage.setItem('gg_lang','de'));
 const vid3 = await d2.evaluate(()=>{ window.__tables.instructions[0].status = 'published'; return window.__tables.instructions[0].id; });
 // v12.48: a checklist keeps the end hidden until every step is answered – switch it off in the editor (approval & settings)
-await d2.goto(BASE+'/index3.html#/edit/'+vid3); await d2.waitForTimeout(1300); await d2.click('#stchip'); await d2.waitForTimeout(400); await d2.$eval('#chk', e => { if(e.checked){ e.checked = false; e.dispatchEvent(new Event('change')); } }); await d2.waitForTimeout(500); await d2.goto(BASE+'/index3.html#/p/none'); await d2.waitForTimeout(500);
+await d2.goto(BASE+'/index3.html#/edit/'+vid3); await d2.waitForTimeout(1300); await d2.goto(BASE+'/index3.html#/settings/'+vid3); await d2.waitForTimeout(1200); await d2.$eval('#chk', e => { if(e.checked){ e.checked = false; e.dispatchEvent(new Event('change')); } }); await d2.waitForTimeout(500); await d2.goto(BASE+'/index3.html#/p/none'); await d2.waitForTimeout(500);
 await d2.goto(BASE+'/index3.html#/v/'+vid3+'/1'); await d2.waitForTimeout(1500); if(await d2.$('#wname')){ await d2.fill('#wname','Anna'); await d2.click('#begin'); await d2.waitForTimeout(600); }
 await d2.click('.vstep[data-i="0"] [data-fb]'); await d2.waitForTimeout(400);
 console.log('desktop attach options:', await d2.$$eval('.modal [data-att]', x => x.map(i => i.dataset.att)), 'label:', await d2.$eval('.modal label.btn', e => e.textContent.trim()));
