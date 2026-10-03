@@ -58,11 +58,11 @@ async function renderResults(app, id){
     const {error} = await G.sb.from('feedback').update({status:b.dataset.fbs, resolved_at:new Date().toISOString()}).eq('id', f.id); if(error){ toast(error.message); b.disabled = false; return; }
     f.status = b.dataset.fbs; card.outerHTML = fbCard(f); toast(t('saved')); };
   v.querySelector('#csv').onclick = async () => {
-    if(tab==='views'){ const rows2 = [[t('started'), t('device'), t('duration')+' (s)', t('steps'), t('version'), t('views_completed'), t('views_reloaded')]]; views.forEach(x => rows2.push([new Date(x.started_at).toISOString(), x.device||'', x.duration_s||0, x.steps_seen||0, 'v'+x.version, x.completed?'1':'0', x.reload?'1':'0'])); const csv = rows2.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\n'); await saveFile(`giri-go-${slug(instr.title)}-views.csv`, '﻿'+csv, 'text/csv'); return; }
+    if(tab==='views'){ const rows2 = [[t('started'), t('device'), t('duration')+' (s)', t('steps'), t('version'), t('views_completed'), t('views_reloaded')]]; views.forEach(x => rows2.push([new Date(x.started_at).toISOString(), x.device||'', x.duration_s||0, x.steps_seen||0, 'v'+x.version, x.completed?'1':'0', x.reload?'1':'0'])); const csv = rows2.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\n'); await saveFile(`giri-${slug(instr.title)}-views.csv`, '﻿'+csv, 'text/csv'); return; }
     const rows2 = [[t('worker'), t('started'), t('version'), t('step'), t('title'), 'Status', 'Zeit/Time', t('nok_note')]];
     runs.forEach(r => steps.forEach((s,i) => { const it = r.items[s.id]; rows2.push([r.worker, new Date(r.startedAt).toISOString(), 'v'+r.version, i+1, s.title, it?(it.ok?'OK':'NOK'):'', it?new Date(it.at).toISOString():'', it&&it.note?it.note:'']); }));
     const csv = rows2.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\n');
-    await saveFile(`giri-go-${slug(instr.title)}-jobdone.csv`, '﻿'+csv, 'text/csv');
+    await saveFile(`giri-${slug(instr.title)}-jobdone.csv`, '﻿'+csv, 'text/csv');
   };
   $$('[data-d]', v).forEach(b => b.onclick = () => runDetailsModal(runs.find(x=>x.id===b.dataset.d), steps));
 }

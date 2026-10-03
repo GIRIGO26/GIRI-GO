@@ -3,6 +3,7 @@ import { retrySaves } from '../core/passwords.js';
 import { migratePosters } from '../core/posters.js';
 import { online, schedulePill, mirrorList } from '../core/offline.js';
 import { renderTrash } from '../views/trash.js';
+import { renderQrLogin } from '../views/devicelogin.js';
 import { reloadForUpdate, updateSafe } from './pwa.js';
 import { canAny } from '../core/roles.js';
 import { ensureSeed } from './seed.js';
@@ -94,6 +95,7 @@ async function render(){
   if(view === 'v' && id){ app.innerHTML = ''; const tv = performance.now(); const cold = G.perf.log.length === 0; return Promise.resolve(renderViewer(app, id, false, extra, extra2, extra3)).then(r => { const total = Math.round(performance.now()-tv); const entry = {view:'v', total, mode:'werker', auth:0, build:total, sync:null}; G.perf.log.push(entry); if(cold || total > 1500) logPerf(entry, cold); return r; }); }
   if(!G.authReady){ app.innerHTML = `<div class="loading"><div class="spin"></div></div>`; const ta = performance.now(); await loadProfile(); if(stale()) return; G.authReady = true; P.auth = Math.round(performance.now()-ta); }
   app.innerHTML = '';
+  if(view === 'qr' && id){ return renderQrLogin(app, id, extra); } // v12.50: sign-in by QR code from the PC (signed out or switching)
   if(!S.user){ return renderLogin(app); }
   ensureRealtime(); runUploads(); retrySaves(); schedulePill();
   const needWs = view==='' || view==='admin' || view==='p';

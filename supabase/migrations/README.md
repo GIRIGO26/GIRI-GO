@@ -15,6 +15,7 @@ direkt in `schema.sql` geführt (Supabase-Migrationsliste: `v001…v004`).
 | `v011_bypass_reset.sql` | 12.47.0 | Master-Funktionen setzen `giri.bypass_guard` am Ende zurück (kein Leck innerhalb einer Transaktion) |
 | `v012_merge_fix.sql` | 12.47.0 | `master_merge_workspace` fasst `instr_stats` (View) nicht mehr an |
 | `v013_security_hardening.sql` | 12.48.0 | Nach dem Review vom 1. 10.: Profil-E-Mail/-ID nur durch das System (folgt dem Login), Rolle/Admin nur durch Admins und nie die eigene, `is_master()` über `auth.users`; Workspace-Zeile: Teams/Einladungen/Einstellungen/Branding/Name nur Admins, Ordner → `projects`, Symbole → `edit` (`ws_write_guard`); Workspace lesen nur Mitglieder + Plattform-Admins, Branding anonym über `ws_brand(ws)`; Storage-Lesen/Auflisten über die API nur im eigenen Workspace-Ordner; fehlende Workspace-Zeilen für Altkonten; Tabelle `mail_log` für die Limits von `invite-notify` |
+| `v014_device_login.sql` | 12.50.0 | Tabelle `device_logins` für „Auf dem Handy anmelden“ (QR vom PC, Zahl am PC eintippen, Einmal-Token): nur Hashes der Geheimnisse, RLS an, keine Policies – nur die Edge Function `device-login` (Service Role) liest und schreibt |
 
 Prüfung nach jeder Rechte-Änderung: `../tests/authz.sql` (als `postgres` ausführen, alle Zeilen `ok = true`; jede Schreibaktion wird
 zurückgerollt). Nach Änderungen am Sign-up-Modell oder den Master-Funktionen zusätzlich `../tests/signup.sql`

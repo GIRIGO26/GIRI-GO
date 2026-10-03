@@ -1,21 +1,28 @@
-<!-- v12.48 – Sign-in code mail (German + English in one mail).
-     Paste into Supabase → Authentication → Emails → Templates, BOTH templates:
+<!-- v12.50 – Sign-in code mail (German + English in one mail; the flag at the top jumps to the English part).
+     Paste into Supabase → Authentication → Emails → Templates, BOTH templates – body AND subject:
        • "Magic Link"        Subject: GIRI – Dein Code / Your code: {{ .Token }}
        • "Confirm sign up"   Subject: GIRI – Dein Code / Your code: {{ .Token }}
      (New people – e.g. everyone who was invited – get "Confirm sign up" as long as "Confirm email" is switched on.)
-     The validity in the text (60 minutes) must match Authentication → Sign In / Providers → Email → "Email OTP Expiration" = 3600 seconds. -->
-<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111">
-  <div style="background:#000;color:#fff;border-radius:12px 12px 0 0;padding:14px 20px;font-weight:800;font-size:18px;letter-spacing:.02em">GIRI</div>
+     The validity in the text (60 minutes) must match Authentication → Sign In / Providers → Email → "Email OTP Expiration" = 3600 seconds.
+     No number of digits in the text: this project's codes have 8 digits, Supabase lets that be changed – "your code" stays right. -->
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111"><a name="lang-top" id="lang-top"></a>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#000;border-radius:12px 12px 0 0"><tr>
+    <td style="padding:14px 20px;color:#fff;font-weight:800;font-size:18px;letter-spacing:.02em">GIRI</td>
+    <td align="right" style="padding:14px 20px"><a href="#lang-en" style="color:#fff;font-size:13px;font-weight:700;text-decoration:none;background:#1F1F23;border-radius:999px;padding:6px 12px;white-space:nowrap">🇬🇧 English ↓</a></td>
+  </tr></table>
   <div style="border:1px solid #E6E8EE;border-top:0;border-radius:0 0 12px 12px;padding:20px">
     <h2 style="font-size:21px;margin:0 0 6px">Dein Anmelde-Code</h2>
     <p style="font-size:14px;color:#525252;margin:0 0 14px;line-height:1.5">Auf der GIRI-Anmeldeseite oder in der GIRI-App eingeben. <b>Gültig 60 Minuten, nur einmal verwendbar.</b></p>
     <p style="font-size:38px;font-weight:800;letter-spacing:.22em;margin:0 0 18px;background:#F2F3F6;border-radius:12px;padding:16px 18px;text-align:center">{{ .Token }}</p>
     <p style="font-size:14px;line-height:1.5;margin:0 0 10px;color:#525252">Am PC oder im Browser geht es auch per Klick:</p>
     <p style="margin:0 0 16px"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#004EAD;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Im Browser anmelden</a></p>
-    <p style="font-size:13px;line-height:1.5;color:#525252;margin:0 0 16px;border-left:3px solid #03D39B;padding-left:10px"><b>GIRI als App auf dem Home-Bildschirm?</b> Dann dort den Code eingeben – der Button öffnet nur den Browser, nicht die App. Code abgelaufen? Einfach neu anmelden, du bekommst sofort einen neuen.</p>
+    <p style="font-size:13px;line-height:1.5;color:#525252;margin:0 0 12px;border-left:3px solid #03D39B;padding-left:10px"><b>GIRI als App auf dem Home-Bildschirm?</b> Dann dort den Code eingeben – der Button öffnet nur den Browser, nicht die App. Code abgelaufen? Einfach neu anmelden, du bekommst sofort einen neuen.</p>
+    <p style="font-size:13px;line-height:1.5;color:#525252;margin:0 0 4px">📱 <b>Am PC schon angemeldet?</b> Dann am Handy ohne Mail: am PC oben auf dein Profil → „Auf dem Handy anmelden“ und den QR-Code scannen.</p>
+    <a name="lang-en" id="lang-en"></a>
     <hr style="border:0;border-top:1px solid #E6E8EE;margin:18px 0">
-    <h3 style="font-size:16px;margin:0 0 6px">Your sign-in code</h3>
-    <p style="font-size:13.5px;color:#525252;margin:0 0 10px;line-height:1.5">Enter the code above on the GIRI sign-in page or in the GIRI app. <b>Valid for 60 minutes, single use.</b> On a computer you can also <a href="{{ .ConfirmationURL }}" style="color:#004EAD;font-weight:700">sign in in the browser</a>. Code expired? Simply sign in again to get a new one.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 6px"><tr><td style="font-size:16px;font-weight:800">🇬🇧 Your sign-in code</td><td align="right"><a href="#lang-top" style="font-size:12.5px;color:#004EAD;text-decoration:none;font-weight:700">↑ 🇩🇪 Deutsch</a></td></tr></table>
+    <p style="font-size:13.5px;color:#525252;margin:0 0 10px;line-height:1.5">Enter the code above on the GIRI sign-in page or in the GIRI app. <b>Valid for 60 minutes, single use.</b> On a computer you can also <a href="{{ .ConfirmationURL }}" style="color:#004EAD;font-weight:700">sign in in the browser</a>. GIRI installed on the home screen? Enter the code there – the button only opens the browser. Code expired? Simply sign in again to get a new one.</p>
+    <p style="font-size:13px;line-height:1.5;color:#525252;margin:0 0 4px">📱 <b>Signed in on the PC already?</b> Sign in on the phone without an e-mail: on the PC tap your profile at the top → “Sign in on your phone” and scan the QR code.</p>
     <p style="font-size:12px;color:#8A8A8A;margin:16px 0 0;line-height:1.5">Nicht angefordert? Einfach ignorieren – ohne den Code passiert nichts. · Not requested? Simply ignore this e-mail – nothing happens without the code.</p>
   </div>
   <p style="margin:12px 0 0;text-align:center;font-size:11px;color:#9AA0A6">GIRI · AR-Experts GmbH · go.ar-giri.de</p>

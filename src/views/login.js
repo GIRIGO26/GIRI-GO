@@ -12,6 +12,7 @@ import { CFG, initSb } from '../core/supabase.js';
 import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
 import { debounce } from './editor.js';
+import { scanQr } from './devicelogin.js';
 
 
 /* ---------- Login ---------- */
@@ -30,9 +31,10 @@ function renderLogin(app){
         <div class="l-or" id="l-or" hidden><span>${t('or')}</span></div>
         <button class="btn ghost gbtn" id="li-ms" hidden style="width:100%;padding:12px;font-size:14px;margin-bottom:8px"><svg width="18" height="18" viewBox="0 0 23 23"><rect x="1" y="1" width="10" height="10" fill="#F35325"/><rect x="12" y="1" width="10" height="10" fill="#81BC06"/><rect x="1" y="12" width="10" height="10" fill="#05A6F0"/><rect x="12" y="12" width="10" height="10" fill="#FFBA08"/></svg> ${t('login_ms')}</button>
         <button class="btn ghost gbtn" id="li-google" hidden style="width:100%;padding:12px;font-size:14px"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.4 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.3 0 11.6-2.1 15.5-5.7l-7.5-5.8c-2.1 1.4-4.8 2.3-8 2.3-6.3 0-11.6-3.9-13.5-9.5l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg> ${t('login_google')}</button>
+        <button class="btn ghost gbtn" id="li-qr" hidden style="width:100%;padding:12px;font-size:14px;margin-top:8px">${IC.cam} ${t('scan_btn')}</button>
         <p class="muted" id="login-note" style="margin:10px 0 0;font-size:12px">${t('login_note')}</p>
         <div class="wait ${isStandalone() ? 'app' : ''}" id="magic" hidden><div class="env" id="magic-ic">${IC.mail}</div><b id="magic-t"></b><p class="muted" id="magic-sub">${isStandalone() ? t('magic_sub_app') : t('magic_sub')}</p>
-          <div class="otp" style="width:100%"><label for="li-code">${isStandalone() ? t('otp_label_app') : t('otp_label')}</label><div class="row" style="flex-wrap:nowrap"><input id="li-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="8"><button class="btn sm" id="li-verify">${t('otp_go')}</button></div></div>
+          <div class="otp" style="width:100%"><label for="li-code">${isStandalone() ? t('otp_label_app') : t('otp_label')}</label><div class="row" style="flex-wrap:nowrap"><input id="li-code" inputmode="numeric" autocomplete="one-time-code" placeholder="12345678" maxlength="10"><button class="btn sm" id="li-verify">${t('otp_go')}</button></div></div>
           <div class="again"><span id="again-hint">${t('again_q')}</span> <button id="li-again" disabled>${t('again_send')}</button> <span id="again-in" class="tnum"></span></div>
           <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px;justify-content:center"><button class="btn ghost sm" id="li-other">${t('other_email')}</button><button class="btn ghost sm" id="li-google2" hidden>${t('login_google')}</button></div></div>
       </div>
@@ -55,10 +57,10 @@ function renderLogin(app){
   v.querySelector('#li-newtoggle').onclick = () => { const w = v.querySelector('#li-namewrap'); w.hidden = false; v.querySelector('#li-newtoggle').hidden = true; setTimeout(() => v.querySelector('#li-name').focus(), 50); };
   const emailOf = () => v.querySelector('#li-email').value.trim().toLowerCase();
   // the form (fields + buttons) vs. the waiting card: only one of them is visible
-  const formEls = () => ['#li-email','#li-name','#li-newtoggle','#li-go','#l-or','#li-google','#li-ms','#login-note'].map(q => v.querySelector(q)).filter(Boolean).map(e => e.closest('.field') || e);
+  const formEls = () => ['#li-email','#li-name','#li-newtoggle','#li-go','#l-or','#li-google','#li-ms','#li-qr','#login-note'].map(q => v.querySelector(q)).filter(Boolean).map(e => e.closest('.field') || e);
   let againTimer = null;
   const showWait = (email, err) => {
-    formEls().forEach(e => { if(e.id==='l-or' || e.id==='li-google' || e.id==='li-ms'){ e.dataset.wasHidden = e.hidden ? '1' : ''; } e.hidden = true; });
+    formEls().forEach(e => { if(e.id==='l-or' || e.id==='li-google' || e.id==='li-ms' || e.id==='li-qr'){ e.dataset.wasHidden = e.hidden ? '1' : ''; } e.hidden = true; });
     const w = v.querySelector('#magic'); w.hidden = false;
     if(err){ v.querySelector('#magic-ic').innerHTML = err.cool ? '⏳' : '⚠️'; v.querySelector('#magic-t').textContent = err.title; v.querySelector('#magic-sub').textContent = err.sub; }
     else { v.querySelector('#magic-ic').innerHTML = IC.mail; v.querySelector('#magic-t').textContent = t(isStandalone() ? 'magic_sent_app' : 'magic_sent',{e:email}); v.querySelector('#magic-sub').textContent = t(isStandalone() ? 'magic_sub_app' : 'magic_sub'); }
@@ -67,7 +69,7 @@ function renderLogin(app){
     const tick = () => { ai.textContent = left > 0 ? t('again_in',{s:left}) : ''; if(left <= 0){ ab.disabled = false; clearInterval(againTimer); } left--; }; tick(); againTimer = setInterval(tick, 1000);
     setTimeout(() => v.querySelector('#li-code').focus({preventScroll:true}), 200);
   };
-  const showForm = () => { clearInterval(againTimer); v.querySelector('#magic').hidden = true; formEls().forEach(e => { e.hidden = (e.id==='l-or' || e.id==='li-google' || e.id==='li-ms') ? !!e.dataset.wasHidden : false; }); v.querySelector('#li-email').focus(); };
+  const showForm = () => { clearInterval(againTimer); v.querySelector('#magic').hidden = true; formEls().forEach(e => { e.hidden = (e.id==='l-or' || e.id==='li-google' || e.id==='li-ms' || e.id==='li-qr') ? !!e.dataset.wasHidden : false; }); v.querySelector('#li-email').focus(); };
   const sendLink = async () => {
     const email = emailOf(); const name = v.querySelector('#li-name').value.trim();
     if(!email.includes('@')){ v.querySelector('#li-email').focus(); return; }
@@ -80,6 +82,8 @@ function renderLogin(app){
     try{ localStorage.setItem('gg_email', email); }catch(e){}
     showWait(email, null);
   };
+  // v12.50: on phones and tablets – sign in with the QR code the PC shows (profile → "Sign in on your phone"); no second e-mail
+  { const qb = v.querySelector('#li-qr'); if(window.matchMedia && (matchMedia('(pointer:coarse)').matches || innerWidth < 900)){ qb.hidden = false; } qb.onclick = () => scanQr(); }
   v.querySelector('#li-go').onclick = sendLink; v.querySelector('#li-again').onclick = sendLink; v.querySelector('#li-other').onclick = showForm;
   // code from the same e-mail – the way in when the link would open in another browser (installed app on the phone)
   v.querySelector('#li-verify').onclick = async () => {
@@ -90,7 +94,7 @@ function renderLogin(app){
     await loadProfile(); go(''); render();
   };
   v.querySelector('#li-code').addEventListener('keydown', e => { if(e.key==='Enter') v.querySelector('#li-verify').click(); });
-  v.querySelector('#li-code').addEventListener('input', e => { const d = e.target.value.replace(/\D/g,''); if(d.length >= 6) debounce('otp-auto', () => v.querySelector('#li-verify').click(), 350); });
+  v.querySelector('#li-code').addEventListener('input', e => { const d = e.target.value.replace(/\D/g,''); if(d.length >= 8) debounce('otp-auto', () => v.querySelector('#li-verify').click(), 250); else if(d.length >= 6) debounce('otp-auto', () => v.querySelector('#li-verify').click(), 1800); });
   // Google sign-in – shown only when the provider is switched on in Supabase (Authentication → Providers → Google)
   // SSO buttons appear automatically for every provider that is switched on in Supabase (Authentication → Providers)
   (async () => { try{ const r = await fetch(`${CFG.SUPABASE_URL}/auth/v1/settings`, {headers:{apikey:CFG.SUPABASE_KEY}}); const j = await r.json(); const ext = (j && j.external) || {};
@@ -106,7 +110,7 @@ function renderLogin(app){
   savedList(v.querySelector('.l-card'));
 }
 
-// worker without login: instructions saved on this device (opened before) – the reason to put GIRI Go on the home screen
+// worker without login: instructions saved on this device (opened before) – the reason to put GIRI on the home screen
 async function savedList(before){
   let rows = []; try{ rows = await cacheList(); }catch(e){} if(!rows.length || !before || !before.isConnected) return;
   const box = el(`<section class="offl card"><div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">${t('off_saved_title')}</h3><span class="muted" style="font-size:12px">${online() ? '' : t('offline')}</span></div><p class="muted" style="margin:2px 0 10px">${t('off_saved_sub')}</p><div class="offl-list"></div>${isStandalone() ? '' : `<button class="btn ghost sm" id="offl-inst" style="margin-top:10px">📲 ${t('install_app')}</button>`}</section>`);

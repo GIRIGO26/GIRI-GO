@@ -28,7 +28,7 @@ const loginAt = session => { const cur = LS.get(LOGIN_KEY); if(cur && session &&
 const sessionDays = () => { const n = +((S.wsRow && S.wsRow.settings && S.wsRow.settings.sessionDays) || 0); return n > 0 ? n : SESSION_DAYS_DEFAULT; };
 // true when the sign-in is older than the workspace allows → the caller signs out
 const sessionExpired = () => { if(!S.session || !S.user) return false; return Date.now() - loginAt(S.session) > sessionDays()*864e5; };
-async function signOutAll(){ LS.del(LOGIN_KEY); try{ await G.sb.auth.signOut(); }catch(e){} S.user = null; S.session = null; if(G.rtChannel){ try{ G.sb.removeChannel(G.rtChannel); }catch(e){} G.rtChannel = null; } }
+async function signOutAll(){ LS.del(LOGIN_KEY); try{ await G.sb.auth.signOut({scope: 'local'}); }catch(e){} /* v12.50: this device only – the PC stays signed in when the phone signs out */ S.user = null; S.session = null; if(G.rtChannel){ try{ G.sb.removeChannel(G.rtChannel); }catch(e){} G.rtChannel = null; } }
 
 const orderedSteps = i => i.steps;
  // steps array carries order; chapters are entries with kind:'chapter'

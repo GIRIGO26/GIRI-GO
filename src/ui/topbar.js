@@ -2,8 +2,9 @@ import { signOutAll } from '../core/auth.js';
 import { installGuide, isStandalone } from '../app/pwa.js';
 import { go, render } from '../app/router.js';
 import { APP_VERSION, LEGAL } from '../core/config.js';
-import { $$, el, esc, modal, toast } from '../core/helpers.js';
+import { $$, confirmM, el, esc, modal, toast } from '../core/helpers.js';
 import { I18N, langMenu, loadUiLang, t } from '../core/i18n.js';
+import { qrLoginDialog } from '../views/devicelogin.js';
 import { G, S } from '../core/state.js';
 import { PUBLIC_MEDIA } from '../core/supabase.js';
 import { FLAGS } from '../core/translate.js';
@@ -73,13 +74,16 @@ async function profileModal(){
     <div class="row" style="gap:8px;margin:-6px 0 14px;flex-wrap:wrap"><label class="btn ghost sm" style="cursor:pointer" for="pf-file">${IC.cam} ${t('avatar_change')}</label>${u.avatar ? `<button class="btn ghost sm" data-rmav>${t('avatar_remove')}</button>` : ''}</div>
     <div class="field"><label for="pf-name">${t('name')}</label><input id="pf-name" value="${esc(u.name)}" autocomplete="name"></div>
     <button class="menu-row" data-plang><span class="emo">${FLAGS[G.LANG.toUpperCase()]||'🌐'}</span><span>${t('language')}</span><b>${G.LANG.toUpperCase()}</b></button>
-    <p class="muted" style="margin:12px 0 0;font-size:12.5px">${t('role_note2')}</p>
+    <button class="menu-row" data-qrlogin><span class="emo">📱</span><span>${t('dl_menu')}<small>${t('dl_menu_sub')}</small></span><b>QR</b></button>
+    <p class="muted" style="margin:12px 0 0;font-size:12.5px">${t('role_note2')} <button type="button" class="lnk" data-logoutall>${t('logout_all')}</button></p>
     <div class="actions"><button class="btn ghost" data-logout2 style="margin-right:auto">${IC.close} ${t('logout')}</button><button class="btn ghost" data-x>${t('cancel')}</button><button class="btn" data-ok>${t('save')}</button></div>`, (bg, close) => {
     const fi = bg.querySelector('#pf-file');
     fi.onchange = async e => { const f = e.target.files[0]; if(!f) return; try{ newAvatar = await avatarBlob(f); const prev = URL.createObjectURL(newAvatar); bg.querySelector('.avatar-edit .avatar').outerHTML = `<span class="avatar big img"><img src="${prev}" alt=""></span>`; }catch(x){ toast(t('avatar_fail')); } };
     const rm = bg.querySelector('[data-rmav]'); if(rm) rm.onclick = () => { newAvatar = null; bg.querySelector('.avatar-edit .avatar').outerHTML = `<span class="avatar big">${esc(initials(u.name))}</span>`; rm.remove(); };
     bg.querySelector('[data-plang]').onclick = () => { close(null); pickLang(); };
+    bg.querySelector('[data-qrlogin]').onclick = () => { close(null); qrLoginDialog(); }; // v12.50
     bg.querySelector('[data-logout2]').onclick = async () => { close(null); await signOutAll(); go(''); render(); };
+    bg.querySelector('[data-logoutall]').onclick = async () => { close(null); if(!(await confirmM(t('logout_all_q'), t('logout_all')))) return; try{ await G.sb.auth.signOut({scope: 'global'}); }catch(e){} await signOutAll(); go(''); render(); }; // v12.50
     bg.querySelector('[data-x]').onclick = () => close(null); bg.querySelector('[data-ok]').onclick = () => close({name: bg.querySelector('#pf-name').value.trim()}); });
   if(!r) return;
   try{

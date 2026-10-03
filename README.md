@@ -440,6 +440,15 @@ Supabase-URL und Publishable Key stehen oben in `index.html` unter `window.GIRI_
 - **Installations-Hinweis**: nach „Später“/× bleibt eine schmale Zeile „📲 GIRI Go als App installieren · So geht’s“ auf der Startseite, solange die App nicht installiert ist (PC und Telefon).
 - Tests `animtest`, `libtest`, `check4` angepasst. 38 Tests grün.
 
+## v12.50.0 – Am Handy per QR-Code anmelden, Mails zweisprachig
+
+- **Am Handy anmelden ohne zweite Mail** (`src/views/devicelogin.js`, Edge Function `device-login`, Tabelle `device_logins` – Migration `v014`): am PC oben aufs Profil → „Auf dem Handy anmelden“ zeigt einen QR-Code (3 Minuten, einmal). Handy: Kamera-App oder auf der Anmeldeseite „QR-Code vom PC scannen“ (eigener Scanner: `BarcodeDetector`, sonst `vendor/jsQR.min.js`, Apache-2.0). Das Handy zeigt eine zweistellige Zahl, die tippt man am PC ein → das Handy hat eine eigene Sitzung (Einmal-Token aus `generateLink`, eingelöst mit `verifyOtp` – es geht keine Mail raus).
+- **Sicherheit:** Geheimnis nur im QR (gespeichert als SHA-256); nur das Handy, das zuerst gescannt hat, kann die Anmeldung abholen (zweites Geheimnis); die Zahl schickt der Server nie an den PC (Number Matching wie bei Microsoft) – falsche Zahl = abgebrochen; Token genau einmal; 10 Codes pro Person und Stunde, ein neuer Code ersetzt den offenen. Das Handy zeigt, als wer es angemeldet wird, mit „Abbrechen – das bin nicht ich“; ist dort schon jemand anderes angemeldet, fragt es vorher. Unabhängiges Review am 3. 10. eingearbeitet. Ohne `v014` sagt der PC „noch nicht eingerichtet“.
+- **Abmelden** meldet nur noch dieses Gerät ab (vorher alle Geräte); im Profil neu: „Auf allen Geräten abmelden“.
+- **Mails zweisprachig:** Einladung (`invite-notify` v2 mit `mail.ts`), Feedback-Mail (`feedback-notify` v2) und Code-Mail (`supabase/email-magic-link.html`) enthalten Deutsch und Englisch; oben rechts springt „🇬🇧 English ↓“ zur anderen Sprache, dort führt „↑ 🇩🇪 Deutsch“ zurück. Die Einladung beginnt in der Sprache, die der Admin gewählt hat. Keine Ziffernzahl mehr im Text (die Codes haben 8 Stellen); das Code-Feld nimmt 6–10 Ziffern und schickt bei 8 von selbst ab.
+- „GIRI GO“ in der Einladung kam aus dem Profilnamen des Einladenden, nicht aus einer Vorlage. Download-Dateien heißen `giri-…` statt `giri-go-…`.
+- Tests: `qrlogin` (PC + Handy: Link-Scan, Kamera-Scan mit Testbild, Zahl eintippen, falsche Zahl, Abbrechen am Handy, abgelaufen, ersetzt, Kontowechsel, Abmelden nur hier), `tests/fn/device-login.test.ts` (die Edge Function selbst in Deno mit Supabase-Stub: `deno run --allow-env --import-map=import_map.json device-login.test.ts` in `tests/fn`). 56 Tests grün.
+
 ## v12.49.0 – Runde vom 2. Oktober abends: Viewer aufgeräumt, Editor-Kopf neu, eine Seite scrollt
 
 - **Werker-Ansicht:** jede Information nur einmal – Schrittzahl und Kapitel stehen nur noch oben in der Leiste (vorher dreimal: oben, unter dem Bild, in der Antwortleiste). Die Antwortleiste hat nur noch die zwei Buttons „Nicht OK“ / „Erledigt“ in voller Breite. Auf der Kapitelkarte wiederholt die obere Leiste das Kapitel nicht.

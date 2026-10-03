@@ -56,10 +56,10 @@ async function renderGlobalStats(app){
   shell.querySelector('#ifilter').onchange = e => { filter = e.target.value; try{ sessionStorage.setItem('gg_gfilter', filter); }catch(x){} build(); };
   const onR = () => debounce('gchart', draw, 150); window.addEventListener('resize', onR); G.activeCleanup = () => window.removeEventListener('resize', onR);
   shell.querySelector('#csv').onclick = async () => {
-    if(tab==='views'){ const rows2 = [[t('instruction'), t('views_total'), t('views_reload'), t('views_avg')+' (s)', t('views_completed'), t('views_steps')]]; stats.forEach(x => rows2.push([titleOf(x.instr_id), x.views, x.reloads, x.avg_duration_s||0, x.completed, x.avg_steps_seen])); rows2.push([]); rows2.push([t('views_per_day')]); days.forEach(d => rows2.push([key(d), perDay[key(d)]])); await saveFile('giri-go-views.csv', '﻿'+rows2.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\n'), 'text/csv'); return; }
+    if(tab==='views'){ const rows2 = [[t('instruction'), t('views_total'), t('views_reload'), t('views_avg')+' (s)', t('views_completed'), t('views_steps')]]; stats.forEach(x => rows2.push([titleOf(x.instr_id), x.views, x.reloads, x.avg_duration_s||0, x.completed, x.avg_steps_seen])); rows2.push([]); rows2.push([t('views_per_day')]); days.forEach(d => rows2.push([key(d), perDay[key(d)]])); await saveFile('giri-views.csv', '﻿'+rows2.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\n'), 'text/csv'); return; }
     const rows2 = [[t('instruction'), t('worker'), t('started'), 'Status', t('version'), t('ok_count'), t('nok_count'), t('nok_note')]];
     runs.forEach(r => { const its = Object.values(r.items); rows2.push([r.title, r.worker, new Date(r.startedAt).toISOString(), r.finishedAt?'done':'running', 'v'+r.version, its.filter(i=>i.ok).length, its.filter(i=>i.ok===false).length, its.filter(i=>i.ok===false&&i.note).map(i=>i.note).join(' | ')]); });
-    await saveFile('giri-go-jobdone.csv', '﻿'+rows2.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\n'), 'text/csv');
+    await saveFile('giri-jobdone.csv', '﻿'+rows2.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\n'), 'text/csv');
   };
 }
 

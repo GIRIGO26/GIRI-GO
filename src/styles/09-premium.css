@@ -534,3 +534,45 @@ details.team[open] .chev,.acc-card[open] .chev{transform:rotate(180deg)}
   .ed-main{max-height:none !important;overflow:visible !important}
   .dnav{max-height:none;overflow:visible;overscroll-behavior:auto}
 }
+
+/* ---- v12.50: sign in on the phone by QR code ---- */
+.menu-row + .menu-row{margin-top:8px}
+.menu-row span small{display:block;font-weight:500;font-size:12.5px;color:var(--ink-3);margin-top:1px}
+.dl .dl-sub{margin:0 0 14px;line-height:1.5}
+.dl-body{display:flex;flex-direction:column;align-items:center;text-align:center;min-height:300px;justify-content:center}
+.dl-qr{padding:14px;background:#fff;border-radius:16px;box-shadow:0 0 0 1px var(--line),0 8px 30px -18px rgba(16,24,40,.5);line-height:0}
+.dl-qr img,.dl-qr canvas{display:block;width:232px;height:232px}
+.dl-left{margin-top:10px;font-size:13px;font-weight:700;color:var(--ink-3)}
+.dl-how{margin:12px 0 0;font-size:13px;line-height:1.5;color:var(--ink-2);max-width:380px}
+.dl-wait{display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--ink-2)}
+.dl-ask{width:100%;max-width:380px}
+.dl-dev{font-size:16px}
+.dl-wants{margin:4px 0 12px;color:var(--ink-2)}
+.dl-code,.qrl-code{font-size:56px;font-weight:900;letter-spacing:.08em;line-height:1;padding:16px 26px;border-radius:18px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line);display:inline-block}
+.dl-same{margin:12px 0 14px;font-size:13.5px}
+.dl-btns{justify-content:center;gap:10px}
+.dl-btns .btn{min-width:150px}
+.dl-end p{margin:0 0 14px;line-height:1.5}
+.dl-end.err p{color:var(--red,#C62828);font-weight:600}
+.dl-ok{width:64px;height:64px;border-radius:50%;background:var(--mint);color:#000;display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+.dl-ok svg{width:30px;height:30px}
+/* the page behind the QR link on the phone */
+.qrl{min-height:calc(100dvh - 60px);display:flex;align-items:center;justify-content:center;padding:20px 16px;box-sizing:border-box}
+.qrl-card{max-width:420px;width:100%;text-align:center;padding:28px 22px}
+.qrl-ic{font-size:40px;margin-bottom:6px}
+.qrl-card h1{font-size:22px;margin:0 0 8px;letter-spacing:-.01em}
+.qrl-card p{line-height:1.5}
+.qrl-code{margin:8px 0 10px}
+.qrl-as{font-size:13.5px;color:var(--ink-2);margin:4px 0 14px}
+.qrl-acts{display:flex;justify-content:center;margin-top:10px}
+/* in-app scanner */
+.scan .scan-sub{margin:0 0 12px;line-height:1.5}
+.scan-box{position:relative;border-radius:18px;overflow:hidden;background:#000;aspect-ratio:1/1;width:100%;max-width:420px;margin:0 auto}
+.scan-box video{width:100%;height:100%;object-fit:cover;display:block}
+.scan-frame{position:absolute;inset:16%;border:3px solid rgba(255,255,255,.9);border-radius:18px;box-shadow:0 0 0 999px rgba(0,0,0,.28)}
+.scan-msg{min-height:20px;margin:10px 0 0;text-align:center;font-weight:600;color:var(--ink-2)}
+.dl-lbl{display:block;font-weight:700;margin:6px 0 8px}
+.dl-in{width:132px;text-align:center;font-size:44px;font-weight:900;letter-spacing:.12em;padding:10px 12px;border-radius:16px;border:2px solid var(--line-2);margin:0 auto;display:block}
+.dl-in:focus{border-color:var(--blue);outline:0;box-shadow:0 0 0 4px rgba(0,78,173,.15)}
+.qrl-acts{flex-direction:column;align-items:center;gap:12px}
+.lnk{background:none;border:0;padding:0;color:var(--blue);font-weight:700;cursor:pointer;font-size:inherit}
