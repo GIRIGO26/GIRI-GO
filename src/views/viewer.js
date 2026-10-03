@@ -14,6 +14,7 @@ import { G, S, loadBrand, mediaUrl, putMedia } from '../core/state.js';
 import { DB, LS, uid } from '../core/storage.js';
 import { CFG, PUBLIC_MEDIA } from '../core/supabase.js';
 import { FLAGS, LANGS, hasTx, rowToInstr, srcHash, withLang } from '../core/translate.js';
+import { liveView } from '../core/live.js';
 import { extOf } from '../core/uploads.js';
 import { confirmSteps } from '../core/workspace.js';
 import { IC } from '../ui/icons.js';
@@ -24,7 +25,7 @@ import { debounce, debounces } from './editor.js';
 /* ---------- Viewer: password card for protected links ---------- */
 function passwordGate(app, tryOpen, key){
   return new Promise(res => {
-    const v = el(`<div class="viewer"><div class="vw-start"><div class="card"><div class="big" style="font-size:40px;margin-bottom:6px">🔒</div><h1>${t('pw_title')}</h1><p style="color:#B8C6DB;margin:0 0 16px">${t('pw_sub')}</p><div class="field"><label for="vpw">${t('link_pw_label')}</label><input id="vpw" type="password" autocomplete="current-password" autocapitalize="off"></div><div class="muted" id="vpw-err" style="color:#ff8a8e;min-height:18px;margin:-6px 0 8px;font-size:13px"></div><button class="btn mint" id="vpw-go" style="width:100%;padding:14px">${t('pw_open')}</button></div></div></div>`);
+    const v = el(`<div class="viewer"><div class="vw-start"><div class="card"><div class="big" style="font-size:40px;margin-bottom:6px">🔒</div><h1>${t('pw_title')}</h1><p class="vw-sub">${t('pw_sub')}</p><div class="field"><label for="vpw">${t('link_pw_label')}</label><input id="vpw" type="password" autocomplete="current-password" autocapitalize="off"></div><div class="muted" id="vpw-err" style="color:#ff8a8e;min-height:18px;margin:-6px 0 8px;font-size:13px"></div><button class="btn mint" id="vpw-go" style="width:100%;padding:14px">${t('pw_open')}</button></div></div></div>`);
     app.appendChild(v); const inp = v.querySelector('#vpw'), btn = v.querySelector('#vpw-go'), err = v.querySelector('#vpw-err'); setTimeout(() => inp.focus(), 80);
     const go = async () => { const pw = inp.value; if(!pw) return; btn.disabled = true; err.textContent = ''; const r = await tryOpen(pw); btn.disabled = false;
       if(r && !r.locked && r.row){ LS.set(key, pw); v.remove(); res(r); return; }
@@ -66,6 +67,7 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
   }
   app.innerHTML = '';
   if(!instr0){ app.innerHTML = `<main class="page page-narrow"><div class="card empty"><h2>404</h2><div>${t('not_pub')}</div><br><a class="btn" href="#/">GIRI</a></div></main>`; return; }
+  if(!isPreview) instr0 = liveView(instr0); // v12.51: the next version is in draft / review → workers see the approved one (v015)
   if(!isPreview && instr0.status!=='published' && !(S.user && S.user.ws===instr0.ws)){ app.innerHTML = `<main class="page page-narrow"><div class="card empty"><h2>${esc(instr0.title)}</h2><div>${t('not_pub')}</div><br><a class="btn" href="#/">GIRI</a></div></main>`; return; }
   // ---- language: one link for all languages; the device remembers the worker's choice ----
   const prevLang = G.LANG; let vlang = ''; try{ vlang = (langArg || localStorage.getItem('gg_vlang') || '').toUpperCase(); }catch(e){}
@@ -156,7 +158,14 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
   // v12.48: text and buttons on the brand colour pick white or near-black by contrast – a light brand colour (yellow, mint) made
   // white text unreadable on the end screen
   const onBrand = (() => { const m = /^#?([0-9a-f]{6})$/i.exec(String(brand.color||'#004EAD').trim()); if(!m) return 'dark'; const n = parseInt(m[1], 16); const lin = c => { c /= 255; return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); }; const L = 0.2126*lin(n>>16&255) + 0.7152*lin(n>>8&255) + 0.0722*lin(n&255); return (1.05)/(L+0.05) >= (L+0.05)/0.05 ? 'dark' : 'light'; })(); // 'dark' = dark background → white text
-  const v = el(`<div class="viewer ${brand.theme==='light'?'light':''} on-${onBrand} ${useChk?'chk':''}" style="--brand:${esc(brand.color||'#004EAD')};--on-brand:${onBrand==='dark'?'#fff':'#111'}">
+  // v12.51: the brand colour as TEXT on the page – darkened (white page) / lightened (dark page) until it reads (≥ 4.5 : 1), whatever colour the customer picked
+  const brandInk = (() => { const m = /^#?([0-9a-f]{6})$/i.exec(String(brand.color||'#004EAD').trim()); if(!m) return {l: '#004EAD', d: '#7FB2FF'};
+    const n = parseInt(m[1], 16), c0 = [n>>16&255, n>>8&255, n&255];
+    const lin = c => { c /= 255; return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); }, lum = c => 0.2126*lin(c[0]) + 0.7152*lin(c[1]) + 0.0722*lin(c[2]);
+    const hex = c => '#' + c.map(x => x.toString(16).padStart(2, '0')).join('');
+    const fit = (bgL, to) => { for(let k = 0; k <= 20; k++){ const c = c0.map(x => Math.round(x + (to - x) * k / 20)), l = lum(c); if((Math.max(l, bgL) + 0.05) / (Math.min(l, bgL) + 0.05) >= 4.5) return hex(c); } return to ? '#ffffff' : '#000000'; };
+    return {l: fit(1, 0), d: fit(lum([0x16, 0x16, 0x18]), 255)}; })();
+  const v = el(`<div class="viewer ${brand.theme==='light'?'light':''} on-${onBrand} ${useChk?'chk':''}" style="--brand:${esc(brand.color||'#004EAD')};--on-brand:${onBrand==='dark'?'#fff':'#111'};--brand-ink-l:${brandInk.l};--brand-ink-d:${brandInk.d}">
     <div class="vw-top">${(isPreview || S.user) ? `<a class="round" href="${backHref}" id="vback" style="width:40px;height:40px;flex:0 0 auto" aria-label="back">${IC.back}</a>` : ''}${brand.logo?`<img class="vlogo" src="${esc(brand.logo)}" alt="">`:''}<div class="tt-wrap"><div class="ch" id="vch">${esc(brand.name||'')}</div><div class="ttl" id="vttl"></div></div><span class="cnt tnum" id="vcnt" style="flex:0 0 auto;font-weight:800;font-size:13px;background:rgba(255,255,255,.18);padding:4px 10px;border-radius:999px"></span><button class="round langbtn" id="langbtn" style="width:40px;height:40px;flex:0 0 auto" title="${t('language')}">${IC.globe}</button><button class="round" id="menu" style="width:40px;height:40px;flex:0 0 auto" aria-label="menu">${IC.menu}</button></div>
     <div class="vw-scroll" id="vs"></div>
     ${useChk ? `<div class="vw-act" id="vw-act" hidden role="group" aria-label="${esc(t('chk_q'))}"><div class="va-b"><button class="btn nok" id="va-nok" type="button">${IC.cross} <span>${t('not_ok')}</span></button><button class="btn done" id="va-ok" type="button">${IC.check} <span id="va-okl">${okLbl()}</span></button></div></div>` : ''}
@@ -169,7 +178,9 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
   const players = new Map(); const refreshers = []; const imgOffs = []; const lazy = new Map(); const answers = new Map();
   // v12.48: a card between two chapters – "chapter 1 done", then which chapter comes next (before, a new chapter only showed in the small top line)
   const chapCards = new Map(); // group index → card
-  const chapCardFor = gi => { const g = groups[gi]; const sec = el(`<section class="vstep vchap" data-g="${gi}"><div class="vchap-in"><div class="vc-done" hidden></div><div class="vc-eye"></div><h2></h2><p class="vc-n"></p><div class="vc-hint">↑ <span></span></div></div></section>`); chapCards.set(gi, sec); return sec; };
+  // v12.51: PC (mouse / trackpad) → "↓ Scroll on"; phone → "↑ Swipe up"
+  const finePtr = (() => { try{ return matchMedia('(pointer:fine)').matches; }catch(e){ return false; } })(); const hintTxt = () => t(finePtr ? 'scroll_hint_pc' : 'scroll_hint');
+  const chapCardFor = gi => { const g = groups[gi]; const sec = el(`<section class="vstep vchap" data-g="${gi}"><div class="vchap-in"><div class="vc-done" hidden></div><div class="vc-eye"></div><h2></h2><p class="vc-n"></p><div class="vc-hint">${finePtr ? '↓' : '↑'} <span></span></div></div></section>`); chapCards.set(gi, sec); return sec; };
   for(const [i,s] of steps.entries()){
     { const gi = groupOf(s.id); if(gi > 0 && groups[gi].steps[0] && groups[gi].steps[0].id === s.id && groups[gi].id !== '_intro') vs.appendChild(chapCardFor(gi)); }
     const sec = el(`<section class="vstep" data-id="${s.id}" data-i="${i}"${useChk && chkSet.has(s.id) ? ' data-need="1"' : ''}>
@@ -243,7 +254,7 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
   { const go1 = endSec.querySelector('#vend-open'); if(go1) go1.onclick = () => { const first = chkSteps.find(st => !isDone(run.items[st.id])); const sec = first ? vs.querySelector(`.vstep[data-id="${first.id}"]`) : null; if(sec) sec.scrollIntoView({behavior:'smooth'}); }; }
   // chapter cards: the chapter that is done (with its result) and the one that starts
   const refreshChapCards = () => { chapCards.forEach((card, gi) => { const g = groups[gi]; const title = (cur.steps.find(x => x.id===g.id)||{}).title || g.title || `${t('chapter')} ${gi+1}`;
-    card.querySelector('.vc-eye').textContent = t('chap_of', {n: gi+1, total: groups.length}); card.querySelector('h2').innerHTML = titleHtml(title); card.querySelector('.vc-n').textContent = nOf(g.steps.length, 'step', 'steps'); card.querySelector('.vc-hint span').textContent = t('scroll_hint');
+    card.querySelector('.vc-eye').textContent = t('chap_of', {n: gi+1, total: groups.length}); card.querySelector('h2').innerHTML = titleHtml(title); card.querySelector('.vc-n').textContent = nOf(g.steps.length, 'step', 'steps'); card.querySelector('.vc-hint span').textContent = hintTxt();
     const prev = groups[gi-1]; const dn = card.querySelector('.vc-done'); const pchk = prev ? prev.steps.filter(st => chkSet.has(st.id)) : [];
     if(prev && prev.id !== '_intro'){ const nk = pchk.filter(st => run.items[st.id] && run.items[st.id].ok===false).length; const allAns = pchk.every(st => isDone(run.items[st.id]));
       dn.hidden = !!(useChk && pchk.length && !allAns); dn.className = 'vc-done' + (nk ? ' nok' : ''); dn.innerHTML = `${nk ? IC.warn : IC.check}<span>${esc(nk ? t('chap_done_nok', {n: gi, k: nk}) : t('chap_done', {n: gi}))}</span>`; }
@@ -323,7 +334,7 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
     const f1 = v.querySelector('#finish'), f2 = endSec.querySelector('#finish2'); if(f1) f1.textContent = t('finish'); if(f2) f2.textContent = t('finish'); const ag2 = endSec.querySelector('#again2'); if(ag2) ag2.textContent = t('again');
     v.querySelector('#side-h').textContent = t('chapters'); const go1 = endSec.querySelector('#vend-open'); if(go1) go1.textContent = t('end_goto_open'); refreshAll();
     const sc = v.querySelector('.vw-start'); if(sc){ sc.querySelector('h1').textContent = t('vw_start_title'); sc.querySelector('p').textContent = t('vw_start_sub'); sc.querySelector('label').textContent = t('your_name'); sc.querySelector('#begin').textContent = t('begin'); const lb2 = sc.querySelector('#langbtn2'); if(lb2) lb2.innerHTML = vlang ? `<span class="flag">${FLAGS[vlang]||vlang}</span>` : IC.globe; }
-    const hint = vs.querySelector('.vw-hint'); if(hint) hint.textContent = '↑ '+t('scroll_hint');
+    const hint = vs.querySelector('.vw-hint'); if(hint) hint.textContent = (finePtr ? '↓ ' : '↑ ') + hintTxt();
     const lb = v.querySelector('#langbtn'); lb.innerHTML = vlang ? `<span class="flag">${FLAGS[vlang]||vlang}</span>` : IC.globe; lb.classList.toggle('on', !!vlang);
     const ovl = v.querySelector('.vw-chap'); if(ovl){ const reopen = !!ovl.querySelector('#ov-close'); ovl.remove(); showOverview(reopen); }
   }
@@ -364,7 +375,7 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
   G.activeCleanup = () => { if(onLeave) onLeave(); io.disconnect(); ioLazy.disconnect(); imgOffs.forEach(f=>f()); players.forEach(p=>p.stop()); clearInterval(hb); document.removeEventListener('visibilitychange', onHide); window.removeEventListener('beforeunload', onUnload); trackUpdate(true); G.LANG = prevLang; };
   // checklist start / resume / finish
   if(useChk && !isPreview){
-    const start = el(`<div class="vw-start"><div class="card"><button class="round langbtn2" id="langbtn2" title="${t('language')}">${vlang?`<span class="flag">${FLAGS[vlang]||vlang}</span>`:IC.globe}</button>${brand.logo?`<div class="vend-logo sm"><img src="${esc(brand.logo)}" alt=""></div>`:(brand.name?`<div class="vend-name sm">${esc(brand.name)}</div>`:'')}<h1>${t('vw_start_title')}</h1><p style="color:#B8C6DB;margin:0 0 16px">${t('vw_start_sub')}</p><div class="field"><label for="wname">${t('your_name')}</label><input id="wname" autocomplete="name"></div><button class="btn mint" id="begin" style="width:100%;padding:14px">${t('begin')}</button></div></div>`);
+    const start = el(`<div class="vw-start"><div class="card"><button class="round langbtn2" id="langbtn2" title="${t('language')}">${vlang?`<span class="flag">${FLAGS[vlang]||vlang}</span>`:IC.globe}</button>${brand.logo?`<div class="vend-logo sm"><img src="${esc(brand.logo)}" alt=""></div>`:(brand.name?`<div class="vend-name sm">${esc(brand.name)}</div>`:'')}<h1>${t('vw_start_title')}</h1><p class="vw-sub">${t('vw_start_sub')}</p><div class="field"><label for="wname">${t('your_name')}</label><input id="wname" autocomplete="name"></div><button class="btn mint" id="begin" style="width:100%;padding:14px">${t('begin')}</button></div></div>`);
     v.appendChild(start); start.querySelector('#langbtn2').onclick = openLangMenu;
     try{ start.querySelector('#wname').value = localStorage.getItem('gg_worker')||''; }catch(e){}
     const scrollToOpen = () => { const inG = chosenGroup>=0 ? chkSteps.find(s => groupOf(s.id)===chosenGroup && !isDone(run.items[s.id])) : null; const first = inG || chkSteps.find(s => !isDone(run.items[s.id])); const sec = first ? vs.querySelector(`.vstep[data-id="${first.id}"]`) : endSec; if(sec) setTimeout(() => sec.scrollIntoView({behavior:'auto'}), 60); };
@@ -385,9 +396,14 @@ async function renderViewer(app, id, isPreview, langArg, arg2, arg3){
       if(open && !runDone && !(await confirmM(t(open===1 ? 'finish_open_q_one' : 'finish_open_q_many', {n:open}), t('finish')))) return;
       if(!runDone){ run.finishedAt = Date.now(); runDone = true; LS.del(RUNKEY); clearTimeout(debounces['pushrun']); const {error} = await G.sb.from('runs').upsert(runRow()); if(error){ toast(error.message); await DB.put('runs', run); } }
       if(v.querySelector('.vw-end')) return;
-      const nokHtml = await Promise.all(steps.filter(s=>run.items[s.id] && run.items[s.id].ok===false).map(async (s,k) => { const it = run.items[s.id]; const u = it.photoUrl || (it.photoId ? await mediaUrl(it.photoId) : null); const cs = realSteps(cur).find(x=>x.id===s.id)||s; return `<div>✗ <b>${esc(cs.title)||t('step')}</b> – ${esc(it.note||'')}${u?`<img src="${u}" alt="">`:''}</div>`; }));
+      const nokHtml = await Promise.all(steps.filter(s=>run.items[s.id] && run.items[s.id].ok===false).map(async (s,k) => { const it = run.items[s.id]; const u = (it.photoId ? await mediaUrl(it.photoId) : null) || it.photoUrl || null; const cs = realSteps(cur).find(x=>x.id===s.id)||s; const no = steps.indexOf(s) + 1;
+        // v12.51: one block per deviation – step, note, photo (the copy on this device first: it is there at once and offline too)
+        return `<div class="nk"><div class="nk-t"><span class="nk-x" aria-hidden="true">✗</span><b>${titleHtml(cs.title)||(t('step')+' '+no)}</b></div>${it.note ? `<p class="nk-note">${esc(it.note)}</p>` : ''}${u ? `<img class="nk-ph" src="${esc(u)}" alt="${esc(t('nok_photo'))}" loading="lazy">` : ''}</div>`; }));
       gateUpdate(); updateBar();
-      const end = el(`<div class="vw-end ${nok ? 'nok' : open ? 'open' : 'ok'}"><div class="card"><h1>${t(nok ? 'vw_end_title_nok' : open ? 'vw_end_title_open' : 'vw_end_title')}</h1><p class="sub">${esc(run.worker)} · ${fmtDate(run.startedAt)} · ${t('vw_end_sub')}</p><div class="sum"><div><b class="tnum" style="color:var(--mint)">${ok}</b><span>${t('ok_count')}</span></div><div><b class="tnum" style="color:#ff8a8e">${nok}</b><span>${t('nok_count')}</span></div><div><b class="tnum">${open}</b><span>${t('open_count')}</span></div></div><div class="nok-list">${nokHtml.join('')}</div><div class="actions" style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><a class="btn ghost" href="#/">${t('close')}</a><button class="btn mint" id="again">${t('again')}</button></div></div></div>`);
+      const st3 = nok ? 'nok' : open ? 'open' : 'ok';
+      // v12.51: readable in the dark and the light theme – status colours from the theme, no dark tiles on a white card, the deviations as blocks
+      const end = el(`<div class="vw-end ${st3}"><div class="card"><div class="ve-ico">${st3==='ok' ? IC.check : IC.warn}</div><h1>${t(nok ? 'vw_end_title_nok' : open ? 'vw_end_title_open' : 'vw_end_title')}</h1><p class="sub">${esc(run.worker)} · ${fmtDate(run.startedAt)} · ${t('vw_end_sub')}</p><div class="sum"><div class="s-ok"><b class="tnum">${ok}</b><span>${t('ok_count')}</span></div><div class="s-nok"><b class="tnum">${nok}</b><span>${t('nok_count')}</span></div><div class="s-open"><b class="tnum">${open}</b><span>${t('open_count')}</span></div></div>${nokHtml.length ? `<div class="nok-h">${t('nok_list_h')}</div><div class="nok-list">${nokHtml.join('')}</div>` : ''}<div class="actions ve-acts">${S.user ? `<a class="btn ghost" href="#/">${t('close')}</a>` : ''}<button class="btn ve-main" id="again">${t('again')}</button></div></div></div>`);
+      end.querySelectorAll('img.nk-ph').forEach(im => im.addEventListener('error', () => im.remove(), {once: true}));
       v.appendChild(end); v.querySelector('#side').classList.remove('open');
       end.querySelector('#again').onclick = () => render();
     };

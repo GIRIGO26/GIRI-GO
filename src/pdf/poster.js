@@ -6,6 +6,7 @@ import { S, loadBrand } from '../core/state.js';
 import { stepImages } from './export.js';
 import { pdfFonts } from './fonts.js';
 import { IC } from '../ui/icons.js';
+import { hasLive, liveView } from '../core/live.js';
 import { nOf } from '../views/dashboard.js';
 import { hexToRgb, saveFile, slug } from '../views/results.js';
 
@@ -27,7 +28,7 @@ async function giriFooter(doc, F, W, y, extra){ const g = await giriLogoData(); 
 const coverCrop = (dataUrl, ratio, maxW) => new Promise(res => { const i = new Image(); i.onload = () => { const sw = i.naturalWidth, sh = i.naturalHeight; let cw = sw, ch = Math.round(sw/ratio); if(ch > sh){ ch = sh; cw = Math.round(sh*ratio); } const sc = Math.min(1, (maxW||900)/cw); const c = document.createElement('canvas'); c.width = Math.round(cw*sc); c.height = Math.round(ch*sc); c.getContext('2d').drawImage(i, (sw-cw)/2, (sh-ch)/2, cw, ch, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', .85)); }; i.onerror = () => res(null); i.src = dataUrl; });
 
 async function posterDialog(f, rows){
-  const pub = rows.filter(i => i.status==='published');
+  const pub = rows.filter(i => i.status==='published' || hasLive(i)); // v12.51: a next version in the works – the approved one is still live
   const r = await modal(`<h2>${t('poster')}</h2><p class="muted" style="margin:0 0 12px">${t('poster_sub')}</p>
     <label class="opt" style="margin-bottom:8px"><input type="checkbox" id="po-pub" ${pub.length?'checked':''} ${pub.length?'':'disabled'}> ${t('poster_only_pub')} <span class="muted">(${pub.length} / ${rows.length})</span></label>
     <label class="opt" style="margin-bottom:8px"><input type="checkbox" id="po-img" checked> ${t('qr_image')}</label>
@@ -36,7 +37,7 @@ async function posterDialog(f, rows){
       bg.querySelector('[data-x]').onclick = () => close(null);
       bg.querySelector('[data-ok]').onclick = () => close({onlyPub: bg.querySelector('#po-pub').checked, image: bg.querySelector('#po-img').checked, brand: bg.querySelector('#po-brand').checked}); });
   if(!r) return;
-  const list = r.onlyPub ? pub : rows; if(!list.length){ toast(t('empty_title')); return; }
+  const list = (r.onlyPub ? pub : rows).map(liveView); if(!list.length){ toast(t('empty_title')); return; } // tiles show what the codes open
   await exportPosterPdf(f, list, r);
 }
 

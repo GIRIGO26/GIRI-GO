@@ -55,7 +55,8 @@
 @media(max-width:560px){.fbcard{grid-template-columns:1fr}.fbmedia{aspect-ratio:16/9}}
 .vw-hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:700;background:rgba(0,0,0,.55);padding:5px 12px;border-radius:999px;z-index:5;animation:bob 1.6s infinite;pointer-events:none;white-space:nowrap;backdrop-filter:blur(6px)}
 @keyframes bob{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,6px)}}
-.vw-side{position:absolute;right:0;top:0;bottom:0;width:min(330px,88vw);background:#111;z-index:6;transform:translateX(100%);transition:transform .28s var(--ease);padding:calc(16px + env(safe-area-inset-top,0px)) 16px 16px;overflow:auto;box-shadow:-8px 0 30px rgba(0,0,0,.5)}
+.vw-side{position:absolute;right:0;top:0;bottom:0;width:min(330px,88vw);background:#111;z-index:6;transform:translateX(100%);transition:transform .28s var(--ease);padding:calc(16px + env(safe-area-inset-top,0px)) 16px 16px;overflow:auto}
+.vw-side.open{box-shadow:-8px 0 30px rgba(0,0,0,.5)} /* v12.51: no shadow band at the right edge while closed */
 .vw-side.open{transform:none}
 .vw-side h3{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--blue-light);margin:16px 0 6px}
 .vw-side .it{display:flex;gap:8px;padding:9px 8px;border-radius:10px;font-size:13px;cursor:pointer;align-items:center}
@@ -265,3 +266,19 @@ body:has(.viewer.bar-on) .toast{bottom:calc(104px + env(safe-area-inset-bottom,0
 .vw-act .va-b{flex:1 1 auto;display:flex;gap:10px;max-width:640px;margin:0 auto}
 .vw-act .btn{flex:1 1 0;min-width:0}
 .vw-act .btn.done{min-width:0}
+/* v12.51 QA: subtitle + label on the name / password card readable in both themes (was #B8C6DB on white = 1.7:1) */
+.vw-start .card .vw-sub{color:#B8C6DB;margin:0 0 16px;line-height:1.45}
+.viewer.light .vw-start .card .vw-sub{color:#475467}
+.viewer.light .vw-start .field label{color:#475467}
+.viewer.light .vw-side.open{box-shadow:-8px 0 30px rgba(0,0,0,.14)}
+
+/* v12.51 QA: the brand colour stays readable whatever the customer picked – text ON the brand colour uses --on-brand (white or
+   near-black, whichever reads better), text IN the brand colour uses --brand-ink (darkened / lightened for the page background) */
+.viewer{--brand-ink:var(--brand-ink-d,var(--brand))}
+.viewer.light{--brand-ink:var(--brand-ink-l,var(--brand))}
+.vstep .chk .note.on,.viewer.light .vstep .chk .note.on,.ch-tile .cn{color:var(--on-brand,#fff)}
+.viewer .btn:not(.ghost):not(.mint):not(.danger):not(.done):not(.nok):not(.note){color:var(--on-brand,#fff)}
+.vend-name.sm{color:var(--brand-ink)}
+.viewer.light .vw-top .ch,.viewer.light .vstep .vtext .num{color:var(--brand-ink)}
+.bigcheck{color:var(--brand-ink-l,var(--brand))}
+.viewer .vend .btn:not(.ghost){color:var(--brand-ink-l,var(--brand)) !important}

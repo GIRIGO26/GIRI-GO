@@ -28,7 +28,7 @@ async function exportPDF2(instr){
   const brandLogo = await imgData(brand.logo);
   const ggLogo = await imgData((/url\(["']?(data:[^"')]+)["']?\)/.exec(getComputedStyle(document.documentElement).getPropertyValue('--logo-dark')||'')||[])[1]);
   const W = 210, H = 297, M = 16, CW = W-2*M; const ink = [17,17,17], grey = [120,120,120], soft = [244,246,249], line = [222,226,232];
-  const steps = realSteps(instr); const ap = instr.approvals||{}; const chk = new Set(confirmSteps(instr).map(s=>s.id)); const lastHist = (instr.history||[])[instr.history.length-1];
+  const steps = realSteps(instr); const ap = instr.approvals||{}; const chk = new Set(confirmSteps(instr).map(s=>s.id)); const lastHist = (instr.history||[])[(instr.history||[]).length-1];
   const docNo = 'GG-' + instr.id.slice(0,6).toUpperCase(); const statusTxt = t(instr.status==='review'?'in_review':instr.status);
   const TOP = 24, BOT = H-20; let y = TOP;
   const txt = (s, x, yy, o) => doc.text(String(s==null?'':s), x, yy, o);

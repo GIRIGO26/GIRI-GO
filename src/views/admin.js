@@ -22,7 +22,7 @@ async function renderAdmin(app, sub){
   const ws = await loadWs(true); const {data:prows} = await G.sb.from('profiles').select('*').eq('ws', S.user.ws).order('created_at');
   const CAPKEYS = ['view','edit','approve_tech','approve_dsgvo','lock','links','projects','users','team','analytics'];
   const people = prows||[]; const ROLES = ['admin', ...TEAM_ROLES.slice().reverse()]; const TROLES = TEAM_ROLES.slice().reverse(); // v12.39: the eight Classic roles (+ org admin at workspace level)
-  const v = el(`<main class="page"><div class="dash-head"><div><h1>${t('admin')}</h1><div class="sub">${t('admin_sub')} · ${esc(S.user.ws)}</div></div></div>
+  const v = el(`<main class="page"><div class="dash-head"><div><h1>${t('ws_admin')}</h1><div class="sub">${t('admin_sub')} · ${esc(S.user.ws)}</div></div></div>
     <div class="settings" style="max-width:900px">
       <div class="card side-info"><div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">${t('users')} <span class="muted tnum">${people.length}</span></h3><button class="btn sm" id="invite">${IC.plus} ${t('invite')}</button></div>
         <div class="tbl-wrap" style="margin-top:10px"><table class="res" id="utable"><thead><tr><th>${t('name')}</th><th>${t('email')}</th><th>${t('role')}</th><th></th></tr></thead><tbody></tbody></table></div>

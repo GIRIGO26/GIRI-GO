@@ -2,11 +2,11 @@ import { newShareKey } from '../core/links.js';
 import { pdfImport } from '../media/pdfimport.js';
 import { trashInstr } from '../core/trash.js';
 import { cachedUrl, cacheDel, cacheList, cacheMedia, cachePut } from '../core/viewcache.js';
-import { installTop, linkNote } from '../app/pwa.js';
+import { installTop, isPhone, linkNote } from '../app/pwa.js';
 import { go, render } from '../app/router.js';
 import { realSteps } from '../core/auth.js';
 import { $$, confirmM, el, esc, modal, promptM, toast } from '../core/helpers.js';
-import { fmtD, fmtDate, t } from '../core/i18n.js';
+import { LOCALE, fmtD, fmtDate, t } from '../core/i18n.js';
 import { deleteInstr, pwDialog, saveInstr } from '../core/passwords.js';
 import { duplicateInstr } from '../core/duplicate.js';
 import { progressBox } from '../media/import.js';
@@ -39,6 +39,7 @@ import { uid } from '../core/storage.js';
 import { canSee, folderName, instrTeams, saveWs, teamsOf } from '../core/workspace.js';
 import { can, canAny, canApproveAny, canIn, normRole, roleIcon } from '../core/roles.js';
 import { posterDialog } from '../pdf/poster.js';
+import { hasLive } from '../core/live.js';
 import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
 import { flowSticky } from '../ui/flowsticky.js';
@@ -49,7 +50,7 @@ import { exportPDFAsk, shareModal } from './share.js';
 /* ---------- Dashboard ---------- */
 const roleLbl = r => r==='admin' ? t('role_admin') : `${roleIcon(r)} ${t('r_'+normRole(r))}`.trim();
 
-const nOf = (n, one, many) => `${n} ${t(n===1 ? one : many)}`;
+const nOf = (n, one, many) => { const w = t(n===1 ? one : many); return `${n} ${G.LANG==='de' ? w : w.toLowerCase()}`; }; // v12.51: "5 steps", German keeps "5 Schritte"
 
 const initials = n => String(n||'?').trim().split(/\s+/).slice(0,2).map(x => x[0]||'').join('').toUpperCase() || '?';
 
@@ -77,7 +78,7 @@ async function newInstrDlg(folderId){
   const folders = visFolders(); const cur = folderId && folderId!=='none' ? folderId : '';
   const r = await modal(`<h2>${t('new_instr')}</h2><div class="field"><label for="ni-t">${t('title')}</label><input id="ni-t" placeholder="${t('new_title_ph')}"></div>
     ${folders.length ? `<div class="field"><label for="ni-f">${t('pick_project')}</label><select id="ni-f"><option value="">${t('no_folder')}</option>${folders.map(f => `<option value="${f.id}" ${f.id===cur?'selected':''}>${esc(f.name)}</option>`).join('')}</select></div>` : ''}
-    <div class="actions" style="margin-top:0"><button class="btn ghost" data-x>${t('cancel')}</button><button class="btn" data-ok>${IC.cam} ${t('ni_empty')}</button></div>
+    <div class="actions" style="margin-top:0"><button class="btn ghost" data-x>${t('cancel')}</button><button class="btn" data-ok>${isPhone() ? IC.cam : IC.plus} ${t('ni_empty')}</button></div>
     <div class="ni-or"><span>${t('or')}</span></div><button class="ni-pdf" data-pdf><span class="ni-pdf-ico">${IC.pdf}</span><span><b>${t('ni_pdf')}</b><small>${t('ni_pdf_sub')}</small></span><span class="ni-ai">${t('ai_badge')}</span></button>`, (bg, close) => {
       const inp = bg.querySelector('#ni-t'); setTimeout(() => inp.focus(), 60); const fid = () => { const sel = bg.querySelector('#ni-f'); return sel ? sel.value : cur; };
       bg.querySelector('[data-x]').onclick = () => close(null); bg.querySelector('[data-ok]').onclick = () => close({title: inp.value, fid: fid()}); inp.addEventListener('keydown', e => { if(e.key==='Enter') close({title: inp.value, fid: fid()}); });
@@ -87,7 +88,8 @@ async function newInstrDlg(folderId){
   // background (offline it waits in the queue). Before, the first save waited for the network (up to 30 s in airplane mode)
   if(G.creatingInstr && Date.now() - G.creatingInstr < 2000) return; G.creatingInstr = Date.now();
   const title = r.title; const i = {id:uid(), ws:S.user.ws, title:(title.trim()||t('untitled')), shareKey:newShareKey(), createdBy:S.user.name, createdAt:Date.now(), updatedAt:Date.now(), status:'draft', version:0, approvals:{tech:null,dsgvo:null}, checklist:false, steps:[], history:[]}; if(r.fid) i.folder = r.fid;
-  saveInstr(i).catch(() => {}); go('rec/'+i.id); }
+  // v12.51: phone / tablet → straight into the camera; PC → the editor (import, drag & drop or record from there – no webcam popping up)
+  saveInstr(i).catch(() => {}); go((isPhone() ? 'rec/' : 'edit/') + i.id); }
 
 async function moveToFolderDlg(i, after){
   const r = await modal(`<h2>${t('move_to')}</h2><div class="menu">${visFolders().map(f => `<button data-fid="${f.id}" class="${i.folder===f.id?'cur':''}">${IC.folder} ${esc(f.name)}</button>`).join('')}<button data-fid="" class="${isLoose(i)?'cur':''}">${t('no_folder')}</button><button data-fid="__new">${IC.plus} ${t('new_folder')}</button></div><div class="actions"><button class="btn ghost" data-x>${t('cancel')}</button></div>`, (bg, close) => { $$('[data-fid]', bg).forEach(b => b.onclick = () => close(b.dataset.fid)); bg.querySelector('[data-x]').onclick = () => close(null); });
@@ -105,7 +107,7 @@ function instrCard(i, statMap, opts={}){
   const card = el(`<article class="card instr st-${i.status}" data-sid="${i.id}">
     <img class="thumb" alt="" src="" loading="lazy" decoding="async">
     <div class="ibody"><div class="title">${titleHtml(i.title)} ${i.example?`<span class="example-tag">${t('example')}</span>`:''}</div>
-      <div class="meta"><span class="chip dot ${i.status}">${t(i.status==='review'?'in_review':i.status)}</span><span class="tnum">${nOf(st.length,'step','steps')}</span><span>${fmtD(i.updatedAt)}</span>${fname?`<span class="fold">${IC.folder} ${esc(fname)}</span>`:''}${i.checklist?`<span title="${G.LANG==='de'?'Checkliste':'Checklist'}">☑</span>`:''}<span class="stx" data-stx="${i.id}">${statChips(i.id, statMap)}</span>${opts.offline && opts.offline.has(i.id) ? `<span class="offmark" title="${t('off_on_device')}">${IC.download} ${t('offline_short')}</span>` : ''}</div></div>
+      <div class="meta"><span class="chip dot ${i.status}">${t(i.status==='review'?'in_review':i.status)}</span>${i.status!=='published' && hasLive(i) ? `<span class="livepill" title="${esc(t('live_pill_t', {v: i.live.version}))}">${t('live_pill', {v: i.live.version})}</span>` : ''}<span class="tnum">${nOf(st.length,'step','steps')}</span><span>${fmtD(i.updatedAt)}</span>${fname?`<span class="fold">${IC.folder} ${esc(fname)}</span>`:''}${i.checklist?`<span title="${G.LANG==='de'?'Checkliste':'Checklist'}">☑</span>`:''}<span class="stx" data-stx="${i.id}">${statChips(i.id, statMap)}</span>${opts.offline && opts.offline.has(i.id) ? `<span class="offmark" title="${t('off_on_device')}">${IC.download} ${t('offline_short')}</span>` : ''}</div></div>
     <button class="imore" data-a="more" title="${t('more')}">${IC.more}</button></article>`);
   if(first){ const known = stepPosterSync(first); if(known) card.querySelector('.thumb').src = known; else stepPoster(first).then(u => { if(u) card.querySelector('.thumb').src = u; }); }
   const act = async a => {
@@ -118,7 +120,7 @@ function instrCard(i, statMap, opts={}){
   card.onclick = e => { const b = e.target.closest('[data-a]');
     if(!b){ if(e.target.closest('a, button')) return; act(cEdit || (cApprove && i.status==='review') ? 'edit' : 'preview'); return; }
     const a = b.dataset.a;
-    if(a==='more'){ modal(`<div class="menu"><div class="menu-h">${esc(i.title)}</div>${cEdit ? `<button data-m="edit">${IC.edit} ${t('edit')}</button><button data-m="rec">${IC.cam} ${t('record_next')}</button>`:''}${!cEdit && cApprove ? `<button data-m="edit">${IC.check} ${t('menu_approve')}</button>`:''}<button data-m="preview">${IC.play} ${t('preview')}</button>${cLinks ? `<button data-m="share">${IC.share} ${t('share')}</button>`:''}${cEdit || cLinks ? `<button data-m="pdf">${IC.pdf} ${t('pdf')}</button>`:''}${cStats ? `<button data-m="results">${IC.eye} ${t('stats')}</button>`:''}<button data-m="offline">${IC.download} ${opts.offline && opts.offline.has(i.id) ? t('off_refresh') : t('off_make')}</button>${opts.offline && opts.offline.has(i.id) ? `<button data-m="offdel">${IC.close} ${t('off_remove')}</button>` : ''}${cEdit ? `<button data-m="folder">${IC.folder} ${t('move_to_folder')}</button><button data-m="dup">${IC.copy} ${t('duplicate')}</button><button data-m="del" class="del">${IC.trash} ${t('delete')}</button>`:''}</div>`, (bg, close) => { $$('[data-m]', bg).forEach(x => x.onclick = () => { close(); act(x.dataset.m); }); }); return; }
+    if(a==='more'){ modal(`<div class="menu"><div class="menu-h">${esc(i.title)}</div>${cEdit ? `<button data-m="edit">${IC.edit} ${t('edit')}</button><button data-m="rec">${IC.cam} ${t('record_next')}</button>`:''}${!cEdit && cApprove ? `<button data-m="edit">${IC.check} ${t('menu_approve')}</button>`:''}<button data-m="preview">${IC.play} ${t('preview')}</button>${cLinks ? `<button data-m="share">${IC.share} ${t('share')}</button>`:''}${cEdit || cLinks ? `<button data-m="pdf">${IC.pdf} ${t('pdf')}</button>`:''}${cStats ? `<button data-m="results">${IC.eye} ${t('stats_tab')}</button>`:''}<button data-m="offline">${IC.download} ${opts.offline && opts.offline.has(i.id) ? t('off_refresh') : t('off_make')}</button>${opts.offline && opts.offline.has(i.id) ? `<button data-m="offdel">${IC.close} ${t('off_remove')}</button>` : ''}${cEdit ? `<button data-m="folder">${IC.folder} ${t('move_to_folder')}</button><button data-m="dup">${IC.copy} ${t('duplicate')}</button><button data-m="del" class="del">${IC.trash} ${t('delete')}</button>`:''}</div>`, (bg, close) => { $$('[data-m]', bg).forEach(x => x.onclick = () => { close(); act(x.dataset.m); }); }); return; }
     act(a); };
   return card;
 }
@@ -189,12 +191,35 @@ async function renderDashboard(app, pid){
   const teamName = tid => tid==='none' ? t('team_none') : ((tl.find(x => x.id===tid)||{}).name || '');
   const scopeLabel = () => f ? f.name : teamF ? teamName(teamF) : t('nav_all');
   const teamNames = f ? teamNamesOf(f.teams) : [];
-  // ---- "for you": approvals waiting, open feedback ----
+  // ---- "for you": approvals waiting, open feedback, news ----
   const fbCount = () => visible.filter(i => inTeam(i, teamF) && statMap[i.id] && statMap[i.id].fb).length;
-  const inboxHtml = () => { const fbN = fbCount(); const items = [];
-    if(revN && canApprove) items.push(`<button class="ibx ${stF==='review'?'on':''}" id="todo">${IC.check}<span>${revN===1?t('todo_review_one'):t('todo_review_many',{n:revN})}</span><b>${stF==='review' ? '×' : '→'}</b></button>`);
+  // v12.51 news: checklists that workers completed (job done) in the last 7 days – one line per instruction, for the people who edit or
+  // evaluate it, until hidden (×, "all read", or opening the log). Refreshed every 45 s while the start page is open: a new one pops up
+  // at the top and as a short message.
+  const NEWS_K = 'gg_news_' + S.user.id, NEWS_DAYS = 7, NEWS_SHOW = 3; let newsAll = false;
+  let seenN = {}; try{ seenN = JSON.parse(localStorage.getItem(NEWS_K) || '{}') || {}; }catch(e){}
+  const saveSeen = () => { try{ localStorage.setItem(NEWS_K, JSON.stringify(seenN)); }catch(e){} };
+  if(!G.newsRuns || G.newsRuns.ws !== S.user.ws) G.newsRuns = {ws: S.user.ws, rows: [], known: null};
+  const newsFor = i => can(i, 'edit') || can(i, 'analytics');
+  const relT = ts => { try{ const sec = (Date.now() - ts) / 1000, rf = new Intl.RelativeTimeFormat(LOCALE(), {numeric: 'auto', style: 'short'});
+    return sec < 60 ? rf.format(0, 'second') : sec < 3600 ? rf.format(-Math.round(sec / 60), 'minute') : sec < 86400 ? rf.format(-Math.round(sec / 3600), 'hour') : rf.format(-Math.round(sec / 86400), 'day'); }catch(e){ return fmtDate(ts); } };
+  const runNews = () => { const byI = new Map(), cut = Date.now() - NEWS_DAYS * 864e5;
+    for(const r of G.newsRuns.rows){ const ts = Date.parse(r.finished_at); if(!(ts > cut)) continue; const i = visible.find(x => x.id === r.instr_id); if(!i || !newsFor(i) || !inTeam(i, teamF)) continue;
+      if(!(ts > (seenN['run:' + i.id] || 0))) continue; let g = byI.get(i.id); if(!g){ g = {i, n: 0, nok: 0, last: 0, w: ''}; byI.set(i.id, g); }
+      g.n++; if(Object.values(r.items || {}).some(x => x && x.ok === false)) g.nok++; if(ts > g.last){ g.last = ts; g.w = r.worker || ''; } }
+    return [...byI.values()].sort((a, b) => b.last - a.last); };
+  // v12.51 QA: two short lines instead of one long sentence – line 1 the instruction, line 2 what happened, who, when, deviations (compact on the phone)
+  const newsRow = g => { const w = esc(g.w || t('worker')), ti = esc(g.i.title || t('untitled')), a = relT(g.last);
+    const what = g.n === 1 ? t('news_kind_one') : t('news_kind_many', {n: g.n}), q = G.LANG === 'de' ? `„${ti}“` : `“${ti}”`;
+    const nok = g.nok ? ` · <em>${g.nok === 1 ? t('news_nok_one') : t('news_nok_many', {n: g.nok})}</em>` : '';
+    return `<div class="nwx ${g.nok ? 'warn' : ''}" data-nw="${g.i.id}"><a class="nw-a" href="#/results/${g.i.id}" data-nwgo="${g.i.id}"><span class="nw-ico">${g.nok ? IC.warn : IC.check}</span><span class="nw-t"><span class="nw-l1">${q}</span><span class="nw-l2">${what} · ${g.n === 1 ? w : t('news_last', {w})} · ${a}${nok}</span></span><b class="nw-go"><span>${t('news_open')} </span>→</b></a><button class="nw-x" data-nwx="${g.i.id}" title="${t('news_hide')}" aria-label="${t('news_hide')}">×</button></div>`; };
+  const revOne = () => revN === 1 ? visible.find(i => i.status==='review' && inTeam(i, teamF) && (can(i, 'approve_tech') || can(i, 'approve_dsgvo'))) : null;
+  const inboxHtml = () => { const fbN = fbCount(); const items = []; const news = runNews(); const r1 = revOne();
+    if(revN && canApprove) items.push(`<button class="ibx ${stF==='review'?'on':''}" id="todo" ${r1 ? `data-r1="${r1.id}"` : ''}>${IC.check}<span>${r1 ? t('todo_review_named', {t: esc(r1.title || t('untitled'))}) : revN===1 ? t('todo_review_one') : t('todo_review_many',{n:revN})}</span><b>${stF==='review' ? '×' : '→'}</b></button>`);
     if(fbN) items.push(`<button class="ibx ${stF==='fb'?'on':''}" id="todo-fb">${IC.msg}<span>${fbN===1?t('inbox_fb_one'):t('inbox_fb_many',{n:fbN})}</span><b>${stF==='fb' ? '×' : '→'}</b></button>`);
-    return items.length ? `<span class="tlbl">${t('inbox_h')}</span>${items.join('')}` : ''; };
+    const nw = news.slice(0, newsAll ? 99 : NEWS_SHOW).map(newsRow).join('') + (news.length > NEWS_SHOW && !newsAll ? `<button class="flink nw-more" id="news-more">${t('news_more', {n: news.length - NEWS_SHOW})}</button>` : '');
+    if(!items.length && !news.length) return '';
+    return `<div class="ib-h"><span class="tlbl">${t('inbox_h')}</span>${news.length ? `<button class="flink" id="news-read">${t('news_all_read')}</button>` : ''}</div>${items.length ? `<div class="ib-tasks">${items.join('')}</div>` : ''}${news.length ? `<div class="ib-news">${nw}</div>` : ''}`; };
   // ---- list toolbar: status chips + sort ----
   const scopeRows = () => visible.filter(i => (q ? true : inFolder(i, f ? f.id : 'all')) && inTeam(i, teamF) && matchQ(i));
   const stCnt = st => scopeRows().filter(i => st==='fb' ? !!(statMap[i.id] && statMap[i.id].fb) : i.status===st).length;
@@ -206,7 +231,7 @@ async function renderDashboard(app, pid){
     if(f) items.push(`<button class="afc" data-clr="folder">${IC.folder}<span>${esc(f.name)}</span>${IC.close}</button>`);
     if(teamF) items.push(`<button class="afc" data-clr="team">${IC.users||''}<span>${esc(teamName(teamF))}</span>${IC.close}</button>`);
     if(stF) items.push(`<button class="afc" data-clr="status"><span>${stF==='fb' ? t('st_fb') : t(stF==='review' ? 'in_review' : stF)}</span>${IC.close}</button>`);
-    if(q) items.push(`<button class="afc" data-clr="q">${IC.search||''}<span>„${esc(q)}“</span>${IC.close}</button>`);
+    if(q) items.push(`<button class="afc" data-clr="q">${IC.search||''}<span>${G.LANG==='de' ? '„'+esc(q)+'“' : '“'+esc(q)+'”'}</span>${IC.close}</button>`);
     return items.length ? `<span class="tlbl">${t('filter_active')}</span>${items.join('')}${items.length > 1 ? `<button class="flink" data-clr="all">${t('filter_reset')}</button>` : ''}` : ''; };
   const v = el(`<main class="page dash">
     <div id="inst-slot"></div>
@@ -262,9 +287,30 @@ async function renderDashboard(app, pid){
   const nb = v.querySelector('#new'); if(nb) nb.onclick = () => newInstrDlg(pid);
   const qi = v.querySelector('#q'); if(qi) qi.oninput = () => { q = qi.value.trim().toLowerCase(); redrawChips(); redrawActive(); renderList(); };
   const so = v.querySelector('#sort'); if(so) so.onchange = () => { sortK = so.value; try{ sessionStorage.setItem('gg_sort', sortK); }catch(e){} renderList(); };
-  const wireInbox = () => { const td = v.querySelector('#todo'); if(td) td.onclick = () => setSt(stF==='review' ? '' : 'review');
-    const tf = v.querySelector('#todo-fb'); if(tf) tf.onclick = () => setSt(stF==='fb' ? '' : 'fb'); };
-  wireInbox(); G.onStats = () => { const ib = v.querySelector('#inbox'); if(ib){ ib.innerHTML = inboxHtml(); wireInbox(); } redrawChips(); if(stF==='fb') renderList(); };
+  const repaintInbox = () => { const ib = v.querySelector('#inbox'); if(ib){ ib.innerHTML = inboxHtml(); wireInbox(); } };
+  const wireInbox = () => { const td = v.querySelector('#todo'); if(td) td.onclick = () => { const r1 = td.dataset.r1;
+      // v12.51: one instruction waits for my approval → straight into it, the approval dialog opens; several → the list filter as before
+      if(r1 && stF!=='review'){ try{ sessionStorage.setItem('gg_open_appr', r1); }catch(e){} go('edit/' + r1); return; } setSt(stF==='review' ? '' : 'review'); };
+    const tf = v.querySelector('#todo-fb'); if(tf) tf.onclick = () => setSt(stF==='fb' ? '' : 'fb');
+    $$('[data-nwgo]', v).forEach(a => a.addEventListener('click', () => { const id = a.dataset.nwgo; const g = runNews().find(x => x.i.id === id); if(g){ seenN['run:' + id] = g.last; saveSeen(); } try{ sessionStorage.setItem('gg_rtab_' + id, 'runs'); }catch(e){} }));
+    $$('[data-nwx]', v).forEach(b => b.onclick = () => { const id = b.dataset.nwx; const g = runNews().find(x => x.i.id === id); if(g){ seenN['run:' + id] = g.last; saveSeen(); } repaintInbox(); });
+    const nr = v.querySelector('#news-read'); if(nr) nr.onclick = () => { runNews().forEach(g => { seenN['run:' + g.i.id] = g.last; }); saveSeen(); repaintInbox(); };
+    const nm = v.querySelector('#news-more'); if(nm) nm.onclick = () => { newsAll = true; repaintInbox(); }; };
+  wireInbox(); G.onStats = () => { repaintInbox(); redrawChips(); if(stF==='fb') renderList(); };
+  // news: the last known lines at once, fresh ones from the server in the background and every 45 s while this page is open
+  const refreshNews = async () => { if(!online() || !v.isConnected) return; try{
+    const since = new Date(Date.now() - NEWS_DAYS * 864e5).toISOString();
+    const {data, error} = await G.sb.from('runs').select('id,instr_id,worker,finished_at,items').eq('ws', S.user.ws).not('finished_at', 'is', null).gte('finished_at', since).order('finished_at', {ascending: false}).limit(80);
+    if(error || !data || !v.isConnected) return;
+    const prev = G.newsRuns.known; const fresh = prev ? data.filter(r => !prev.has(r.id)) : [];
+    G.newsRuns = {ws: S.user.ws, rows: data.slice().sort((a, b) => Date.parse(b.finished_at) - Date.parse(a.finished_at)), known: new Set(data.map(r => r.id))};
+    repaintInbox();
+    const fr = fresh.map(r => ({r, ts: Date.parse(r.finished_at), i: visible.find(x => x.id === r.instr_id)})).filter(x => x.i && newsFor(x.i) && inTeam(x.i, teamF) && x.ts > (seenN['run:' + x.i.id] || 0)).sort((a, b) => b.ts - a.ts)[0];
+    if(fr){ toast('✅ ' + t('news_toast', {t: fr.i.title || t('untitled'), w: fr.r.worker || t('worker')})); const row = v.querySelector(`[data-nw="${fr.i.id}"]`); if(row) row.classList.add('pop'); }
+  }catch(e){} };
+  refreshNews();
+  { const tick = setInterval(() => { if(document.visibilityState === 'visible') refreshNews(); }, 45000); const onVis = () => { if(document.visibilityState === 'visible') refreshNews(); };
+    document.addEventListener('visibilitychange', onVis); const c0 = G.activeCleanup; G.activeCleanup = () => { clearInterval(tick); document.removeEventListener('visibilitychange', onVis); if(c0) c0(); }; }
   // navigator – on the page (PC) and, on the phone, in a sheet behind the scope button; both share the markup and the wiring
   const wireNav = (root, close) => {
     $$('[data-t]', root).forEach(b => b.onclick = () => { if(close) close(); setTeam(b.dataset.t); });

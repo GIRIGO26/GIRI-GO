@@ -85,7 +85,7 @@ async function render(){
   if(G.activeCleanup){ try{ G.activeCleanup(); }catch(e){} G.activeCleanup = null; }
   const h = location.hash.replace(/^#\/?/, '');
   const [view, id, extra, extra2, extra3] = h.split('/');
-  const app = $('#app');
+  const app = $('#app'); try{ document.documentElement.lang = G.LANG || 'de'; }catch(e){} // v12.51: right hyphenation + screen reader language
   // v12.48: the same page drawn again (sync, a colleague's change, back to the tab) keeps where the list was scrolled to and does not
   // fade in again – on busy workspaces that looked like flickering
   const soft = G.lastRoute === h; G.lastRoute = h; const keepY = soft ? window.scrollY : 0; app.classList.toggle('soft', soft);

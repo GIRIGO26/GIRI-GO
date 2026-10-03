@@ -1,0 +1,65 @@
+# GIRI – after every push to main: is the new version really live on https://go.ar-giri.de?
+# Cloudflare builds and deploys main on its own (Workers & Pages → giri-go). On 3 Oct 2026 its build machine twice failed to start
+# ("Build failed to initialize and was timed out") and the site silently stayed on the old version. This check notices that:
+#   1. waits up to 10 minutes until the page serves the version from package.json;
+#   2. if not – and only if the repository secret CLOUDFLARE_API_TOKEN exists (a token that may only edit Workers, created by an owner in
+#      Cloudflare → My Profile → API Tokens → template "Edit Cloudflare Workers"; optional secret CLOUDFLARE_ACCOUNT_ID) – it deploys the
+#      same files itself (npm run build:cf + wrangler deploy, exactly what Cloudflare runs) and checks again;
+#   3. otherwise the run fails – GitHub then e-mails the person who pushed ("Run failed: Live check"), and the summary says what to do.
+# No secrets are needed for 1 and 3. Nothing here touches the database.
+name: Live check
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: live-check
+  cancel-in-progress: true
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SITE: https://go.ar-giri.de/
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait until the site serves this version
+        id: wait
+        run: |
+          want=$(node -p "require('./package.json').version")
+          echo "want=$want" >> "$GITHUB_OUTPUT"
+          for i in $(seq 1 20); do
+            got=$(curl -fsS -m 20 "${SITE}?live-check=${GITHUB_SHA}-${i}" | grep -o "APP_VERSION = '[^']*'" | cut -d"'" -f2 || true)
+            echo "try $i: live=${got:-?} want=$want"
+            if [ "$got" = "$want" ]; then echo "ok=1" >> "$GITHUB_OUTPUT"; echo "✅ ${SITE} serves $want" >> "$GITHUB_STEP_SUMMARY"; exit 0; fi
+            sleep 30
+          done
+          echo "ok=0" >> "$GITHUB_OUTPUT"
+          echo "live=${got:-?}" >> "$GITHUB_OUTPUT"
+      - name: Fallback – deploy from here (only with the secret CLOUDFLARE_API_TOKEN)
+        if: steps.wait.outputs.ok != '1' && env.CF_TOKEN != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm run build:cf
+          npx --yes wrangler@4 deploy
+      - name: Check again
+        if: steps.wait.outputs.ok != '1'
+        run: |
+          want="${{ steps.wait.outputs.want }}"
+          for i in $(seq 1 10); do
+            got=$(curl -fsS -m 20 "${SITE}?live-check=${GITHUB_SHA}-again-${i}" | grep -o "APP_VERSION = '[^']*'" | cut -d"'" -f2 || true)
+            echo "try $i: live=${got:-?} want=$want"
+            if [ "$got" = "$want" ]; then echo "✅ ${SITE} serves $want (after the fallback deploy)" >> "$GITHUB_STEP_SUMMARY"; exit 0; fi
+            sleep 20
+          done
+          {
+            echo "### ❌ ${SITE} still serves ${got:-?} – expected $want"
+            echo "The Cloudflare build of this push did not go live."
+            echo "- Cloudflare → Workers & Pages → giri-go → Deployments: open the newest build; if it failed or hangs, press **Retry build**."
+            echo "- Or from a computer with the repository: \`npm run build:cf && npx wrangler deploy\`."
+            echo "- Automatic fallback next time: add the repository secret CLOUDFLARE_API_TOKEN (see the comment at the top of this file)."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1

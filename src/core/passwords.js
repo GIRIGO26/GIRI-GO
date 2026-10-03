@@ -6,6 +6,7 @@ import { DB, uid } from './storage.js';
 import { rowToInstr } from './translate.js';
 import { instrTeams } from './workspace.js';
 import { rememberBase, merge3, applyMerged } from './merge.js';
+import { livePaths } from './live.js';
 
 /* ---------- Link passwords (per project / per team; default off) ---------- */
 async function sha256Hex(str){ const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)); return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); }
@@ -42,7 +43,7 @@ const conflictDialog = async (mine, theirs, merged) => {
   const r = await conflictOpen; conflictOpen = null; return r || 'theirs';
 };
 const upsertInstrRow = async (i, force) => {
-  const {id, ws, status, title, updatedAt, _base, ...rest} = i; const data = Object.assign({}, rest);
+  const {id, ws, status, title, updatedAt, _base, live: _lv, ...rest} = i; const data = Object.assign({}, rest); // v12.51: the database keeps data.live itself (v015) – never sent
   G.saving++; ownWrites.add(updatedAt); if(ownWrites.size > 200){ const first = ownWrites.values().next().value; ownWrites.delete(first); }
   try{
     const row = {id, ws, status, title, updated_at: new Date(updatedAt).toISOString(), data};
@@ -58,7 +59,7 @@ const upsertInstrRow = async (i, force) => {
             let quiet = !mg.conflicts.length;
             if(!quiet){ G.saving--; const choice = await conflictDialog(i, theirs, mg.conflicts.length); G.saving++; mg = merge3(i, theirs, choice); }
             applyMerged(i, mg.merged); i.updatedAt = Math.max(Date.now(), Date.parse(srv.updated_at) + 1); ownWrites.add(i.updatedAt);
-            const {id: _i, ws: _w, status: st2, title: ti2, updatedAt: up2, _base: _b, ...rest2} = i;
+            const {id: _i, ws: _w, status: st2, title: ti2, updatedAt: up2, _base: _b, live: _lv2, ...rest2} = i;
             const row2 = {id, ws, status: st2, title: ti2, updated_at: new Date(up2).toISOString(), data: Object.assign({}, rest2)};
             const {data: hit2, error: e3} = await G.sb.from('instructions').update(row2).eq('id', id).eq('updated_at', srv.updated_at).select('id'); if(e3) throw e3;
             if(hit2 && hit2.length){ i._base = up2; rememberBase(i); await mirrorPut(i, false); G.mergeReload = true; if(quiet) toast(t('conflict_merged', {w: theirs.lastBy || t('conflict_someone')})); else G.conflictReload = true; return true; }
@@ -88,16 +89,20 @@ const upsertInstrRow = async (i, force) => {
 const saveInstr = async (i, opts) => {
   if(!(opts && opts.keepDate)) i.updatedAt = Date.now(); if(S.user) i.lastBy = S.user.name; if(!G.sb) return; // keepDate: the importer keeps the original Classic date
   if(i.ws === (S.user && S.user.ws) && !S.instrs.some(x => x.id === i.id)) S.instrs.unshift(i); // new instruction: in memory at once (v0.29 – navigation no longer waits for a server round trip)
-  (i.steps||[]).forEach(s => { if(s.mediaId && !s.mediaUrl && S.remoteUrl.has(s.mediaId)){ s.mediaUrl = S.remoteUrl.get(s.mediaId); } }); // uploaded here meanwhile → never save it without its URL
-  await mirrorPut(i, true);
-  if(!online()){ schedulePill(); return; } // v12.48: offline → stays in the device queue, sent when the network is back (no 30 s wait for a token refresh)
-  const ok = await upsertInstrRow(i);
-  if(ok && G.mergeReload){ G.mergeReload = false; try{ const {promptRefresh} = await import('../app/router.js'); if(promptRefresh) promptRefresh(); }catch(e){} }
-  if(ok){ await mirrorPut(i, false); if(G.conflictReload){ G.conflictReload = false; try{ const {render} = await import('../app/router.js'); render(); }catch(e){} } } else { toast(t('saved_offline')); }
-  schedulePill();
+  // v12.51: a save in flight (or just answered) on this page – a sync whose list was fetched before it must not drop the instruction (loadInstrs)
+  const SP = G.savePending || (G.savePending = new Map()); SP.set(i.id, (SP.get(i.id)||0) + 1);
+  try{
+    (i.steps||[]).forEach(s => { if(s.mediaId && !s.mediaUrl && S.remoteUrl.has(s.mediaId)){ s.mediaUrl = S.remoteUrl.get(s.mediaId); } }); // uploaded here meanwhile → never save it without its URL
+    await mirrorPut(i, true);
+    if(!online()){ schedulePill(); return; } // v12.48: offline → stays in the device queue, sent when the network is back (no 30 s wait for a token refresh)
+    const ok = await upsertInstrRow(i);
+    if(ok && G.mergeReload){ G.mergeReload = false; try{ const {promptRefresh} = await import('../app/router.js'); if(promptRefresh) promptRefresh(); }catch(e){} }
+    if(ok){ await mirrorPut(i, false); if(G.conflictReload){ G.conflictReload = false; try{ const {render} = await import('../app/router.js'); render(); }catch(e){} } } else { toast(t('saved_offline')); }
+    schedulePill();
+  } finally { const n = (SP.get(i.id)||1) - 1; if(n > 0) SP.set(i.id, n); else SP.delete(i.id); (G.savedHere || (G.savedHere = new Map())).set(i.id, Date.now()); }
 };
 const retrySaves = () => flushDirty(upsertInstrRow);
 
-const deleteInstr = async i => { if(!G.sb) return; const paths = (i.steps||[]).filter(s=>s.mediaPath).map(s=>s.mediaPath); if(paths.length) await G.sb.storage.from('media').remove(paths).catch(()=>{}); for(const s of i.steps||[]) if(s.mediaId) await DB.del('media', s.mediaId); await G.sb.from('instructions').delete().eq('id', i.id); };
+const deleteInstr = async i => { if(!G.sb) return; const paths = [...new Set((i.steps||[]).filter(s=>s.mediaPath).map(s=>s.mediaPath).concat(livePaths(i)))]; if(paths.length) await G.sb.storage.from('media').remove(paths).catch(()=>{}); for(const s of i.steps||[]) if(s.mediaId) await DB.del('media', s.mediaId); await G.sb.from('instructions').delete().eq('id', i.id); };
 
 export { upsertInstrRow, retrySaves, sha256Hex, mkPw, lockNames, pwDialog, fetchInstr, ownWrites, saveInstr, deleteInstr };

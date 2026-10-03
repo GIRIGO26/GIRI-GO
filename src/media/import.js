@@ -3,6 +3,7 @@ import { t } from '../core/i18n.js';
 import { saveInstr } from '../core/passwords.js';
 import { G, S, putMedia } from '../core/state.js';
 import { DB, uid } from '../core/storage.js';
+import { liveUses } from '../core/live.js';
 import { runUploads } from '../core/uploads.js';
 import { canConvert, convertVideo, isCompatVideo } from './convert.js';
 import { IC } from '../ui/icons.js';
@@ -26,7 +27,7 @@ async function replaceStepMedia(instr, step, blob, meta){
   if(!m){ if(blob.type.startsWith('video')){ const pv = await probeVideo(blob); const u = URL.createObjectURL(blob); const c = await grabFrame(u, 0.3, 320); URL.revokeObjectURL(u); m = {type:'video', w:pv.w, h:pv.h, duration:pv.d, poster: c ? c.toDataURL('image/jpeg', .6) : null}; }
     else { const pi = await probeImage(blob); const u = URL.createObjectURL(blob); const img = await new Promise(r=>{ const i=new Image(); i.onload=()=>r(i); i.onerror=()=>r(null); i.src=u; }); const poster = img ? posterFromCanvas(img, img.naturalWidth, img.naturalHeight) : null; URL.revokeObjectURL(u); m = {type:'photo', w:pi.w, h:pi.h, duration:0, poster}; } }
   if(step.mediaId){ await DB.del('media', step.mediaId).catch(()=>{}); if(S.mediaURL.has(step.mediaId)){ try{ URL.revokeObjectURL(S.mediaURL.get(step.mediaId)); }catch(e){} S.mediaURL.delete(step.mediaId); } }
-  if(step.mediaPath && G.sb) G.sb.storage.from('media').remove([step.mediaPath]).catch(()=>{});
+  if(step.mediaPath && G.sb && !liveUses(instr, step.mediaPath)) G.sb.storage.from('media').remove([step.mediaPath]).catch(()=>{}); // v12.51: the live version may still show it
   const mid = uid(); await putMedia({id:mid, blob, w:m.w, h:m.h, type:m.type, ws:instr.ws, instrId:instr.id});
   Object.assign(step, {type:m.type, mediaId:mid, mediaUrl:null, mediaPath:null, w:m.w, h:m.h, duration:m.duration, trimStart:0, trimEnd:m.duration, poster:m.poster||null});
   step.ann = (step.ann||[]).map(a => Object.assign({}, a, {t:0})); delete step.placeholder;

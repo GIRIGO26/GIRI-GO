@@ -1,4 +1,4 @@
-import { LEGAL } from '../core/config.js';
+import { APP_VERSION, LEGAL } from '../core/config.js';
 import { go, render } from '../app/router.js';
 import { confirmM, el, esc, toast } from '../core/helpers.js';
 import { cacheDel, cacheList } from '../core/viewcache.js';
@@ -41,7 +41,7 @@ function renderLogin(app){
       <div class="l-trust"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg><div><b>${t('iso_t')}</b><span>${t('iso_sub')}</span></div></div>
     </section>
     <section class="l-visual" aria-hidden="true" ${isStandalone() ? 'hidden' : ''}><img id="l-img" src="login.jpg" alt=""><div class="l-cap"><b>${t('hero_kicker')}</b><span>${t('hero_cap')}</span></div></section>
-    <footer class="l-legal"><a href="${LEGAL.imprint}" target="_blank" rel="noopener">${t('imprint')}</a><span>·</span><a href="${LEGAL.legal}" target="_blank" rel="noopener">${t('privacy_dpa')}</a><span>·</span><span>© AR-Experts GmbH</span></footer>
+    <footer class="l-legal"><a href="${LEGAL.imprint}" target="_blank" rel="noopener">${t('imprint')}</a><span>·</span><a href="${LEGAL.legal}" target="_blank" rel="noopener">${t('privacy_dpa')}</a><span>·</span><span>© AR-Experts GmbH</span><span>·</span><span class="l-ver" id="l-ver" title="GIRI">v${APP_VERSION}</span></footer>
   </main>`);
   const img = v.querySelector('#l-img'); img.onerror = () => { img.remove(); v.querySelector('.l-visual').classList.add('fallback'); };
   try{ v.querySelector('#li-email').value = localStorage.getItem('gg_email')||''; }catch(e){}

@@ -277,7 +277,7 @@
 .chrow:first-child{margin-top:2px}
 .chrow input{color:color-mix(in srgb,var(--chc) 70%,var(--ink))}
 .chrow .cnt{background:color-mix(in srgb,var(--chc) 18%,var(--surface));color:color-mix(in srgb,var(--chc) 75%,var(--ink))}
-@media(min-width:901px){.ed-main{position:sticky;top:76px;align-self:start;max-height:calc(100vh - 92px);overflow:auto;border-radius:20px}}
+@media(min-width:901px){.ed-main{border-radius:20px}}
 @media(max-width:560px){.srow{grid-template-columns:26px 16px 76px 1fr}.srow .th,.srow .th-wrap{width:76px;height:58px}}
 
 /* ---- v0.28.2: steps without a recording (text prepared, e.g. from a PDF) ---- */
@@ -477,3 +477,11 @@
   .chrow .chlbl{display:block}
   .chrow .x{display:inline-flex !important;width:44px;height:44px;border-radius:12px}
 }
+
+/* v12.51 QA: step titles in the list on up to two lines (were cut after a few words); symbol count with the arrow icon instead of '⌖' */
+.srow .tt{white-space:normal;text-overflow:clip}
+.srow .tt .tt-t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;-webkit-hyphens:auto;hyphens:auto;line-height:1.3}
+.srow.sel .tt .tt-t{padding-right:26px}
+.srow .tt small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.srow .tt .nsym{display:inline-flex;align-items:center;gap:2px;vertical-align:-2px}
+.srow .tt .nsym svg{width:12px;height:12px}

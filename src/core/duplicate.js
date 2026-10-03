@@ -9,7 +9,7 @@ import { saveInstr } from './passwords.js';
 import { t } from './i18n.js';
 import { PUBLIC_MEDIA } from './supabase.js';
 
-const META_DROP = ['approvals', 'status', 'history', 'pendingNote', 'lastBy', 'publishedAt', 'version', 'shareKey', 'updatedAt', '_base', 'trash', 'pw', 'pwHash', 'pwSalt', 'source'];
+const META_DROP = ['approvals', 'status', 'history', 'pendingNote', 'lastBy', 'publishedAt', 'version', 'shareKey', 'updatedAt', '_base', 'trash', 'pw', 'pwHash', 'pwSalt', 'source', 'live'];
 const bucketPath = url => { const base = PUBLIC_MEDIA(''); return url && url.startsWith(base) ? url.slice(base.length).split('?')[0] : null; };
 
 async function copyObject(fromPath, toPath){

@@ -21,27 +21,27 @@ const cachedVer = () => { const r = store.get(ORIGIN + '/index.html'); return r 
 const cachedAssets = () => [...store.keys()].filter(k => k.includes('/assets/')).map(k => k.split('/').pop()).sort().join(',');
 // 1. old shell + its files cached, a new release on the server: navigation → cached shell now; new files cached, shell switched, old files gone, page told
 store.set(ORIGIN + '/index.html', new Res(shell('12.47.0', 'old.js', 'old.css'))); store.set(ORIGIN + '/assets/old.js', new Res('old')); store.set(ORIGIN + '/assets/old.css', new Res('old'));
-net = { [ORIGIN + '/']: shell('12.50.0', 'new.js', 'new.css'), [ORIGIN + '/assets/new.js']: 'js', [ORIGIN + '/assets/new.css']: 'body{background:url(../fonts/m.woff2)}', [ORIGIN + '/fonts/m.woff2']: 'font', [ORIGIN + '/vendor/mp4-muxer.js']: 'mux', 'https://cdn.jsdelivr.net/npm/lib@1/x.js': 'lib' };
+net = { [ORIGIN + '/']: shell('12.51.0', 'new.js', 'new.css'), [ORIGIN + '/assets/new.js']: 'js', [ORIGIN + '/assets/new.css']: 'body{background:url(../fonts/m.woff2)}', [ORIGIN + '/fonts/m.woff2']: 'font', [ORIGIN + '/vendor/mp4-muxer.js']: 'mux', 'https://cdn.jsdelivr.net/npm/lib@1/x.js': 'lib' };
 const nav = await run(ORIGIN + '/', 'navigate');
 console.log('navigation served from cache:', nav._t.includes("'12.47.0'") ? 'YES' : 'NO – BUG', '| cache switched to:', cachedVer(), '| assets now:', cachedAssets(), '| font + lib cached:', !!store.get(ORIGIN + '/fonts/m.woff2') && !!store.get('https://cdn.jsdelivr.net/npm/lib@1/x.js') ? 'YES' : 'NO – BUG', '| page told:', log.some(l => l.includes('shell-updated')) ? 'YES' : 'NO – BUG');
 // 2. a newer release, but its bundle cannot be fetched (connection drops) → the cached shell stays in charge, its files stay
-net[ORIGIN + '/'] = shell('12.50.0', 'newer.js', 'new.css'); offlineFor = new Set([ORIGIN + '/assets/newer.js']); log.length = 0;
+net[ORIGIN + '/'] = shell('12.51.0', 'newer.js', 'new.css'); offlineFor = new Set([ORIGIN + '/assets/newer.js']); log.length = 0;
 await run(ORIGIN + '/', 'navigate');
-console.log('incomplete update keeps the old shell:', cachedVer() === '12.50.0' && cachedAssets() === 'new.css,new.js' ? 'YES' : 'NO – BUG (' + cachedVer() + ' / ' + cachedAssets() + ')', '| page not told:', log.some(l => l.includes('shell-updated')) ? 'NO – BUG' : 'YES');
+console.log('incomplete update keeps the old shell:', cachedVer() === '12.51.0' && cachedAssets() === 'new.css,new.js' ? 'YES' : 'NO – BUG (' + cachedVer() + ' / ' + cachedAssets() + ')', '| page not told:', log.some(l => l.includes('shell-updated')) ? 'NO – BUG' : 'YES');
 offlineFor = new Set();
 // 3. the in-app version check (not a navigation, ?v=) → network, never the cache
-net[ORIGIN + '/index.html'] = shell('12.50.0', 'newer.js', 'new.css'); net[ORIGIN + '/assets/newer.js'] = 'js2'; const before = netCalls.length;
+net[ORIGIN + '/index.html'] = shell('12.51.0', 'newer.js', 'new.css'); net[ORIGIN + '/assets/newer.js'] = 'js2'; const before = netCalls.length;
 const chk = await run(ORIGIN + '/index.html?v=check123', 'cors');
-console.log('version check hits the network:', netCalls.length > before && chk._t.includes("'12.50.0'") ? 'YES' : 'NO – BUG');
+console.log('version check hits the network:', netCalls.length > before && chk._t.includes("'12.51.0'") ? 'YES' : 'NO – BUG');
 // 4. a plain non-navigation fetch of index.html (older app builds without ?v=) → also network
 const chk2 = await run(ORIGIN + '/index.html', 'cors');
-console.log('plain check hits the network:', chk2._t.includes("'12.50.0'") ? 'YES' : 'NO – BUG');
+console.log('plain check hits the network:', chk2._t.includes("'12.51.0'") ? 'YES' : 'NO – BUG');
 // 5. "?v=" navigation after an update → network, and the complete new shell lands in the cache
-net[ORIGIN + '/'] = shell('12.50.0', 'newer.js', 'new.css');
-const nav2 = await run(ORIGIN + '/?v=12.50.0', 'navigate');
-console.log('?v= navigation from network:', nav2._t.includes("'12.50.0'") ? 'YES' : 'NO – BUG', '| cache now:', cachedVer(), '| assets:', cachedAssets());
+net[ORIGIN + '/'] = shell('12.51.0', 'newer.js', 'new.css');
+const nav2 = await run(ORIGIN + '/?v=12.51.0', 'navigate');
+console.log('?v= navigation from network:', nav2._t.includes("'12.51.0'") ? 'YES' : 'NO – BUG', '| cache now:', cachedVer(), '| assets:', cachedAssets());
 // 6. offline start: navigation → the cached shell, its bundle from the cache
 offlineFor = new Set([ORIGIN + '/', ORIGIN + '/assets/newer.js', ORIGIN + '/assets/new.css']);
 const off = await run(ORIGIN + '/', 'navigate'); const offJs = await run(ORIGIN + '/assets/newer.js', 'no-cors');
-console.log('offline start works:', off && off._t.includes("'12.50.0'") && offJs && offJs._t === 'js2' ? 'YES' : 'NO – BUG');
+console.log('offline start works:', off && off._t.includes("'12.51.0'") && offJs && offJs._t === 'js2' ? 'YES' : 'NO – BUG');
 console.log('NO ERRORS');

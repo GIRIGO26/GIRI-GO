@@ -1,4 +1,4 @@
-# GIRI Go – Architektur (Stand v12.48)
+# GIRI Go – Architektur (Stand v12.51)
 
 Für alle, die den Code übernehmen oder prüfen (Backend-Hire, Code-Review, ISO-Audit). Die Versionsgeschichte steht in `README.md`,
 die Ordnerkarte in `src/README.md`. Dieses Dokument beschreibt **was wo läuft, wem was gehört und wo die Sicherheit sitzt**.
@@ -52,7 +52,9 @@ Offen: die Policy-Tests laufen noch von Hand (SQL-Editor/MCP) gegen das Produkti
 (dafür fehlt ein Supabase-Test-Projekt mit Seed).
 
 Werker öffnen Anleitungen ohne Login: der Link enthält einen 24-Zeichen-Schlüssel (`shareKey`), optional zusätzlich ein Passwort
-(nur als Hash gespeichert, Prüfung in `open_instr`). Sichtbar ist dann genau diese eine veröffentlichte Anleitung.
+(nur als Hash gespeichert, Prüfung in `open_instr`). Sichtbar ist dann genau diese eine veröffentlichte Anleitung – seit v12.51 (`v015`)
+während einer Überarbeitung deren zuletzt freigegebene Fassung (`data.live`, geschrieben nur vom Trigger `instr_authz_guard`; was ein
+Client dort mitschickt, wird verworfen).
 
 ## 4. Datenmodell (Kurzfassung)
 
@@ -67,7 +69,7 @@ Werker öffnen Anleitungen ohne Login: der Link enthält einen 24-Zeichen-Schlü
   sperrt das Schreiben. Abrechnung (Stripe o. ä.) gibt es nicht – Plan und Plätze werden von Hand gepflegt, `seats` ist nur Anzeige.
 - `platform_admins` – wer das Master-Panel sieht (`master_overview`, `master_users`, `master_set_plan`, `master_move_user`, `master_merge_workspace`,
   `master_create_demo`, `master_add_admin`).
-- `instructions` – eine Zeile pro Anleitung; **die Anleitung selbst ist ein JSON-Dokument in `data`** (Schritte, Kapitel, Symbole, Freigaben, Historie, Übersetzungen). Spalten daneben nur für Listen/Policies: `ws, status, title, updated_at, owner, deleted_at, teams_eff` (wirksame Team-IDs = eigene Teams ∪ Teams des Ordners, per Trigger gepflegt – Basis der Sichtbarkeits-Policy).
+- `instructions` – eine Zeile pro Anleitung; **die Anleitung selbst ist ein JSON-Dokument in `data`** (Schritte, Kapitel, Symbole, Freigaben, Historie, Übersetzungen; seit v12.51 `data.live` = Kopie der zuletzt freigegebenen Fassung, solange die nächste in Entwurf/Prüfung ist). Spalten daneben nur für Listen/Policies: `ws, status, title, updated_at, owner, deleted_at, teams_eff` (wirksame Team-IDs = eigene Teams ∪ Teams des Ordners, per Trigger gepflegt – Basis der Sichtbarkeits-Policy).
 - `instr_stats`, `views`, `runs` – Nutzung (Aufrufe, Durchläufe mit Checkliste), `feedback` – Werker-Rückmeldungen (offen/erledigt, optional Foto/Video), `ai_usage` – Protokoll der KI-Aufrufe, `ui_tx` – Cache für Oberflächen-Übersetzungen, `mail_log` (seit v12.48, nur Service-Role) – versendete Einladungs-Mails für die Limits, nach 90 Tagen gelöscht.
 - `workspaces.invites[]` – offene Einladungen `{email, role, at, by, lang, mailed_at, mail_n}`; eingelöst beim ersten Login (`place_new_user`), danach entfernt. Die Einladung selbst läuft nicht ab; der Login-Code gilt 60 Minuten (Supabase „Email OTP Expiration“).
 - Storage `media/<ws>/…` – Fotos, Videos (H.264, ≤ 1280 px), Poster-JPEGs, eigene Symbole.
@@ -79,12 +81,14 @@ Schema-Änderungen = SQL-Migration im Supabase-Projekt (MCP/CLI) **und** derselb
 - Kein Framework: ES-Module, `el(html)`-Helfer, Vite nur als Bundler. `S` (Zustand: Nutzer, Anleitungen, Workspace) und `G` (Einzelwerte:
   Sprache, Supabase-Client, Update-Status) in `src/core/state.js`.
 - **Offline-first**: `IndexedDB` (Spiegel der Anleitungen, Medien-Blobs, Offline-Kopien für Werker, seit v12.46 Editor-Cache der Clips – `media/preload.js`: PC alle Schritte, Handy die nächsten zwei, 14 Tage), Upload-Queue (`core/uploads.js`),
-  Delta-Sync nur `id + updated_at` (`core/translate.js → loadInstrs`); offline zeichnet die App sofort aus Speicher/Gerät, ungespeicherte
+  Delta-Sync nur `id + updated_at` (`core/translate.js → loadInstrs`; eine Anleitung, deren Speichern auf dieser Seite noch läuft oder erst nach Beginn des Abgleichs fertig wurde, bleibt in der Liste – `G.savePending`/`G.savedHere`); offline zeichnet die App sofort aus Speicher/Gerät, ungespeicherte
   Änderungen bleiben markiert und werden alle 30 s bzw. beim Zurückkehren erneut hochgeladen. Service Worker cached die App-Shell und Symbole,
   prüft die Version und rettet hängende Installationen (`sw.js`); seit v12.48 übernimmt er eine neue Version erst, wenn alle ihre Dateien im
   Cache liegen (`installShell`), sonst bliebe offline eine leere Seite.
 - **Orientierung** (v12.48): `ui/topbar.js` zeichnet den Pfad (Anleitungen › Ordner › Anleitung) und den Zurück-Pfeil eine Ebene hoch; `ui/instrnav.js` die Reiter einer Anleitung (Bearbeiten · Vorschau · Auswertung). Avatar = Profil, ≡ = App-Menü.
-- **Unterseiten einer Anleitung** (v12.49): `#/edit/<id>` (Schritte), `#/settings/<id>` (Ablage & Zugriff, Checkliste, Feedback), `#/results/<id>` (Auswertung) – gleicher Kopf, Vorschau als Button ganz rechts (`previewBtn`); Freigabe als Dialog in `views/editor.js` (`approvalDialog`). **Eine Seite scrollt:** `ui/flowsticky.js` hält Seitenspalten (Schrittliste, Schritt-Spalte, Navigator) mit der Seite in Bewegung statt eigener Scrollbereiche.
+- **Unterseiten einer Anleitung** (v12.49): `#/edit/<id>` (Schritte), `#/settings/<id>` (Ablage & Zugriff, Checkliste, Feedback), `#/results/<id>` (Auswertung) – gleicher Kopf, Vorschau als Button ganz rechts (`previewBtn`); Freigabe als Dialog in `views/editor.js` (`approvalDialog`, bleibt seit v12.51 offen, bis beide Freigaben erteilt sind; ist die Anleitung freigegeben, steht im Kopf „Link & QR-Code“ statt der Vorschau – `headLinkBtn`). **Scrollen:** auf der Startseite hält `ui/flowsticky.js` den Navigator mit der Seite in Bewegung; im Editor (PC, seit v12.51) läuft die Schritt-Spalte mit der Seite und die Schrittliste ist sticky mit eigenem Scrollbereich (`.steps-panel`, Höhe aus `--edh` = Kopfhöhe). Auswahl/Löschen ändern nur die Scroll-Position der Liste (`keepRowVisible`), die Seite höchstens so weit, dass das Bild unter dem Kopf steht (`revealStage`).
+- **Freigegebene Fassung bleibt live** (v12.51, `core/live.js`, Migration `v015`): `ensureFeatures()` fragt einmal `giri_features()`; ist `live` da, zeigt der Editor beim Bearbeiten einer veröffentlichten Anleitung „vN live“ statt „offline“, und Viewer/Offline-Kopie/QR-Karte/Poster nehmen `liveView(instr)`. Medien, die die live-Fassung noch zeigt, werden beim Ersetzen/Löschen im Entwurf nicht aus dem Storage entfernt (`liveUses`). Der Client schickt `live` nie mit (`upsertInstrRow`).
+- **Neuigkeiten auf der Startseite** (v12.51, `views/dashboard.js`): erledigte `runs` der letzten 7 Tage für Anleitungen, die man bearbeiten oder auswerten darf, je Anleitung zusammengefasst; Abfrage alle 45 s und bei `visibilitychange`; gelesen/ausgeblendet je Gerät in `localStorage` (`gg_news_<user>`).
 - **Anmelden per QR** (v12.50, `views/devicelogin.js`): PC (angemeldet) → Profil → „Auf dem Handy anmelden“ (`qrLoginDialog`: QR `#/qr/<id>/<secret>`, Status-Abfrage, Zahl eintippen); Handy → `#/qr/…` (`renderQrLogin`: erst beanspruchen, Zahl zeigen, mit dem Zweit-Geheimnis abfragen, Token per `verifyOtp` einlösen) oder Scanner auf der Anmeldeseite (`scanQr`: `BarcodeDetector`/`vendor/jsQR.min.js`). Zustand nur in `device_logins` (ohne Policies, nur die Edge Function). Abmelden = nur dieses Gerät (`signOut({scope:'local'})`), „Auf allen Geräten abmelden“ = `scope:'global'`.
 - **Werker-Ansicht** (`views/viewer.js`): Abschnitte mit Scroll-Snap; bei Checkliste eine feste Antwortleiste und eine Sperre (`gateUpdate`): alles nach dem ersten offenen Pflichtschritt ist ausgeblendet; vor dem Start gewählte Kapitel verschieben den Beginn der Sperre. Ende-Bildschirm nach Zählung (alles OK / nicht OK / offen).
 - **Gleichzeitiges Bearbeiten**: optimistisches Sperren – jede Kopie kennt das `updated_at`, von dem sie stammt (`_base`);
@@ -99,9 +103,11 @@ Schema-Änderungen = SQL-Migration im Supabase-Projekt (MCP/CLI) **und** derselb
 ## 6. Bauen, Testen, Ausliefern
 
 - `npm run dev` lokal · `npm run build` → `index.html` + `assets/` im Repo-Root (werden mit eingecheckt) · `npm run build:cf` → `dist/` für Cloudflare.
-- `npm test` = `node tests/run.mjs` – 51 Playwright-Ende-zu-Ende-Tests gegen den gebauten Stand; Supabase ist durch einen
+- `npm test` = `node tests/run.mjs` – 57 Playwright-Ende-zu-Ende-Tests gegen den gebauten Stand; Supabase ist durch einen
   In-Memory-Mock ersetzt (`tests/build_mock.mjs` → `index3.html`), keine Geheimnisse, kein Netz. Einzelne Tests: `node tests/run.mjs libtest vidtest`.
 - CI: `.github/workflows/ci.yml` baut und lässt die Suite bei jedem Push/PR laufen; Screenshots und Ausgaben hängen als Artifact am Lauf.
+  `.github/workflows/live-check.yml` (seit v12.51) prüft nach jedem Push auf `main`, ob go.ar-giri.de innerhalb von 10 Minuten die Version
+  aus `package.json` ausliefert (sonst schlägt der Lauf fehl → Mail von GitHub); mit dem optionalen Secret `CLOUDFLARE_API_TOKEN` deployt er dann selbst.
 - Release: Version in `app/index.html` (`APP_VERSION`) und `package.json` hochzählen, README-Abschnitt, `npm run build`, Commit auf `main`
   → Cloudflare baut und veröffentlicht automatisch. Installierte Apps holen die neue Version beim nächsten Öffnen (Versions-Check im SW).
 - Geheimnisse: nie im Repo, nie im Chat – Vault (Server) oder Dashboard-Felder (Auth-Provider, SMTP).
@@ -114,6 +120,8 @@ Schema-Änderungen = SQL-Migration im Supabase-Projekt (MCP/CLI) **und** derselb
 - Plan-Ablauf ist weich (Banner), Plätze werden nicht erzwungen, keine Abrechnung – bewusst für die ersten Kunden; Stripe o. ä. später.
 - **Backups**: Pro-Plan → tägliche Datenbank-Backups, 7 Tage. **Dateien im Storage (Fotos, Videos, Poster) sind nicht Teil dieser Backups** – ein eigener Storage-Export (z. B. wöchentlich, außerhalb von Supabase) fehlt noch, ebenso eine Restore-Probe (Backup in ein Testprojekt einspielen, Stichprobe prüfen). Point-in-Time-Recovery ist ein Zusatzpaket (~100 $/Monat für 7 Tage).
 - **Werker-Durchläufe ohne Login** (`runs`) werden über eine zufällige ID fortgeschrieben (Policy `runs_update`: offen, jünger als 2 Tage); wer die ID kennt, könnte einen laufenden Durchgang überschreiben – abgeschlossene nicht. Für die Nachweisführung später: Schlüssel pro Lauf oder Abschluss serverseitig festschreiben.
+- **Neuigkeiten** (Startseite): gelesen/ausgeblendet wird nur pro Gerät gemerkt (`localStorage`), nicht pro Person über Geräte hinweg.
+- **Live-Fassung** (`v015`): sie wird beim Übergang veröffentlicht → Entwurf aus der alten Zeile übernommen; Medien-URLs, die erst danach fertig hochgeladen wurden, ergänzt nur der Client (`liveView`), nicht `open_instr`. Ein Fall nur, wenn eine Anleitung veröffentlicht wird, während ein Upload noch läuft.
 - **Fehler-Monitoring**: nur `client_log` (JS-Fehler, langsame Seiten, 30 Tage) und die Supabase-Logs; kein Alarm bei Fehlern (z. B. Sentry o. ä.) und keine Uptime-Überwachung.
 - Advisor-WARNs bleiben bewusst: die Policy-Helfer (`my_ws`, `my_admin`, `my_can*`, `my_team_ids`, `instr_team_ids`) sind als RPC
   aufrufbar, geben aber nur Auskunft über den Aufrufer selbst; `open_instr`/`instr_public`/`instr_locked`/`feedback_poke` sind

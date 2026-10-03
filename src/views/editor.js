@@ -18,8 +18,8 @@ import { attachDropImport, importFiles, replaceStepMedia } from '../media/import
 import { exportPDF } from '../pdf/export.js';
 import { IC } from '../ui/icons.js';
 import { topbar } from '../ui/topbar.js';
-import { instrCrumbs, instrTabs, previewBtn } from '../ui/instrnav.js';
-import { flowSticky } from '../ui/flowsticky.js';
+import { headLinkBtn, instrCrumbs, instrTabs } from '../ui/instrnav.js';
+import { ensureFeatures, hasLive, liveSupported, makeLive } from '../core/live.js';
 import { duplicateWithProgress, grabFrame, moveToFolderDlg, nOf, posterCache, stepPoster, stepPosterSync } from './dashboard.js';
 import { preloadInstr, touchEditorCache } from '../media/preload.js';
 import { exportPDFAsk, shareModal } from './share.js';
@@ -37,10 +37,11 @@ async function renderEditor(app, id, selStepId, fbId, mode){
   const myRole = canEdit ? 'editor' : 'viewer'; const canApprove = canTech && canDsgvo; const canApproveKey = k => k==='tech' ? canTech : canDsgvo;
   // v12.49: three sub-pages of one instruction, each its own address: #/edit (steps) · #/settings · #/results (analytics); preview is a button
   const tab = mode === 'settings' && canEdit ? 'settings' : 'steps';
-  const v = el(`<main class="page">
+  const v = el(`<main class="page edpage">
     <div class="ed-head"><div class="ed-top"><div class="title-wrap"><input class="title" id="ititle" value="${esc(instr.title)}" placeholder="${t('title')}" ${myRole==='viewer'?'disabled':''}><button class="pen-btn" id="rename" title="${t('rename')}">${IC.edit}</button></div>
-      <div class="ed-meta"><button type="button" class="chip dot ${instr.status}" id="stchip" title="${t('status_details')}">${t(instr.status==='review'?'in_review':instr.status)}</button><span class="muted tnum" id="vchip">v${instr.version}</span><span class="muted" id="ed-n"></span><span class="muted ed-when" id="ed-when"></span></div></div>
-      <div class="ed-bar">${instrTabs(instr, tab==='settings' ? 'settings' : 'edit')}<div class="ed-acts"><button class="btn mint sm" id="rec" ${tab==='settings' ? 'hidden' : ''}>${IC.cam} <span>${t('record')}</span></button><button class="btn sm" id="cta" hidden></button><button class="btn ghost icon" id="more" title="${t('more')}">${IC.more}</button>${previewBtn(instr)}</div></div></div>
+      <div class="ed-meta"><button type="button" class="chip dot ${instr.status}" id="stchip" title="${t('status_details')}">${t(instr.status==='review'?'in_review':instr.status)}</button><span class="muted tnum" id="vchip">v${instr.version}</span><span class="livepill" id="livepill" hidden></span><span class="muted" id="ed-n"></span><span class="muted ed-when" id="ed-when"></span></div></div>
+      <div class="ed-bar">${instrTabs(instr, tab==='settings' ? 'settings' : 'edit')}<div class="ed-acts"><button class="btn mint sm" id="rec" ${tab==='settings' ? 'hidden' : ''}>${IC.cam} <span>${t('record')}</span></button><button class="btn sm" id="cta" hidden></button><button class="btn ghost icon" id="more" title="${t('more')}">${IC.more}</button>${headLinkBtn(instr)}</div></div></div>
+    <div class="live-banner" id="live-banner" hidden></div>
     <div class="fb-banner" id="fb-banner" hidden><span>${IC.msg} <b id="fb-n"></b></span><a class="btn sm" href="#/results/${instr.id}" id="fb-open">${t('fb_view')}</a></div>
     <div class="editor" id="tab-steps" data-pane="${selStepId ? 'step' : 'list'}" ${tab!=='steps'?'hidden':''}>
       <aside class="card steps-panel">
@@ -72,28 +73,51 @@ async function renderEditor(app, id, selStepId, fbId, mode){
   { const eh = v.querySelector('.ed-head'); const setH = () => v.style.setProperty('--edh', eh.offsetHeight + 'px'); setH(); const ro = new ResizeObserver(setH); ro.observe(eh);
     const onSc = () => eh.classList.toggle('stuck', window.scrollY > 4); window.addEventListener('scroll', onSc, {passive:true}); onSc();
     G.activeCleanup = () => { ro.disconnect(); window.removeEventListener('scroll', onSc); }; }
-  // v12.49: one scroll for the whole page (PC) – the step list and the step column move with the page instead of scrolling on their own
-  const headTop = () => (parseFloat(v.style.getPropertyValue('--edh')) || 0) + 72;
-  const fsList = flowSticky(v.querySelector('.steps-panel'), headTop, {media:'(min-width:901px)'});
-  const fsMain = flowSticky(v.querySelector('.ed-main'), headTop, {media:'(min-width:901px)'});
-  { const c1 = G.activeCleanup; G.activeCleanup = () => { fsList.destroy(); fsMain.destroy(); if(c1) c1(); }; }
+  // v12.51 (PC): the step – picture and texts – is part of the page and scrolls with it; the step list stays in view on the left and
+  // scrolls on its own when it is longer than the window (CSS, 09-premium.css). v12.49 let both columns "flow": with a long list the
+  // step column stood still until the list was through and the texts under the picture were out of reach.
+  const panelEl = () => v.querySelector('.steps-panel');
+  const ownScroll = () => { const p = panelEl(); return !!p && window.innerWidth >= 901 && p.scrollHeight > p.clientHeight + 2; };
+  // a row picked by keyboard or by the arrows under the picture: the list follows inside its own box – the page does not move
+  const keepRowVisible = row => { const p = panelEl(); if(!row || !p || !ownScroll()) return; const pr = p.getBoundingClientRect(), rr = row.getBoundingClientRect();
+    if(rr.top < pr.top + 8) p.scrollTop -= (pr.top + 8 - rr.top); else if(rr.bottom > pr.bottom - 8) p.scrollTop += (rr.bottom - pr.bottom + 8); };
+  // a newly picked step shows its picture: only when the page is scrolled past the top of the step (e.g. into the texts of the last
+  // one) – otherwise nothing moves
+  const revealStage = () => { if(window.innerWidth < 901) return; const st = v.querySelector('#stage'), head = v.querySelector('.ed-head'); if(!st || !head) return;
+    const hb = head.getBoundingClientRect().bottom, top = st.getBoundingClientRect().top; if(top < hb + 4) window.scrollTo({top: Math.max(0, window.scrollY + top - hb - 12), behavior: 'smooth'}); };
   v.querySelector('#rec').onclick = () => go('rec/'+instr.id);
   v.querySelector('#stchip').onclick = () => approvalDialog(); // v12.49: status chip → the approval dialog (once, not a panel plus a button)
   { const fm = v.querySelector('#set-fmove'); if(fm) fm.onclick = () => moveToFolderDlg(instr, () => render()); } // the crumbs (folder › instruction) follow
   let fbOpenN = 0;
   v.querySelector('#more').onclick = () => modal(`<div class="menu"><div class="menu-h">${esc(instr.title)}</div><button data-m="undo" ${undo.length?'':'disabled'}>${IC.undo} ${t('undo')}</button><button data-m="redo" ${redo.length?'':'disabled'}>${IC.redo} ${t('redo')}</button><div class="menu-sep"></div>${canLinks ? `<button data-m="share">${IC.share} ${t('share')}</button>` : ''}<button data-m="pdf">${IC.pdf} ${t('pdf_dl')}</button><div class="menu-sep"></div>${canEdit ? `<button data-m="dup">${IC.copy} ${t('duplicate')}</button>` : ''}<button data-m="approvals">${IC.check} ${t('approvals_hist')}</button></div>`, (bg, close) => { $$('[data-m]', bg).forEach(b => b.onclick = () => { close(); const m = b.dataset.m; if(m==='undo') doUndo(); else if(m==='redo') doRedo(); else if(m==='dup') duplicateWithProgress(instr); else if(m==='share') shareModal(instr); else if(m==='pdf') exportPDFAsk(instr); else if(m==='results') go('results/'+instr.id); else if(m==='approvals') approvalDialog(); }); });
-  const setChip = () => { const c = v.querySelector('#stchip'); c.className = 'chip dot '+instr.status; c.textContent = t(instr.status==='review'?'in_review':instr.status); const vc = v.querySelector('#vchip'); if(vc) vc.textContent = 'v'+instr.version; updateCTA(); };
+  const wireHeadLink = () => { const b = v.querySelector('[data-headshare]'); if(b) b.onclick = () => shareModal(instr); };
+  const updateHeadLink = () => { const cur = v.querySelector('.ed-acts #pvw, .ed-acts #pvw-share'); if(!cur) return; const nx = el(headLinkBtn(instr)); if(cur.id === nx.id) return; cur.replaceWith(nx); wireHeadLink(); };
+  // v12.51: "v3 live" next to the status while the next version is in the works, and one line under the head that says what workers see
+  const updateLive = () => { const p = v.querySelector('#livepill'), b = v.querySelector('#live-banner'); if(!p || !b) return;
+    const lv = instr.status !== 'published' && hasLive(instr);
+    p.hidden = !lv; if(lv){ p.textContent = t('live_pill', {v: instr.live.version}); p.title = t('live_pill_t', {v: instr.live.version}); }
+    const msg = lv ? `${IC.eye}<span>${t('live_banner', {v: instr.live.version})}</span>` : (instr.status === 'published' && G.features && !liveSupported()) ? `${IC.warn}<span>${t('pub_warn_banner')}</span>` : '';
+    b.hidden = !msg; b.className = 'live-banner' + (lv ? '' : ' warn'); b.innerHTML = msg; };
+  const setChip = () => { const c = v.querySelector('#stchip'); c.className = 'chip dot '+instr.status; c.textContent = t(instr.status==='review'?'in_review':instr.status); const vc = v.querySelector('#vchip'); if(vc) vc.textContent = 'v'+instr.version; updateCTA(); updateHeadLink(); updateLive(); };
+  updateLive(); ensureFeatures().then(() => { if(v.isConnected) updateLive(); });
+  wireHeadLink();
   function updateCTA(){ const b = v.querySelector('#cta'); b.hidden = true; b.className = 'btn sm'; const narrow = matchMedia('(max-width:560px)').matches;
-    if(instr.status==='draft' && realSteps(instr).length && myRole!=='viewer'){ b.hidden = false; b.textContent = t(narrow ? 'submit_review_short' : 'submit_review'); b.onclick = submitForReview; }
+    if(instr.status==='draft' && realSteps(instr).length && myRole!=='viewer'){ b.hidden = false; b.textContent = t(narrow ? 'submit_review_short' : 'submit_review'); b.onclick = () => approvalDialog({submit: true}); }
     else if(instr.status==='review' && ((canTech && !instr.approvals.tech) || (canDsgvo && !instr.approvals.dsgvo))){ b.hidden = false; b.textContent = t('approve_publish_short'); b.onclick = approvalDialog; } }
-  async function submitForReview(){ const note = await promptM(t('publish_note'), G.LANG==='de'?'z. B. Schritt 4 Drehmoment korrigiert':'e.g. corrected torque in step 4', instr.version===0 ? (G.LANG==='de'?'Erstversion':'Initial version') : ''); if(note===null) return; instr.pendingNote = note; instr.status='review'; await saveInstr(instr); setChip(); renderApprovals(); toast(t('in_review')); }
   const undo = [], redo = []; let lastSnap = JSON.stringify(instr.steps);
   const snapshot = () => { const cur = JSON.stringify(instr.steps); if(cur !== lastSnap){ undo.push(lastSnap); redo.length = 0; if(undo.length > 40) undo.shift(); lastSnap = cur; } updateUndo(); };
   const updateUndo = () => { const b = v.querySelector('#undo'); if(b) b.disabled = !undo.length; };
   const applySnap = async (snap, msg) => { lastSnap = snap; instr.steps = JSON.parse(snap); updateUndo(); if(!instr.steps.find(x=>x.id===sel)) sel = (realSteps(instr)[0]||{}).id; await saveInstr(instr); renderList(); renderStage(); toast(msg); };
   async function doUndo(){ if(!undo.length) return; redo.push(JSON.stringify(instr.steps)); await applySnap(undo.pop(), t('undone')); }
   async function doRedo(){ if(!redo.length) return; undo.push(JSON.stringify(instr.steps)); await applySnap(redo.pop(), t('redone')); }
-  const touch = async () => { snapshot(); if(instr.status!=='draft'){ instr.status='draft'; instr.approvals={tech:null,dsgvo:null}; renderApprovals(); setChip(); } await saveInstr(instr); };
+  // v12.51: the first change to a published instruction starts the next version – workers keep the approved one (v015), or (without
+  // v015) it goes offline until it is approved again; either way the editor says which
+  // the published state as the database will keep it (v015 snapshot) – shown here at once, the server's copy follows with the next sync
+  let pubSnap = instr.status==='published' ? makeLive(instr) : null;
+  const touch = async () => { snapshot(); if(instr.status!=='draft'){ const wasPub = instr.status==='published'; instr.status='draft'; instr.approvals={tech:null,dsgvo:null};
+      if(wasPub && liveSupported() && pubSnap) instr.live = pubSnap;
+      renderApprovals(); setChip(); if(wasPub) toast(hasLive(instr) ? t('live_kept_toast', {v: instr.live.version}) : t('pub_offline_toast')); }
+    await saveInstr(instr); };
   const onKey = e => { if(/INPUT|TEXTAREA|SELECT/.test((e.target.tagName||''))) return; if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z' && !e.shiftKey){ e.preventDefault(); doUndo(); return; } if((e.ctrlKey||e.metaKey) && ((e.key.toLowerCase()==='z' && e.shiftKey) || e.key.toLowerCase()==='y')){ e.preventDefault(); doRedo(); return; } if(stageApi && !e.ctrlKey && !e.metaKey && !e.altKey && !(e.target.closest && e.target.closest('.srow'))){ if(stageApi.key(e)) e.preventDefault(); } };
   document.addEventListener('keydown', onKey);
   v.querySelector('#ititle').oninput = e => { instr.title = e.target.value; debounce('title', touch); };
@@ -155,10 +179,15 @@ async function renderEditor(app, id, selStepId, fbId, mode){
     const list = v.querySelector('#slist'); const row = list.querySelector(`.srow[data-id="${sel}"]`);
     if(!row){ renderList(); renderStage(); return; }
     list.querySelectorAll('.srow.sel').forEach(r => r.classList.remove('sel')); row.classList.add('sel'); openedFor = sel;
-    renderStage(); fsMain.reset(); // the picture of the newly picked step is in view
+    renderStage(); keepRowVisible(row); revealStage(); // the picture of the newly picked step is in view, the list keeps its place
   }
   const localMedia = new Set(); // media ids that are on this device (recorded here or cached by the preloader) – a dot on the row
   function renderList(){
+    // v12.51: a redraw (delete, move, rename …) keeps the list where it was – in its own box on the PC, on the page on the phone
+    const pnl = panelEl(), pst = pnl ? pnl.scrollTop : 0, wy = window.scrollY;
+    try{ renderListInner(); } finally { if(pnl && pnl.scrollTop !== pst) pnl.scrollTop = pst; if(window.innerWidth < 901 && Math.abs(window.scrollY - wy) > 2) window.scrollTo(0, wy); }
+  }
+  function renderListInner(){
     const list = v.querySelector('#slist'); list.innerHTML=''; let n = 0; let curCh = null;
     { const nb = v.querySelector('#noshot-bar'); const empt = realSteps(instr).filter(needsShot); nb.hidden = !empt.length || myRole==='viewer'; if(empt.length){ nb.innerHTML = `${IC.cam}<span>${empt.length===1 ? t('noshot_one') : t('noshot_many', {n:empt.length})}</span><b>${t('noshot_go')} →</b>`; nb.onclick = () => go(`rec/${instr.id}/replace/${empt[0].id}`); } }
     try{ if(sel) sessionStorage.setItem('gg_sel_'+id, sel); }catch(e){}
@@ -166,7 +195,7 @@ async function renderEditor(app, id, selStepId, fbId, mode){
     if(sel !== openedFor){ openedFor = sel; let ch = null; for(const s of instr.steps){ if(s.kind==='chapter') ch = s; else if(s.id===sel){ if(ch && collapsed.has(ch.id)){ collapsed.delete(ch.id); saveColl(); } break; } } }
     const edn = v.querySelector('#ed-n'); if(edn) edn.textContent = '· ' + nOf(realSteps(instr).length, 'step', 'steps');
     const ew = v.querySelector('#ed-when'); if(ew) ew.textContent = instr.updatedAt ? '· ' + t('changed_by', {d: fmtD(instr.updatedAt), n: instr.lastBy || instr.createdBy || ''}).replace(/ (von|by) $/, '') : '';
-    if(!instr.steps.length){ list.innerHTML = `<div class="muted" style="padding:10px">${t('no_steps')}</div>`; if(myRole!=='viewer') list.appendChild(addStepCard()); }
+    if(!instr.steps.length){ list.innerHTML = `<div class="muted" style="padding:10px">${t(isPhone() ? 'no_steps' : 'no_steps_short')}</div>`; if(myRole!=='viewer') list.appendChild(addStepCard()); }
     instr.steps.forEach((s, idx) => { try{
       if(s.kind==='chapter'){
         curCh = s; const [cs, ce] = chapterBlock(idx); const cnt = ce-cs-1; const isC = collapsed.has(s.id);
@@ -183,7 +212,7 @@ async function renderEditor(app, id, selStepId, fbId, mode){
       n++;
       if(curCh && collapsed.has(curCh.id)) return;
       const chC = curCh ? ['#004EAD','#03D39B','#F5A524','#8B5CF6','#EC4899','#0EA5E9'][instr.steps.slice(0, instr.steps.indexOf(curCh)).filter(x => x.kind==='chapter').length % 6] : 'transparent';
-      const r = el(`<div class="srow ${s.id===sel?'sel':''} ${curCh?'in-ch':''} ${s.mediaId && localMedia.has(s.mediaId)?'local':''}" data-id="${s.id}" tabindex="0" style="--chc:${chC}"><span class="grip" title="${t('drag')}">${IC.grip}</span><span class="n tnum">${n}</span><div class="th-wrap ${s.mediaId?'':'noshot'} ${s.placeholder?'ph':''} ${s.textOnly?'txt':''}">${s.mediaId ? '<img class="th" alt="">' : `<span class="th">${s.textOnly ? IC.text : IC.cam}</span>`}${s.placeholder ? `<u class="phtag">${t('ph_tag')}</u>` : ''}${s.type==='video'?`<span class="vd tnum">${fmtSec(Math.max(0,(s.trimEnd||s.duration)-(s.trimStart||0)))}s</span>`:''}</div><div class="tt">${titleHtml(s.title)||`<span class="muted">${t('step')} ${n}</span>`}${myRole!=='viewer' ? `<button class="mini x rowdel" data-rowdel title="${t('delete')}">${IC.trash}</button>`:''}<small>${instr.checklist && (instr.checkMode||'all')!=='all' && confirmSteps(instr).includes(s) ? '☑ ' : ''}${s.ann.length?s.ann.length+' ⌖':''} ${s.desc?'· '+esc(mdToPlain(s.desc).replace(/\n+/g,' ').slice(0,30)):''}</small></div></div>`);
+      const r = el(`<div class="srow ${s.id===sel?'sel':''} ${curCh?'in-ch':''} ${s.mediaId && localMedia.has(s.mediaId)?'local':''}" data-id="${s.id}" tabindex="0" style="--chc:${chC}"><span class="grip" title="${t('drag')}">${IC.grip}</span><span class="n tnum">${n}</span><div class="th-wrap ${s.mediaId?'':'noshot'} ${s.placeholder?'ph':''} ${s.textOnly?'txt':''}">${s.mediaId ? '<img class="th" alt="">' : `<span class="th">${s.textOnly ? IC.text : IC.cam}</span>`}${s.placeholder ? `<u class="phtag">${t('ph_tag')}</u>` : ''}${s.type==='video'?`<span class="vd tnum">${fmtSec(Math.max(0,(s.trimEnd||s.duration)-(s.trimStart||0)))}s</span>`:''}</div><div class="tt"><span class="tt-t">${titleHtml(s.title)||`<span class="muted">${t('step')} ${n}</span>`}</span>${myRole!=='viewer' ? `<button class="mini x rowdel" data-rowdel title="${t('delete')}">${IC.trash}</button>`:''}<small>${instr.checklist && (instr.checkMode||'all')!=='all' && confirmSteps(instr).includes(s) ? '☑ ' : ''}${[s.ann.length ? `<span class="nsym" title="${esc(s.ann.length === 1 ? t('n_symbols_one') : t('n_symbols', {n: s.ann.length}))}">${IC.arrow}${s.ann.length}</span>` : '', s.desc ? esc(mdToPlain(s.desc).replace(/\n+/g,' ').slice(0,40)) : ''].filter(Boolean).join(' · ')}</small></div></div>`);
       if(s.mediaId){ const known = stepPosterSync(s); if(known) r.querySelector('.th').src = known; else stepPoster(s).then(u => { if(u) r.querySelector('.th').src = u; }); }
       const rd = r.querySelector('[data-rowdel]'); if(rd) rd.onclick = e => { e.stopPropagation(); delStep(s); };
       r.onclick = e => { if(e.target.closest('.grip')) return; selectStep(s.id); if(isPhone()) setPane('step'); };
@@ -214,9 +243,14 @@ async function renderEditor(app, id, selStepId, fbId, mode){
       tl.appendChild(r); });
     list.appendChild(box);
   }
-  const focusRow = id => { const r = v.querySelector(`.srow[data-id="${id}"]`); if(r){ r.focus(); r.scrollIntoView({block:'nearest'}); } };
+  const focusRow = id => { const r = v.querySelector(`.srow[data-id="${id}"]`); if(!r) return; r.focus({preventScroll: true}); if(ownScroll()) keepRowVisible(r); else r.scrollIntoView({block:'nearest'}); };
   async function move(i, d){ const j = i+d; if(j<0||j>=instr.steps.length) return; const [x] = instr.steps.splice(i,1); instr.steps.splice(j,0,x); await touch(); renderList(); }
-  async function delStep(s){ if(!(await confirmM(t('confirm_del_step'), t('delete')))) return; const i = instr.steps.indexOf(s); trashStep(instr, s); if(sel===s.id){ sel = (realSteps(instr)[Math.min(i, realSteps(instr).length-1)]||{}).id; } await touch(); renderList(); renderStage(); toast(t('trashed_toast')); }
+  // v12.51: after deleting, the step that moves up into its place is selected (or the one before, at the end). Before, the position
+  // was counted with the chapter rows included – with chapters the selection jumped several steps further down.
+  async function delStep(s){ if(!(await confirmM(t('confirm_del_step'), t('delete')))) return; const k = realSteps(instr).indexOf(s); trashStep(instr, s);
+    if(sel===s.id){ const rs = realSteps(instr); sel = (rs[Math.min(Math.max(0, k), rs.length-1)]||{}).id; }
+    await touch(); renderList(); renderStage(); toast(t('trashed_toast'));
+    const row = v.querySelector(`.srow[data-id="${sel}"]`); if(row){ keepRowVisible(row); revealStage(); } }
   // drag & drop: the row follows the finger as a ghost; a placeholder moves through the list.
   // The original row stays in place (hidden) so pointer capture is never lost.
   function attachDrag(r, idx){
@@ -247,7 +281,9 @@ async function renderEditor(app, id, selStepId, fbId, mode){
           if(dir > 0 && ev.clientY > top + h*0.5) nb[nb.length-1].after(ph);
           else if(dir < 0 && ev.clientY < bottom - h*0.5) nb[0].before(ph);
           else break; }
-        if(ev.clientY < 90) window.scrollBy(0,-12); else if(ev.clientY > window.innerHeight-90) window.scrollBy(0,12);
+        // near the edge: the list scrolls in its own box (PC, long list), otherwise the page
+        if(ownScroll()){ const p = panelEl(), pr = p.getBoundingClientRect(); if(ev.clientY < pr.top + 50) p.scrollTop -= 12; else if(ev.clientY > pr.bottom - 50) p.scrollTop += 12; }
+        else if(ev.clientY < 90) window.scrollBy(0,-12); else if(ev.clientY > window.innerHeight-90) window.scrollBy(0,12);
       };
       const up = async () => {
         if(done) return; done = true;
@@ -287,8 +323,18 @@ async function renderEditor(app, id, selStepId, fbId, mode){
   async function renderStageInner(){
     if(stageCleanup){ stageCleanup(); stageCleanup=null; }
     const stage = v.querySelector('#stage'), props = v.querySelector('#props');
+    // v12.51: the column keeps its height while the next step is drawn (placeholder → picture) – the page does not shrink, the
+    // scroll position does not jump (e.g. after deleting a step further down)
+    const holdH = stage.offsetHeight; if(holdH > 120) stage.style.minHeight = holdH + 'px';
+    const release = () => requestAnimationFrame(() => requestAnimationFrame(() => { if(stage.isConnected && sel === (s && s.id)) stage.style.minHeight = ''; }));
     const s = instr.steps.find(x=>x.id===sel);
-    if(!s){ stage.innerHTML = `<div class="empty"><h2>${t('no_steps')}</h2><button class="btn mint" id="rec2">${IC.cam} ${t('record')}</button></div>`; stage.querySelector('#rec2').onclick=()=>go('rec/'+instr.id); props.innerHTML=''; return; }
+    // v12.51: no step yet – on the PC: drag in, pick files or record (no "tap"); the empty settings box under it is hidden
+    if(!s){ stage.style.minHeight = ''; props.innerHTML = ''; props.hidden = true; const pc = !isPhone() && myRole!=='viewer';
+      stage.innerHTML = `<div class="empty ed-empty"><h2>${t(pc ? 'no_steps_short' : 'no_steps')}</h2>${pc ? `<p class="muted">${t('no_steps_pc_sub')}</p>` : ''}<div class="row" style="justify-content:center;gap:8px;flex-wrap:wrap">${pc ? `<label class="btn" style="cursor:pointer">${IC.upload} ${t('pick_files_short')}<input type="file" multiple accept="image/*,video/*" hidden></label>` : ''}<button class="btn ${pc ? 'ghost' : 'mint'}" id="rec2">${IC.cam} ${t('record')}</button></div></div>`;
+      stage.querySelector('#rec2').onclick = () => go('rec/'+instr.id);
+      const fi = stage.querySelector('input[type=file]'); if(fi) fi.onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if(fs.length) doImport(fs); };
+      return; }
+    props.hidden = false;
     const isV = s.type==='video';
     const n = realSteps(instr).indexOf(s)+1;
     const rs = realSteps(instr); const k = rs.indexOf(s); const stepbar = `<div class="stepbar"><button class="sb-back" data-back>${IC.back}<span>${t('back_steps')}</span></button><b class="tnum" title="${t('step_of', {n:k+1, total:rs.length})}">${k+1} ${t('of')} ${rs.length}</b><span class="sb-nav"><button data-prev ${k<=0?'disabled':''} title="${t('cap_prev')}">${IC.up}</button><button data-next ${k>=rs.length-1?'disabled':''} title="${t('cap_next_btn')}">${IC.down}</button><button data-mmore title="${t('more')}">${IC.more}</button></span></div>`;
@@ -314,6 +360,7 @@ async function renderEditor(app, id, selStepId, fbId, mode){
       <div class="field"><label for="sdesc">${t('desc')}</label><textarea id="sdesc" placeholder="${t('desc_ph')}">${esc(s.desc)}</textarea><div class="fmtbar"><button data-f="b" title="${t('fmt_bold')}"><b>B</b></button><button data-f="ul" title="${t('fmt_ul')}">•&thinsp;${t('fmt_ul')}</button><button data-f="ol" title="${t('fmt_ol')}">1.&thinsp;${t('fmt_ol')}</button><button data-f="link" title="${t('fmt_link')}">🔗 ${t('fmt_link')}</button><button data-f="keep" title="${t('fmt_keep')}">🔒 ${t('fmt_keep')}</button></div><div class="rich rich-prev" id="sprev" hidden></div><div class="fmt-hint">${esc(t('fmt_hint'))}</div></div>
       <div class="field warnf ${s.warn || warnOpen ? '' : 'closed'}"><label for="swarn">${t('warn')}</label><input id="swarn" value="${esc(s.warn||'')}" placeholder="⚠"><button class="lnk" type="button" data-addwarn>⚠ ${t('add_warn')}</button></div>
       ${instr.checklist && (instr.checkMode||'all')==='custom' ? `<label class="toggle" style="margin-top:6px"><input type="checkbox" id="sconf" ${s.confirm?'checked':''}> <span>${t('step_confirm')}<br><span class="muted" style="font-weight:500">${t('step_confirm_sub')}</span></span></label>` : ''}`;
+    release(); // the new step is laid out (the picture box has a fixed shape) – the held height can go
     const sconf = props.querySelector('#sconf'); if(sconf) sconf.onchange = async e => { s.confirm = e.target.checked; if(!s.confirm) delete s.confirm; await touch(); renderList(); };
     { const sx = props.querySelector('[data-shotx]'); if(sx) sx.onclick = () => { delete s.shot; touch(); renderStage(); }; }
     props.querySelector('#stitle').oninput = e => { s.title = e.target.value; debounce('st', async()=>{ await touch(); renderList(); }); };
@@ -565,45 +612,72 @@ async function renderEditor(app, id, selStepId, fbId, mode){
   }
 
   /* --- approvals (v12.49): one dialog, opened from the status chip, the "Approve" button or the ⋯ menu. Each approval shows what this
-     person may do: approve / reject for their own right, otherwise who it waits for – nothing appears twice on the page any more. --- */
+     person may do: approve / reject for their own right, otherwise who it waits for – nothing appears twice on the page any more.
+     v12.51: the dialog stays open after an action and shows the new state in place – submit, then give one approval and the other,
+     then share; a rejection takes its reason right in the row (no second window on top). "Done" closes it. --- */
   function renderApprovals(){ updateCTA(); }
-  async function approvalDialog(){
-    const ap = instr.approvals; const st = instr.status;
-    const note = st==='draft' ? t('status_note_draft') : st==='review' ? t('status_note_review') : t('status_note_pub');
-    const row = k => { const mine = canApproveKey(k);
-      const right = ap[k] ? `<small>${t('approved_by')} ${esc(ap[k].by)} · ${fmtDate(ap[k].at)}</small>`
-        : st==='review' ? (mine ? `<small>${t('appr_yours')}</small>` : `<small>${t(k==='tech' ? 'appr_wait_tech' : 'appr_wait_dsgvo')}</small>`)
-        : `<small>${t('pending')}${st==='draft' ? ' · ' + t('appr_after_submit') : ''}</small>`;
-      const acts = st==='review' && !ap[k] && mine ? `<div class="row"><button class="btn ghost sm" data-rej="${k}">${t('reject')}</button><button class="btn mint sm" data-aok="${k}">${IC.check} ${t('approve')}</button></div>` : '';
-      return `<div class="appr ${ap[k]?'ok':''}" data-appr="${k}"><div><b>${ap[k] ? '✓ ' : ''}${t(k)}</b>${right}</div>${acts}</div>`; };
-    const both = st==='review' && canApprove && !ap.tech && !ap.dsgvo;
-    const html = `<h2>${t('approvals')}</h2><div class="flow"><span class="${st==='draft'?'cur':'done'}">1 · ${t('draft')}</span><span class="${st==='review'?'cur':(st==='published'?'done':'')}">2 · ${t('in_review')}</span><span class="${st==='published'?'cur':''}">3 · ${t('published')}</span></div><div class="notice ${st==='published'?'':'blue'}" style="margin-bottom:10px">${note}</div>
-      <div class="approve-box">${['tech','dsgvo'].map(row).join('')}</div>
-      <div class="row wrap" style="margin-top:12px;gap:8px">${both ? `<button class="btn" id="ap-both">${IC.check} ${t('approve_publish')}</button>` : ''}${st==='draft' && myRole!=='viewer' && realSteps(instr).length ? `<button class="btn" id="ap-submit">${t('submit_review')}</button>` : ''}${st==='review' && myRole!=='viewer' ? `<button class="btn ghost sm" id="ap-todraft">${t('back_to_draft')}</button>` : ''}${st==='published' ? `<span class="muted">${t('locked_hint')}</span>` : ''}</div>
-      ${instr.history.length ? `<h3 style="margin-top:16px">${t('history')}</h3><div class="hist">${[...instr.history].reverse().map(h=>`<div><b>v${h.version}</b> · ${fmtDate(h.at)} · ${esc(h.by)} — ${esc(h.note)}</div>`).join('')}</div>` : ''}
-      <div class="actions"><button class="btn ghost" data-x>${t('close')}</button></div>`;
-    const r = await modal(html, (bg, close) => {
-      bg.querySelector('[data-x]').onclick = () => close(null);
-      const b1 = bg.querySelector('#ap-both'); if(b1) b1.onclick = () => close({act:'both'});
-      const b2 = bg.querySelector('#ap-submit'); if(b2) b2.onclick = () => close({act:'submit'});
-      const b3 = bg.querySelector('#ap-todraft'); if(b3) b3.onclick = () => close({act:'todraft'});
-      $$('[data-aok]', bg).forEach(b => b.onclick = () => close({act:'ok', k:b.dataset.aok}));
-      $$('[data-rej]', bg).forEach(b => b.onclick = () => close({act:'rej', k:b.dataset.rej}));
+  async function approvalDialog(opts = {}){
+    // msg = what the last action did ({k: ok | blue | bad, s}); it takes the place of the general status note – one box, not two
+    let msg = null, rejK = null, submitOpen = !!opts.submit && instr.status==='draft', busy = false;
+    const say = (k, s) => { msg = s ? {k, s} : null; };
+    const html = () => { const ap = instr.approvals; const st = instr.status; const open = ['tech','dsgvo'].filter(k => !ap[k]);
+      const note = st==='draft' ? (hasLive(instr) ? t('status_note_draft_live', {v: instr.live.version}) : t('status_note_draft'))
+        : open.length===1 ? t('status_note_review1', {a: t(open[0])}) : t('status_note_review');
+      const row = k => { const mine = canApproveKey(k);
+        const right = ap[k] ? `<small>${t('approved_by')} ${esc(ap[k].by)} · ${fmtDate(ap[k].at)}</small>`
+          : st==='review' ? (mine ? `<small>${t('appr_yours')}</small>` : `<small>${t(k==='tech' ? 'appr_wait_tech' : 'appr_wait_dsgvo')}</small>`)
+          : `<small>${t('pending')}${st==='draft' ? ' · ' + t('appr_after_submit') : ''}</small>`;
+        const acts = st==='review' && !ap[k] && mine && rejK!==k ? `<div class="row"><button class="btn ghost sm" data-rej="${k}">${t('reject')}</button><button class="btn mint sm" data-aok="${k}">${IC.check} ${t('approve')}</button></div>` : '';
+        const rej = rejK===k ? `<div class="appr-rej"><label for="ap-why">${t('reject_reason')}</label><textarea id="ap-why" rows="3" placeholder="${esc(t('reason_ph'))}"></textarea><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn ghost sm" data-rejx>${t('cancel')}</button><button class="btn danger sm" data-rejok="${k}">${t('reject')}</button></div></div>` : '';
+        return `<div class="appr ${ap[k]?'ok':''} ${rejK===k?'rejecting':''}" data-appr="${k}"><div><b>${ap[k] ? '✓ ' : ''}${t(k)}</b>${right}</div>${acts}${rej}</div>`; };
+      const both = st==='review' && canApprove && !ap.tech && !ap.dsgvo && !rejK;
+      const subm = st==='draft' && myRole!=='viewer' && realSteps(instr).length;
+      const formOpen = subm && submitOpen;
+      const stateBox = st==='published' ? `<div class="appr-live"><div><b>${t('appr_live_t', {v: instr.version})}</b><small>${t('appr_live_sub')}</small></div>${canLinks ? `<button class="btn" id="ap-share">${IC.qr} ${t('link_qr')}</button>` : ''}</div>`
+        : msg ? `<div class="notice ${msg.k} appr-msg" role="status">${msg.k==='ok' ? IC.check : msg.k==='bad' ? IC.warn : ''}<span>${esc(msg.s)}</span></div>`
+        : `<div class="notice blue appr-msg">${note}</div>`;
+      return `<h2>${t('approvals')}</h2><div class="flow"><span class="${st==='draft'?'cur':'done'}">1 · ${t('draft')}</span><span class="${st==='review'?'cur':(st==='published'?'done':'')}">2 · ${t('in_review')}</span><span class="${st==='published'?'cur':''}">3 · ${t('published')}</span></div>
+        ${stateBox}
+        <div class="approve-box">${['tech','dsgvo'].map(row).join('')}</div>
+        ${formOpen ? `<div class="appr-sub"><label for="ap-note">${t('publish_note')}</label><input id="ap-note" value="${esc(instr.pendingNote || (instr.version===0 ? (G.LANG==='de'?'Erstversion':'Initial version') : ''))}" placeholder="${esc(G.LANG==='de'?'z. B. Schritt 4 Drehmoment korrigiert':'e.g. corrected torque in step 4')}"><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn ghost sm" data-subx>${t('cancel')}</button><button class="btn sm" id="ap-subok">${t('submit_review')}</button></div></div>` : ''}
+        <div class="row wrap" style="margin-top:12px;gap:8px">${both ? `<button class="btn" id="ap-both">${IC.check} ${t('approve_publish')}</button>` : ''}${subm && !submitOpen ? `<button class="btn" id="ap-submit">${t('submit_review')}</button>` : ''}${st==='review' && myRole!=='viewer' && !rejK ? `<button class="btn ghost sm" id="ap-todraft">${t('back_to_draft')}</button>` : ''}${st==='published' ? `<span class="muted">${liveSupported() ? t('locked_hint_live', {v: instr.version}) : t('locked_hint')}</span>` : ''}</div>
+        ${instr.history.length ? `<h3 style="margin-top:16px">${t('history')}</h3><div class="hist">${[...instr.history].reverse().map(h=>`<div><b>v${h.version}</b> · ${fmtDate(h.at)} · ${esc(h.by)} — ${esc(h.note)}</div>`).join('')}</div>` : ''}
+        ${formOpen ? '' : `<div class="actions"><button class="btn ${instr.status==='published' ? 'ghost' : ''}" data-x>${t('done_btn')}</button></div>`}`; };
+    await modal(html(), (bg, close) => {
+      const box = bg.querySelector('.modal');
+      const act = async fn => { if(busy) return; busy = true; $$('button', box).forEach(b => b.disabled = true); try{ await fn(); }catch(e){ toast(t('error_prefix') + ': ' + (e && e.message || e)); } finally { busy = false; } paint(); };
+      const paint = () => { box.innerHTML = html(); wire(); const f = box.querySelector('#ap-why, #ap-note'); if(f) setTimeout(() => f.focus(), 30); };
+      const wire = () => {
+        const dx = box.querySelector('[data-x]'); if(dx) dx.onclick = () => close(null);
+        const sh = box.querySelector('#ap-share'); if(sh) sh.onclick = () => { close(null); shareModal(instr); };
+        const sb = box.querySelector('#ap-submit'); if(sb) sb.onclick = () => { submitOpen = true; say(); paint(); };
+        // opened from "Submit for review": cancel closes the dialog; opened from the chip: back to the overview
+        const sx = box.querySelector('[data-subx]'); if(sx) sx.onclick = () => { if(opts.submit) close(null); else { submitOpen = false; paint(); } };
+        const so = box.querySelector('#ap-subok'); if(so) so.onclick = () => act(async () => { instr.pendingNote = (box.querySelector('#ap-note').value || '').trim(); instr.status = 'review'; submitOpen = false; await saveInstr(instr); setChip(); renderApprovals(); say('ok', t('appr_submitted')); });
+        const an = box.querySelector('#ap-note'); if(an) an.onkeydown = e => { if(e.key==='Enter'){ e.preventDefault(); const b = box.querySelector('#ap-subok'); if(b) b.click(); } };
+        const b1 = box.querySelector('#ap-both'); if(b1) b1.onclick = () => act(async () => { await ensureFeatures(); const now = Date.now(); instr.approvals.tech = {by:S.user.name, at:now}; instr.approvals.dsgvo = {by:S.user.name, at:now}; publishNow(); await saveInstr(instr); setChip(); say(); });
+        const b3 = box.querySelector('#ap-todraft'); if(b3) b3.onclick = () => act(async () => { instr.status='draft'; instr.approvals={tech:null,dsgvo:null}; await saveInstr(instr); setChip(); say('blue', t('appr_todraft_info')); });
+        $$('[data-aok]', box).forEach(b => b.onclick = () => act(async () => { await ensureFeatures(); const k = b.dataset.aok; instr.approvals[k] = {by:S.user.name, at:Date.now()};
+          if(instr.approvals.tech && instr.approvals.dsgvo){ publishNow(); say(); } else { const other = k==='tech' ? 'dsgvo' : 'tech'; say('ok', t('appr_saved', {a: t(k)}) + ' ' + t('appr_wait_other', {a: t(other)})); }
+          await saveInstr(instr); setChip(); }));
+        $$('[data-rej]', box).forEach(b => b.onclick = () => { rejK = b.dataset.rej; say(); paint(); });
+        const rx = box.querySelector('[data-rejx]'); if(rx) rx.onclick = () => { rejK = null; paint(); };
+        const ro = box.querySelector('[data-rejok]'); if(ro) ro.onclick = () => { const why = (box.querySelector('#ap-why').value || '').trim(); if(!why){ const w = box.querySelector('#ap-why'); w.classList.add('need'); w.focus(); return; }
+          act(async () => { const k = ro.dataset.rejok; instr.status='draft'; instr.approvals={tech:null,dsgvo:null}; instr.history.push({version:instr.version + 1, at:Date.now(), by:S.user.name, note:t('rejected_hist', {a: t(k), w: why}), rejected:true}); rejK = null; await saveInstr(instr); setChip(); say('bad', t('appr_rejected')); }); };
+      };
+      wire(); if(submitOpen){ const f = box.querySelector('#ap-note'); if(f) setTimeout(() => { f.focus(); f.select(); }, 40); }
     });
-    if(!r) return;
-    if(r.act==='submit') return submitForReview();
-    if(r.act==='both'){ const now = Date.now(); instr.approvals.tech = {by:S.user.name, at:now}; instr.approvals.dsgvo = {by:S.user.name, at:now}; publishNow(); await saveInstr(instr); setChip(); return; }
-    if(r.act==='todraft'){ instr.status='draft'; instr.approvals={tech:null,dsgvo:null}; await saveInstr(instr); setChip(); return; }
-    if(r.act==='ok'){ instr.approvals[r.k] = {by:S.user.name, at:Date.now()}; if(instr.approvals.tech && instr.approvals.dsgvo) publishNow(); else toast(t('appr_given', {a: t(r.k)})); await saveInstr(instr); setChip(); return; }
-    if(r.act==='rej'){ const why = await promptM(t('reject_reason'), t('reason_ph')); if(why===null) return; instr.status='draft'; instr.approvals={tech:null,dsgvo:null}; instr.history.push({version:instr.version, at:Date.now(), by:S.user.name, note:`${t('reject')} (${t(r.k)}): ${why}`}); await saveInstr(instr); setChip(); }
   }
-  function publishNow(){ instr.status='published'; instr.publishedAt = Date.now(); instr.version++; if(!instr.shareKey) instr.shareKey = newShareKey(); instr.history.push({version:instr.version, at:Date.now(), by:instr.createdBy, note:instr.pendingNote||'', tech:instr.approvals.tech, dsgvo:instr.approvals.dsgvo}); instr.pendingNote=''; toast(t('published')+' · v'+instr.version); }
+  // v12.51: with v015 the database keeps the published content as data.live – workers keep it while the next version is edited
+  function publishNow(){ instr.status='published'; instr.publishedAt = Date.now(); instr.version++; if(!instr.shareKey) instr.shareKey = newShareKey(); instr.history.push({version:instr.version, at:Date.now(), by:instr.createdBy, note:instr.pendingNote||'', tech:instr.approvals.tech, dsgvo:instr.approvals.dsgvo}); instr.pendingNote=''; pubSnap = makeLive(instr); if(liveSupported()) instr.live = pubSnap; }
   // import: file picker (phone: photo library, multiple) and drag & drop anywhere on the page (PC)
   const afterHint = () => { const st = instr.steps.find(x=>x.id===sel); return st ? t('import_after',{n: realSteps(instr).indexOf(st)+1}) : t('import_end'); };
   async function doImport(files){ if(myRole==='viewer') return; const added = await importFiles(instr, files, sel); if(!added.length) return; snapshot(); setChip(); renderApprovals(); sel = added[0].id; renderList(); renderStage(); setTimeout(() => focusRow(sel), 50); }
   const impFile = v.querySelector('#imp-file'); if(impFile) impFile.onchange = e => { const fs = [...e.target.files]; e.target.value = ''; doImport(fs); };
   const detachDrop = attachDropImport(doImport, afterHint);
   renderList(); renderStage(); updateCTA();
+  // v12.51: from the start page ("… is waiting for your approval") straight into the approval dialog
+  try{ if(sessionStorage.getItem('gg_open_appr') === instr.id){ sessionStorage.removeItem('gg_open_appr'); setTimeout(() => { if(v.isConnected) approvalDialog(); }, 350); } }catch(e){}
   // v12.46: the clips of this instruction come onto the device in the background (PC: all of them, phone: the next three) – switching
   // steps is then instant; the list shows a small dot per step that is on the device
   { touchEditorCache(instr.id); const markLocal = mid => { localMedia.add(mid); (instr.steps||[]).filter(x => x && x.mediaId===mid).forEach(st => { const r = v.querySelector(`.srow[data-id="${st.id}"]`); if(r) r.classList.add('local'); }); };

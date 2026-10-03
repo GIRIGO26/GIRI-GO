@@ -20,5 +20,9 @@ function instrTabs(instr, active, opts={}){
   return `<nav class="itabs" aria-label="${esc(t('instr_nav'))}">${cEdit || cApprove ? tab('edit', 'edit', IC.edit, t('edit')) : ''}${cEdit ? tab('settings', 'settings', IC.gear, t('settings_tab')) : ''}${cStats ? tab('results', 'results', IC.eye, t('stats_tab'), opts.fbOpen ? `<span class="nbadge">${opts.fbOpen}</span>` : '') : ''}</nav>`;
 }
 const previewBtn = instr => `<a class="btn ghost sm ipv" id="pvw" href="#/preview/${instr.id}" title="${esc(t('preview_sub'))}">${IC.play}<span>${t('preview')}</span></a>`;
+// v12.51: at the far right of the head – a published instruction gets "Link & QR code" (that is what one does with it now; the link opens
+// the live worker view, a separate preview is not needed); a draft keeps "Preview" to check the worker view before the approval.
+// The views wire [data-headshare] to the share dialog.
+const headLinkBtn = instr => instr.status==='published' && can(instr, 'links') ? `<button class="btn sm ipv" id="pvw-share" data-headshare title="${esc(t('share_sub'))}">${IC.qr}<span>${t('link_qr')}</span></button>` : previewBtn(instr);
 
-export { instrCrumbs, instrTabs, previewBtn };
+export { instrCrumbs, instrTabs, previewBtn, headLinkBtn };

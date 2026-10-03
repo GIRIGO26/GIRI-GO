@@ -390,7 +390,7 @@ table.roles td.muted{font-size:12.5px}
 @media(max-width:760px){
   .brand .crumbs .crumb:not(.cur),.brand .crumbs .cr-sep{display:none}
   .brand .crumbs .crumb.cur{max-width:none}
-  .topbar .tb-lang{display:none !important}
+  .topbar .tb-lang:not(.solo){display:none !important}
   .crumbbar{display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:none;white-space:nowrap;padding:8px 16px;font-size:12.5px;font-weight:600;color:var(--ink-3);background:var(--surface);border-bottom:1px solid var(--line)}
   .crumbbar::-webkit-scrollbar{display:none}
   .crumbbar .crumb{color:var(--ink-3);text-decoration:none}
@@ -419,8 +419,6 @@ table.roles td.muted{font-size:12.5px}
 @media(min-width:901px){
   .ed-head{position:sticky;top:calc(60px + env(safe-area-inset-top,0px));z-index:15;background:var(--bg);margin:-14px -16px 14px;padding:12px 16px;border-bottom:1px solid transparent;transition:box-shadow .2s,border-color .2s}
   .ed-head.stuck{border-bottom-color:var(--line);box-shadow:0 12px 24px -20px rgba(16,24,40,.45)}
-  .page .steps-panel{top:calc(var(--edh,0px) + 72px);max-height:calc(100vh - var(--edh,0px) - 96px)}
-  .ed-main{top:calc(var(--edh,0px) + 72px) !important;max-height:calc(100vh - var(--edh,0px) - 92px) !important}
 }
 @media(max-width:640px){
   .ed-bar{flex-direction:column;align-items:stretch}
@@ -528,12 +526,31 @@ details.team[open] .chev,.acc-card[open] .chev{transform:rotate(180deg)}
 .modal .approve-box .appr{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .modal .approve-box .appr small{display:block;color:var(--ink-3);font-size:12.5px;margin-top:2px;line-height:1.4}
 .modal .approve-box .appr.ok b{color:var(--green,#0a7c55)}
-/* v12.49: one page, one scroll – side columns no longer scroll on their own (src/ui/flowsticky.js sets their `top`) */
+.notice.ok{background:var(--ok-bg);color:var(--ok-ink);display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.notice.ok svg{width:16px;height:16px;flex:none}
+/* v12.51: the dialog stays open – a rejection takes its reason in the row, submitting its note under the rows */
+.modal .approve-box .appr.rejecting{background:var(--bad-bg);border-radius:12px;padding:10px;margin:0 -10px}
+.appr-rej{flex-basis:100%;display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.appr-rej label,.appr-sub label{font-size:12.5px;font-weight:700;color:var(--ink-2)}
+.appr-rej textarea{width:100%;min-height:70px;resize:vertical}
+.appr-rej textarea.need{border-color:#D92D20;box-shadow:0 0 0 3px rgba(217,45,32,.15)}
+.appr-sub{display:flex;flex-direction:column;gap:8px;margin-top:12px;padding:12px;border-radius:12px;background:var(--surface-2)}
+.appr-live{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;border-radius:12px;background:var(--ok-bg);margin-bottom:10px}
+.appr-live b{display:block;color:var(--ok-ink);font-size:14.5px}
+.appr-live small{display:block;color:var(--ok-ink-2);font-size:12.5px;margin-top:2px;line-height:1.4}
+/* v12.49: the start page's navigator moves with the page (src/ui/flowsticky.js sets its `top`).
+   v12.51 editor (PC): the step – picture and texts – is part of the page and scrolls with it; the step list stays in view on the left
+   and scrolls in its own box when it is longer than the window (wheel over the list = list, anywhere else = page). v12.49 had both
+   editor columns "flowing": with a long list the step column stood still until the list was through – the texts were out of reach. */
 @media(min-width:901px){
-  .page .steps-panel,.steps-panel{max-height:none !important;overflow:visible !important}
-  .ed-main{max-height:none !important;overflow:visible !important}
+  .page .steps-panel,.steps-panel{position:sticky;top:calc(var(--edh,0px) + 72px);max-height:calc(100vh - var(--edh,0px) - 88px);overflow-x:hidden;overflow-y:auto;scrollbar-width:thin;scrollbar-gutter:stable}
+  .ed-main{position:static;top:auto;max-height:none;overflow:visible}
   .dnav{max-height:none;overflow:visible;overscroll-behavior:auto}
 }
+@supports (height:100dvh){ @media(min-width:901px){ .page .steps-panel,.steps-panel{max-height:calc(100dvh - var(--edh,0px) - 88px)} } }
+/* the list stays fully under the head down to the very end of the page: a sticky box cannot leave its grid row, and the page's bottom
+   padding after the row pushed it up under the head – the space now sits inside the row (under the step column) */
+@media(min-width:901px){ .edpage{padding-bottom:0} .edpage .ed-main{padding-bottom:64px} .edpage #tab-settings{padding-bottom:64px} }
 
 /* ---- v12.50: sign in on the phone by QR code ---- */
 .menu-row + .menu-row{margin-top:8px}
@@ -576,3 +593,112 @@ details.team[open] .chev,.acc-card[open] .chev{transform:rotate(180deg)}
 .dl-in:focus{border-color:var(--blue);outline:0;box-shadow:0 0 0 4px rgba(0,78,173,.15)}
 .qrl-acts{flex-direction:column;align-items:center;gap:12px}
 .lnk{background:none;border:0;padding:0;color:var(--blue);font-weight:700;cursor:pointer;font-size:inherit}
+
+/* ---- v12.51: checklist result card – readable in both themes, also with notes and photos ----
+   before: dark number tiles on the white card of the light theme ("0 open" black on near-black), the notes light grey on white,
+   a black "Start again" on the dark card. Every text here is ≥ 4.5:1 on its background. */
+.vw-end .card{padding:24px 22px 22px}
+.vw-end .ve-ico{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:10px;background:rgba(52,211,153,.16);color:#34D399}
+.vw-end .ve-ico svg{width:24px;height:24px}
+.vw-end.nok .ve-ico,.vw-end.open .ve-ico{background:rgba(253,176,34,.16);color:#FDB022}
+.vw-end .card h1{font-size:24px;line-height:1.2;letter-spacing:-.02em;margin:0}
+.vw-end.nok .card h1,.vw-end.open .card h1{color:#FDB022}
+.vw-end .card .sub{color:#C3CEDD;margin:6px 0 0;font-size:14px;line-height:1.45}
+.vw-end .sum{margin:16px 0 0}
+.vw-end .sum div{background:#26262B;border:1px solid #34343A}
+.vw-end .sum b{color:#fff}
+.vw-end .sum .s-ok b{color:#4ADE9F}
+.vw-end .sum .s-nok b{color:#FF9B9F}
+.vw-end .sum span{color:#B4B8C0;font-weight:700}
+.vw-end .nok-h{margin:18px 0 8px;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#B4B8C0}
+.vw-end .nok-list{display:grid;gap:8px;color:#E4E6EB;font-size:14px}
+.vw-end .nk{background:#26262B;border-left:4px solid #FF9B9F;border-radius:10px;padding:10px 12px;display:grid;gap:6px}
+.vw-end .nk-t{display:flex;gap:8px;align-items:baseline;color:#fff}
+.vw-end .nk-x{color:#FF9B9F;font-weight:800}
+.vw-end .nk-note{margin:0;color:#E4E6EB;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.vw-end .nk-ph{width:100%;max-width:220px;max-height:160px;object-fit:cover;border-radius:8px;display:block;margin:2px 0 0}
+.vw-end .ve-acts{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+.vw-end .ve-acts .btn{flex:1 1 140px;justify-content:center}
+.vw-end .card .btn.ghost{color:#fff;border-color:#4A4B52;background:transparent}
+.vw-end .card .btn.ve-main{background:var(--brand,#004EAD);color:var(--on-brand,#fff);border-color:transparent}
+/* light theme */
+.viewer.light .vw-end .ve-ico{background:#E7F7EF;color:#0A7C55}
+.viewer.light .vw-end.nok .ve-ico,.viewer.light .vw-end.open .ve-ico{background:#FEF0C7;color:#B45309}
+.viewer.light .vw-end.nok .card h1,.viewer.light .vw-end.open .card h1{color:#B45309}
+.viewer.light .vw-end .card .sub{color:#475467}
+.viewer.light .vw-end .sum div{background:#F2F4F7;border-color:#E4E7EC}
+.viewer.light .vw-end .sum b{color:#101828}
+.viewer.light .vw-end .sum .s-ok b{color:#067647}
+.viewer.light .vw-end .sum .s-nok b{color:#B42318}
+.viewer.light .vw-end .sum span{color:#475467}
+.viewer.light .vw-end .nok-h{color:#475467}
+.viewer.light .vw-end .nok-list{color:#344054}
+.viewer.light .vw-end .nk{background:#FEF3F2;border-left-color:#D92D20}
+.viewer.light .vw-end .nk-t{color:#101828}
+.viewer.light .vw-end .nk-x{color:#B42318}
+.viewer.light .vw-end .nk-note{color:#344054}
+.viewer.light .vw-end .card .btn.ghost{color:#101828;border-color:#D0D5DD;background:#fff}
+
+/* ---- v12.51: "for you" on the start page – tasks (approvals, feedback) as before, plus news lines (checklists completed) ---- */
+.inbox{display:flex;flex-direction:column;align-items:stretch;gap:8px}
+.inbox .ib-h{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.inbox .ib-h .flink{font-size:12.5px}
+.inbox .ib-tasks{display:flex;flex-wrap:wrap;gap:8px}
+.inbox .ib-news{display:flex;flex-direction:column;gap:6px}
+.nwx{display:flex;align-items:stretch;border-radius:12px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
+.nwx .nw-a{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:10px 12px;color:var(--ink);text-decoration:none;font-size:14px;line-height:1.35}
+.nwx .nw-a:hover{background:var(--surface-2)}
+.nwx .nw-ico{width:28px;height:28px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;background:var(--ok-bg);color:var(--ok-ink)}
+.nwx .nw-ico svg{width:16px;height:16px}
+.nwx.warn .nw-ico{background:#FEF0C7;color:#B45309}
+.nwx .nw-t{flex:1;min-width:0}
+.nwx .nw-t em{font-style:normal;font-weight:700;color:var(--warn-ink)}
+.nwx .nw-a > b{color:var(--blue);white-space:nowrap;font-size:13px}
+.nwx .nw-x{flex:none;width:40px;border-left:1px solid var(--line);color:var(--ink-3);font-size:20px;line-height:1;background:transparent}
+.nwx .nw-x:hover{background:var(--surface-2);color:var(--ink)}
+.nwx.pop{animation:nwpop 1.6s var(--ease)}
+@keyframes nwpop{0%{box-shadow:inset 0 0 0 2px var(--mint),0 0 0 6px rgba(3,211,155,.25)}100%{box-shadow:inset 0 0 0 1px var(--line),0 0 0 0 rgba(3,211,155,0)}}
+.inbox .nw-more{align-self:flex-start;font-size:13px}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .nwx.warn .nw-ico{background:#3A2A0A;color:#FDB022} }
+.nwx .nw-t{display:flex;flex-direction:column;gap:2px}
+.nwx .nw-l1{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-weight:700}
+.nwx .nw-l2{font-size:12.5px;color:var(--ink-2)}
+@media(max-width:640px){ .nwx .nw-l1{-webkit-line-clamp:1} .nwx .nw-a{padding:9px 10px;gap:9px;font-size:13.5px} .nwx .nw-ico{width:24px;height:24px} .nwx .nw-ico svg{width:14px;height:14px} .nwx .nw-go span{display:none} .nwx .nw-x{width:36px} }
+
+/* ---- v12.51: the approved version stays live while the next one is edited ---- */
+.livepill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:var(--ok-bg);color:var(--ok-ink);font-size:12px;font-weight:800;white-space:nowrap}
+.livepill::before{content:'';width:7px;height:7px;border-radius:50%;background:#12B76A;box-shadow:0 0 0 3px rgba(18,183,106,.18)}
+.live-banner{display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:10px 14px;border-radius:12px;background:var(--ok-bg);color:var(--ok-ink);font-size:13.5px;font-weight:600;line-height:1.45}
+.live-banner svg{width:18px;height:18px;flex:none}
+.live-banner.warn{background:rgba(245,165,36,.14);color:var(--warn-ink)}
+.live-banner[hidden]{display:none}
+/* v12.51 QA: one status box in the approval dialog – green = done, blue = information, red = rejected */
+.notice.appr-msg{display:flex;align-items:center;gap:8px;margin-bottom:10px;line-height:1.4}
+.notice.appr-msg svg{width:16px;height:16px;flex:none}
+.notice.bad{background:var(--bad-bg);color:var(--bad-ink)}
+
+/* v12.51 QA: the analytics head is exactly as tall as the editor head – the tab bar no longer jumps by 5 px (PC) / 55 px (phone) */
+.res-head .title-wrap{min-width:0;max-width:100%}
+.res-head .ititle-static{line-height:normal;border-bottom:2px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
+.ed-head input.title,.res-head .ititle-static{height:46px;line-height:32px;padding-top:6px;padding-bottom:6px;border-bottom-width:2px;box-sizing:border-box}
+@media(max-width:640px){ .ed-head input.title,.res-head .ititle-static{font-size:18px} }
+@media(max-width:560px){ .ed-head input.title,.res-head .ititle-static{font-size:20px;height:36px;line-height:30px;padding-top:2px;padding-bottom:2px} }
+
+/* v12.51 QA: analytics tables on the phone as compact cards (one block per row, the column name in front of each value) instead of a
+   table cut off at the right; a short tab label ("Protokoll") so the three sub-tabs fit */
+.lbl-s{display:none}
+@media(max-width:640px){
+  .lbl-l{display:none} .lbl-s{display:inline}
+  table.res.mcards,table.res.mcards tbody{display:block;width:100%}
+  table.res.mcards thead{display:none}
+  table.res.mcards tr{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  table.res.mcards tr:last-child{border-bottom:0}
+  table.res.mcards td{padding:0;border:0;font-size:13px}
+  table.res.mcards td[data-l]::before{content:attr(data-l) "\00a0";color:var(--ink-3);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+  table.res.mcards td.m-main{flex:1 1 100%;font-size:14px}
+  table.res.mcards td.m-hide{display:none}
+  table.res.mcards td.m-act{margin-left:auto}
+  table.res.mcards td:empty{display:none}
+}
+/* the phone rule for tab buttons in 02-app-shell lost against the base rule in 03-primitives (same weight, later file) – restated here */
+@media(max-width:640px){ .tabs button{padding:9px 8px;font-size:13px;gap:5px;min-width:0} }

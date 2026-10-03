@@ -42,18 +42,19 @@ const browser = await chromium.launch(launchArgs([])); const errs = [];
   await d.click('#more'); await d.waitForTimeout(300); console.log('⋯ menu:', await d.$$eval('.modal [data-m]', x => x.map(b => b.textContent.trim()).join(' | '))); await d.click('.modal [data-m="pdf"]'); await d.waitForTimeout(400);
   console.log('⋯ → PDF asks for the language:', await d.$eval('.modal h2', e => e.textContent.trim()).catch(() => 'none')); await d.click('.modal [data-x]'); await d.waitForTimeout(300);
   await d.click('#stchip'); await d.waitForTimeout(400); console.log('status chip → dialog:', await d.$eval('.modal h2', e => e.textContent.trim()), '| rows:', await d.$$eval('.modal .appr', x => x.map(r => r.innerText.replace(/\n+/g,' – ')).join(' || ')));
-  await d.click('.modal #ap-submit'); await d.waitForTimeout(400); { const ok = await d.$('.modal-bg [data-ok]'); if(ok){ await ok.click(); await d.waitForTimeout(700); } }
+  await d.click('.modal #ap-submit'); await d.waitForTimeout(400); await d.click('.modal #ap-subok'); await d.waitForTimeout(700); await d.click('.modal [data-x]'); await d.waitForTimeout(300); // v12.51: note in the dialog, the dialog stays open
   console.log('submitted – chip:', await d.$eval('#stchip', e => e.textContent), '| CTA:', await d.$eval('#cta', e => e.hidden ? 'hidden' : e.textContent));
   await d.click('#cta'); await d.waitForTimeout(400); console.log('CTA "Freigeben" → dialog with:', await d.$$eval('.modal [data-aok], .modal #ap-both', x => x.map(b => b.id || b.dataset.aok).join(',')));
-  await d.click('.modal [data-aok="tech"]'); await d.waitForTimeout(600); console.log('technical given:', await d.$eval('#toast', e => e.textContent), '| chip:', await d.$eval('#stchip', e => e.textContent));
-  await d.click('#cta'); await d.waitForTimeout(400); await d.click('.modal [data-aok="dsgvo"]'); await d.waitForTimeout(700); console.log('GDPR given → chip:', await d.$eval('#stchip', e => e.textContent), '| version:', await d.$eval('#vchip', e => e.textContent), '| CTA:', await d.$eval('#cta', e => e.hidden ? 'hidden' : e.textContent));
+  await d.click('.modal [data-aok="tech"]'); await d.waitForTimeout(600); console.log('technical given:', await d.$eval('.modal .appr-msg', e => e.textContent.trim()), '| chip:', await d.$eval('#stchip', e => e.textContent));
+  await d.click('.modal [data-x]'); await d.waitForTimeout(300);
+  await d.click('#cta'); await d.waitForTimeout(400); await d.click('.modal [data-aok="dsgvo"]'); await d.waitForTimeout(700); await d.click('.modal [data-x]'); await d.waitForTimeout(300); console.log('GDPR given → chip:', await d.$eval('#stchip', e => e.textContent), '| version:', await d.$eval('#vchip', e => e.textContent), '| CTA:', await d.$eval('#cta', e => e.hidden ? 'hidden' : e.textContent));
   // settings sub-page: folder (location) + access + checklist + feedback; nothing about approvals or PDF
   await d.click('.itab[data-itab="settings"]'); await d.waitForTimeout(1200);
   console.log('settings:', await d.evaluate(() => location.hash.replace(/[a-z0-9]{10,}/, '<id>')), '| sections:', await d.$$eval('#tab-settings .set-sec', x => x.map(e => e.id).join(',')), '| approvals/PDF on the page:', !!(await d.$('#tab-settings #appr, #tab-settings [data-pdforig], #tab-settings #txcard')));
   await d.click('#set-fmove'); await d.waitForTimeout(400); await d.click('.modal [data-fid="f1"]'); await d.waitForTimeout(1200);
   console.log('folder changed here:', await d.$eval('#set-fname', e => e.textContent), '| crumbs follow:', await d.$eval('.topbar .crumbs', e => e.textContent.replace(/\s+/g,' ').trim()));
   await d.click('.itab[data-itab="results"]'); await d.waitForTimeout(1200);
-  console.log('analytics = same head:', await d.evaluate(() => [...document.querySelectorAll('.ed-head .itab')].map(x => (x.classList.contains('on') ? '*' : '') + x.textContent.trim()).join(' | ')), '| preview button there too:', !!(await d.$('.ed-head #pvw')));
+  console.log('analytics = same head:', await d.evaluate(() => [...document.querySelectorAll('.ed-head .itab')].map(x => (x.classList.contains('on') ? '*' : '') + x.textContent.trim()).join(' | ')), '| head button there too (published → Link & QR):', !!(await d.$('.ed-head #pvw, .ed-head #pvw-share')));
   await ctx.close(); }
 
 // ---- 3. one scroll for the page (PC): editor with 25 steps, start page with 30 folders ----
@@ -70,12 +71,14 @@ const browser = await chromium.launch(launchArgs([])); const errs = [];
   console.log('start page: own scroll boxes:', JSON.stringify(await boxes()), '| wheel over the navigator scrolls the page:', await d.evaluate(() => scrollY) > 1000);
   const id = await d.evaluate(() => window.__tables.instructions[0].id);
   await d.goto(BASE+'/index3.html#/trash'); await d.waitForTimeout(300); await d.goto(BASE+'/index3.html#/edit/'+id); await d.waitForTimeout(2000);
-  await d.mouse.move(250, 500); for(let k=0;k<12;k++){ await d.mouse.wheel(0, 300); await d.waitForTimeout(60); } await d.waitForTimeout(400);
-  const mb = await (await d.$('.ed-main')).boundingBox();
-  console.log('editor: own scroll boxes:', JSON.stringify(await boxes()), '| wheel over the list scrolls the page:', await d.evaluate(() => scrollY) > 1000, '| step column stops at the window bottom:', Math.abs(mb.y + mb.height - 804) < 60);
-  await d.click('.srow[data-id="sx15"]'); await d.waitForTimeout(1000);
-  const top = await d.evaluate(() => Math.round(parseFloat(document.querySelector('main.page').style.getPropertyValue('--edh')) + 72));
-  console.log('pick step 21 → its picture is in view (column top under the head):', Math.abs(Math.round((await (await d.$('.ed-main')).boundingBox()).y) - top) <= 3);
+  // v12.51: the editor changed – the step column scrolls with the page, the list in its own box (details: tests/r51.mjs)
+  await d.mouse.move(250, 500); for(let k=0;k<6;k++){ await d.mouse.wheel(0, 300); await d.waitForTimeout(60); } await d.waitForTimeout(400);
+  console.log('editor: own scroll boxes:', JSON.stringify(await boxes()), '| wheel over the list scrolls the list, not the page:', await d.evaluate(() => scrollY) < 5 && await d.evaluate(() => document.querySelector('.steps-panel').scrollTop) > 300);
+  await d.mouse.move(900, 500); for(let k=0;k<6;k++){ await d.mouse.wheel(0, 300); await d.waitForTimeout(60); } await d.waitForTimeout(400);
+  console.log('wheel over the step scrolls the page:', await d.evaluate(() => scrollY) > 200);
+  const pick = await d.evaluate(() => { const p = document.querySelector('.steps-panel').getBoundingClientRect(); const rows = [...document.querySelectorAll('.srow')].filter(r => { const b = r.getBoundingClientRect(); return b.top >= p.top && b.bottom <= p.bottom; }); return rows[rows.length-1].dataset.id; });
+  await d.click(`.srow[data-id="${pick}"]`); await d.waitForTimeout(1200);
+  console.log('pick a step far down → its picture is in view (under the head):', await d.evaluate(() => { const h = document.querySelector('.ed-head').getBoundingClientRect().bottom, s = document.querySelector('#stage').getBoundingClientRect().top; return s >= h - 2 && s < h + 40; }));
   await ctx.close(); }
 
 // ---- 4. "follow" (tracking) on the phone: a hint first ----

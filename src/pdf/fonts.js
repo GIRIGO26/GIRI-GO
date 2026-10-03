@@ -28,7 +28,7 @@ async function exportQrPdf(instr, link, opts, qrEl){
   let qrData = null; const c = qrEl.querySelector('canvas'), im = qrEl.querySelector('img'); try{ qrData = c ? c.toDataURL('image/png') : (im ? im.src : null); }catch(e){}
   if(!qrData){ const tmp = document.createElement('div'); tmp.style.position='fixed'; tmp.style.left='-9999px'; document.body.appendChild(tmp); try{ new QRCode(tmp, {text:link, width:512, height:512, colorDark:'#000000', colorLight:'#ffffff', correctLevel:QRCode.CorrectLevel.M}); await new Promise(r=>setTimeout(r,80)); const cc = tmp.querySelector('canvas'); qrData = cc ? cc.toDataURL('image/png') : null; }catch(e){} tmp.remove(); }
   // ---- card: white, brand colour only as a stripe; customer logo in its own proportions, no white box; picture cover-cropped; GIRI at the bottom ----
-  const lastHist = instr.history[instr.history.length-1]; const note = opts.note && lastHist && lastHist.note ? lastHist.note : '';
+  const hist = instr.history || []; const lastHist = hist[hist.length-1]; const note = opts.note && lastHist && lastHist.note ? lastHist.note : '';
   const cardW = 150, pad = 12;
   // measure first, so the card is exactly as tall as its content
   F(true); doc.setFontSize(15); const titleLines = opts.title ? doc.splitTextToSize(instr.title, cardW-2*pad).length : 0;

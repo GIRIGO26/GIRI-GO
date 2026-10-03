@@ -42,7 +42,7 @@ const rowToInstr = r => { const i = r.data || {}; i.id = r.id; i.ws = r.ws; i.st
 // since the local mirror – instead of the complete table (posters, translations, history …) on every page load
 const loadInstrs = async () => {
   if(!G.sb || !S.user) { S.instrs = []; return; }
-  const t0 = performance.now(); const sig0 = S.instrs.map(i => i.id+':'+(i.updatedAt||0)).join(',');
+  const t0 = performance.now(), t0wall = Date.now(); const sig0 = S.instrs.map(i => i.id+':'+(i.updatedAt||0)).join(',');
   // v12.47: the copies from the device store never replace an in-memory object that is at least as new – the editor and the camera
   // hold references, and a swap while offline made steps recorded since disappear from the list until the next full sync
   const offlineFallback = async error => { const mem = new Map(S.instrs.map(i => [i.id, i])); const local = (await mirrorList()).map(r => { const m = mem.get(r.id); return m && (m.updatedAt||0) >= (r.updatedAt||0) ? m : r; }); { const ids = new Set(local.map(r => r.id)); S.instrs.forEach(m => { if(!ids.has(m.id) && m.ws === S.user.ws) local.push(m); }); } /* v12.48: an instruction created a moment ago (not in the device store yet) stays */ S.instrs = local.sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0)); if(!netErr(error)) toast(error.message); else toast(t('offline_copy')); };
@@ -62,6 +62,12 @@ const loadInstrs = async () => {
   if(error) return offlineFallback(error);
   const mem = new Map(S.instrs.map(i => [i.id, i])); // unchanged rows keep their in-memory object (editor/capture hold references)
   const rows = heads.map(h => fresh.get(h.id) || mem.get(h.id) || (local.get(h.id) && fixLegacyHosts(local.get(h.id)))).filter(Boolean);
+  // v12.51: an instruction created (or saved) on this device while this sync was running is not in the heads yet – keep it. Before,
+  // a new empty instruction could vanish from the list (and "to the editor" from the camera landed on the start page) until the next sync.
+  // Only a save of this page that is still running or was answered after this sync began counts (G.savePending / G.savedHere) – an
+  // instruction deleted elsewhere, or a copy from the device store after a reload, is not kept this way.
+  { const ids = new Set(rows.map(r => r.id)); const here = G.savedHere || new Map(), pend = G.savePending || new Map();
+    S.instrs.forEach(m => { if(m && !ids.has(m.id) && m.ws === S.user.ws && (pend.has(m.id) || (here.get(m.id)||0) >= t0wall - 1000)){ rows.unshift(m); ids.add(m.id); } }); }
   rows.forEach(i => { if(!fresh.has(i.id)) rememberRemote(i); });
   S.instrs = await mirrorMerge(rows, have, mem); await mirrorAll(S.instrs, fresh, have);
   G.lastSync = Date.now(); const changed = S.instrs.map(i => i.id+':'+(i.updatedAt||0)).join(',') !== sig0;

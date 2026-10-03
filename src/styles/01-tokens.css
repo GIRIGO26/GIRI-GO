@@ -8,7 +8,8 @@
   --mint:#03D39B; --mint-ink:#06513D; --green-light:#9BEDD7; --green-lightest:#F1FDFA;
   --amber:#F5A524; --red:#DC2626; --red-soft:#ED9292; --yellow:#FFD23F; --success:#15803D;
   --bg:#F5F6F8; --surface:#FFFFFF; --surface-2:#F2F3F6; --surface-3:#E8EAEE; --line:#E4E6EB; --line-2:#D3D6DC;
-  --ink:#0B0B0C; --ink-2:#3B3F47; --ink-3:#7B808A;
+  --ink:#0B0B0C; --ink-2:#3B3F47; --ink-3:#676C75;
+  --ok-bg:#E7F7EF; --ok-ink:#0A6B47; --ok-ink-2:#2F5D4A; --bad-bg:#FEF3F2; --bad-ink:#B42318; --warn-ink:#B45309; /* v12.51 status colours (text ≥ 4.5:1 on their background) */
   --accent:var(--blue); --accent-ink:#fff;
   --shadow-1:0 1px 2px rgba(16,24,40,.05);
   --shadow-2:0 2px 4px rgba(16,24,40,.04),0 18px 40px -16px rgba(1,39,86,.22);
@@ -24,6 +25,7 @@
   :root:not([data-theme="light"]){
     --bg:#0B0B0D; --surface:#151517; --surface-2:#1E1E22; --surface-3:#26262B; --line:#2A2B30; --line-2:#3A3B41;
     --ink:#F5F5F7; --ink-2:#C9CBD1; --ink-3:#8B8F98;
+    --ok-bg:#0E2A22; --ok-ink:#6CE9A6; --ok-ink-2:#A6E7C8; --bad-bg:#2D1412; --bad-ink:#FDA29B; --warn-ink:#FDB022;
     --accent:#3B7DE0; --blue-lightest:#0F1E33; --green-lightest:#0E2A22;
     --shadow-1:0 1px 2px rgba(0,0,0,.4); --shadow-2:0 14px 34px -10px rgba(0,0,0,.6);
   }

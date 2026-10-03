@@ -6,7 +6,7 @@ Ein Vite-Projekt, das zu **einer statischen Seite** gebaut wird (`index.html` + 
 app/index.html      Einstieg (HTML-Shell, CDN-Bibliotheken, Version, Supabase-Konfiguration) – hier die Version hochzählen
 src/main.js         Start: Sprache, Event-Listener, Boot (Supabase-Client, erster Render)
 src/styles/         Stylesheet, nach Bereichen getrennt (Tokens, Shell, Primitives, Dashboard, Capture, Editor, Viewer, Login)
-src/core/           Grundlagen: i18n, Storage (IndexedDB), Supabase-Client, State (S + G), Workspace, Rich-Text, Übersetzung (DeepL), Link-Passwörter, Upload-Queue, Auth (inkl. Sitzungsdauer), Helfer, Offline-Spiegel (offline.js), Offline-Kopien für Werker (viewcache.js), Einladungs-Mail (invite.js)
+src/core/           Grundlagen: i18n, Storage (IndexedDB), Supabase-Client, State (S + G), Workspace, Rich-Text, Übersetzung (DeepL), Link-Passwörter, Upload-Queue, Auth (inkl. Sitzungsdauer), Helfer, Offline-Spiegel (offline.js), Offline-Kopien für Werker (viewcache.js), Einladungs-Mail (invite.js), freigegebene Fassung während der Überarbeitung (live.js)
 src/ui/             Icons, Topbar (Pfad, Profil, App-Menü), Reiter einer Anleitung (instrnav.js), Charts
 src/annotations/    Symbole auf Bild/Video: Zeichnen, 3D, Animation, Handles (gemeinsam für Editor, Viewer, PDF)
 src/views/          Seiten: Login, Dashboard/Projekte, Capture (Kamera), Editor, Viewer (Werker), Statistik, Admin, Ergebnisse/Feedback, Share, Branding, Symbole

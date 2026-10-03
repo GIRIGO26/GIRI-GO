@@ -31,7 +31,7 @@ function topbar(app, opts={}){
     ${back != null ? `<button class="tb-btn" data-back aria-label="${esc(t('back'))}${parent ? ': ' + esc(parent.label) : ''}" title="${parent ? esc(parent.label) : esc(t('back'))}">${IC.back}</button>` : ''}
     <div class="brand"><a class="logo" href="#/" role="img" aria-label="GIRI"></a><span class="wordmark">GIRI</span><button class="beta" type="button" data-beta title="${t('beta_title')}">BETA</button>${crumbs.length ? `<nav class="where crumbs" aria-label="${esc(t('you_are_here'))}"><span class="sep"></span>${trail}</nav>` : ''}</div>
     <div class="spacer"></div>
-    <button class="tb-btn tb-lang" data-lang title="${t('language')}">${FLAGS[G.LANG.toUpperCase()]||''} <span class="tb-langc">${G.LANG.toUpperCase()}</span></button>
+    <button class="tb-btn tb-lang ${S.user ? '' : 'solo'}" data-lang title="${t('language')}">${FLAGS[G.LANG.toUpperCase()]||''} <span class="tb-langc">${G.LANG.toUpperCase()}</span></button>
     ${S.user ? `<button class="tb-btn tb-user" id="tbprofile" data-profile title="${esc(t('menu_profile'))}">${avatarHtml(S.user)}<span class="tb-name">${esc(S.user.name.split(' ')[0])}</span></button><button class="tb-btn tb-menu" id="tbmenu" data-menu aria-haspopup="menu" title="${t('menu')}">${IC.menu}</button>` : ''}
   </header>`);
   const lb = tb.querySelector('[data-lang]'); if(lb) lb.onclick = pickLang;

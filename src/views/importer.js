@@ -72,12 +72,12 @@ const probe = (url, isVideo) => new Promise(res => { let done = false; const fin
   else { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => fin({w:i.naturalWidth||1280, h:i.naturalHeight||960, img:i}); i.onerror = () => fin(null); i.src = url; } });
 
 async function renderImporter(app){
-  topbar(app, {crumbs: [{label: t('instructions'), href: ''}, {label: t('ws_admin'), href: 'admin'}, {label: t('imp_title')}]});
+  topbar(app, {crumbs: [{label: t('instructions'), href: ''}, {label: t('imp_title')}]});
   if(!S.user.isAdmin){ app.appendChild(el(`<main class="page page-narrow"><div class="card empty"><h2>${t('imp_title')}</h2><div>${t('only_admin')}</div></div></main>`)); return; }
   let conn = null, list = null; const sel = new Set(); const opts = {folders:true, status:true, icons:true};
   const done = new Map(); (S.instrs||[]).forEach(i => { if(i.source && i.source.kind==='giri-classic' && i.source.oldId) done.set(i.source.oldId, i.id); });
   const v = el(`<main class="page page-narrow imp">
-    <div class="dash-head"><div class="dash-title"><div class="eyebrow">${IC.upload} ${t('ws_admin')}</div><h1>${t('imp_title')}</h1></div></div>
+    <div class="dash-head"><div class="dash-title"><div class="eyebrow">${IC.upload} ${t('menu_admin')}</div><h1>${t('imp_title')}</h1></div></div>
     <p class="muted" style="margin:-6px 0 14px">${t('imp_intro')}</p>
     <section class="card side-info" id="imp-connect"><h3>1 · ${t('imp_connect')}</h3>
       <div class="field"><label for="imp-srv">${t('imp_server')}</label><input id="imp-srv" value="${DEFAULT_SERVER}" autocomplete="url" spellcheck="false"></div>

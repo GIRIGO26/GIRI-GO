@@ -7,6 +7,7 @@ import { t } from '../core/i18n.js';
 import { saveInstr } from '../core/passwords.js';
 import { G, S, putMedia } from '../core/state.js';
 import { DB, uid } from '../core/storage.js';
+import { liveUses } from '../core/live.js';
 import { runUploads } from '../core/uploads.js';
 import { importFiles } from '../media/import.js';
 import { IC } from '../ui/icons.js';
@@ -24,7 +25,7 @@ async function renderCapture(app, id, modeArg, stepArg){
   const v = el(`<div class="capture">
     <video id="cam" autoplay muted playsinline></video>
     <div class="focus-ring" id="focus"></div><div class="flash" id="flash"></div>
-    <div class="cap-top"><button class="cnt tnum" id="cnt">${realSteps(instr).length} ${t('steps')}</button><span class="spacer"></span><button class="round done-top" id="done" title="${t('cap_done')}">${IC.check}<span>${t('cap_done')}</span></button></div>
+    <div class="cap-top"><button class="cnt tnum" id="cnt">${realSteps(instr).length} ${t(realSteps(instr).length===1 ? 'step' : 'steps')}</button><span class="spacer"></span><button class="round done-top" id="done" title="${t('cap_done')}">${IC.check}<span>${t('cap_done')}</span></button></div>
     <div class="diagwrap" id="diagwrap" hidden><pre class="diag" id="diag"></pre><label class="btn ghost sm" style="cursor:pointer;color:#fff;border-color:rgba(255,255,255,.4)">${IC.upload} ${t('native_cam')}<input type="file" accept="video/*,image/*" capture="environment" hidden id="alt-file"></label></div>
     <div class="modebar" id="modebar" hidden><span id="modetxt"></span><button id="modex" aria-label="cancel">${IC.close}</button></div>
     <div class="cap-bottom">
@@ -76,7 +77,7 @@ async function renderCapture(app, id, modeArg, stepArg){
   { const md = v.querySelector('#modedel'); if(md) md.onclick = async () => { const st = realSteps(instr).find(x => x.id===mode.stepId); if(!st) return; if(!(await confirmM(t('confirm_del_step'), t('delete')))) return; trashStep(instr, st); await saveInstr(instr); mode = {type:'append'}; renderMode(); refreshStrip(); toast(t('trashed_toast')); }; }
   const capImp = v.querySelector('#cap-imp input'); if(capImp) capImp.onchange = async e => { const fs = [...e.target.files]; e.target.value = ''; if(!fs.length) return; const after = mode.type==='after' ? mode.stepId : null; const added = await importFiles(instr, fs, after); if(added.length){ if(mode.type==='after') mode = {type:'after', stepId:added[added.length-1].id}; posterCache.clear(); refreshStrip(); } };
   const refreshStrip = async () => {
-    const st = realSteps(instr); v.querySelector('#cnt').textContent = st.length+' '+t('steps');
+    const st = realSteps(instr); v.querySelector('#cnt').textContent = st.length+' '+t(st.length===1 ? 'step' : 'steps');
     for(const sid of ['#strip','#strip2']){ const strip = v.querySelector(sid); strip.innerHTML='';
       for(const [k,s] of st.entries()){ const d = el(`<div class="st ${mode.stepId===s.id?(mode.type==='replace'?'sel':'aft'):''} ${s.mediaId?'':'noshot'} ${s.placeholder?'ph':''}">${s.mediaId ? '<img alt="">' : `<b>${IC.cam}</b>`}<i>${k+1}</i>${s.placeholder ? `<u>${t('ph_tag')}</u>` : ''}</div>`); strip.appendChild(d); if(s.mediaId){ const known = stepPosterSync(s); if(known) d.querySelector('img').src = known; else stepPoster(s).then(u=>{ if(u) d.querySelector('img').src=u; }); }
         d.onclick = () => { if(mode.type==='replace' && mode.stepId===s.id) mode = {type:'append'}; else mode = {type:'replace', stepId:s.id}; renderMode(); refreshStrip(); if(navigator.vibrate) try{navigator.vibrate(8);}catch(e){} }; }
@@ -167,7 +168,7 @@ async function renderCapture(app, id, modeArg, stepArg){
     let n = realSteps(instr).length+1, nextMsg = '';
     const target = mode.stepId ? instr.steps.find(x=>x.id===mode.stepId) : null;
     if(mode.type==='replace' && target){
-      if(target.mediaId){ await DB.del('media', target.mediaId).catch(()=>{}); } if(target.mediaPath) G.sb.storage.from('media').remove([target.mediaPath]).catch(()=>{});
+      if(target.mediaId){ await DB.del('media', target.mediaId).catch(()=>{}); } if(target.mediaPath && !liveUses(instr, target.mediaPath)) G.sb.storage.from('media').remove([target.mediaPath]).catch(()=>{}); // v12.51: not while the live version shows it
       const wasEmpty = needsShot(target); delete target.placeholder;
       Object.assign(target, {type:m.type, mediaId:mid, mediaUrl:null, mediaPath:null, w:m.w, h:m.h, duration:m.duration, trimStart:0, trimEnd:m.duration, poster:m.poster||null}); target.ann = (target.ann||[]).map(a => Object.assign({}, a, {t:0}));
       n = realSteps(instr).indexOf(target)+1; posterCache.clear(); mode = {type:'append'};
